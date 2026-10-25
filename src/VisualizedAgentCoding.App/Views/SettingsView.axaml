@@ -1,0 +1,112 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:happy_agent_coding.ViewModels"
+             x:Class="happy_agent_coding.Views.SettingsView"
+             x:DataType="vm:MainViewModel">
+    <Grid Background="#99000000"
+          ColumnDefinitions="0.08*,0.84*,0.08*"
+          RowDefinitions="0.08*,0.84*,0.08*">
+        <Border Grid.Row="1"
+                Grid.Column="1"
+                MaxWidth="1100"
+                MaxHeight="760"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                ClipToBounds="True">
+            <Grid RowDefinitions="Auto,*">
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="24,10,20,10">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="设置"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               VerticalAlignment="Center" />
+                    <Button Grid.Column="1"
+                            Classes="caption-button"
+                            Command="{Binding CloseSettingsCommand}"
+                            ToolTip.Tip="关闭设置"
+                            AutomationProperties.Name="关闭设置">
+                        <TextBlock Classes="caption-glyph" Text="&#xE8BB;" />
+                    </Button>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" ColumnDefinitions="200,*">
+                <Border Grid.Column="0"
+                        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="0,1,1,0"
+                        Padding="16,20">
+                    <StackPanel Spacing="6">
+                        <Button Classes="settings-category-button selected"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left">
+                            <TextBlock Text="外观" />
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <ScrollViewer Grid.Column="1" Padding="28,24">
+                    <StackPanel Spacing="20" MaxWidth="620" HorizontalAlignment="Left">
+                        <TextBlock Text="外观"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                        <Border Background="{DynamicResource LayerFillColorBrush}"
+                                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="16">
+                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                                <TextBlock Grid.Row="0"
+                                           Text="侧栏按钮显示模式"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                           VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="0" Grid.Column="1"
+                                          Classes="sidebar-mode-selector"
+                                          SelectedIndex="{Binding SidebarDisplayModeIndex}"
+                                          ToolTip.Tip="侧栏按钮显示模式"
+                                          AutomationProperties.Name="侧栏按钮显示模式"
+                                          VerticalAlignment="Center">
+                                    <ComboBoxItem Content="仅图标" />
+                                    <ComboBoxItem Content="仅文字" />
+                                    <ComboBoxItem Content="文字+图标" />
+                                </ComboBox>
+
+                                <TextBlock Grid.Row="1"
+                                           Grid.Column="0"
+                                           Text="颜色主题"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,20,16,0" />
+                                <ComboBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="1"
+                                          Classes="sidebar-mode-selector"
+                                          SelectedIndex="{Binding SelectedThemeIndex}"
+                                          ToolTip.Tip="颜色主题"
+                                          AutomationProperties.Name="颜色主题"
+                                          VerticalAlignment="Center"
+                                          Margin="8,20,8,0">
+                                    <ComboBoxItem Content="跟随系统" />
+                                    <ComboBoxItem Content="浅色模式" />
+                                    <ComboBoxItem Content="深色模式" />
+                                </ComboBox>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

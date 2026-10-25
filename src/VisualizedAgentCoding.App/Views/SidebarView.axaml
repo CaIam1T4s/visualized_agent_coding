@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:happy_agent_coding.ViewModels"
+             x:Class="happy_agent_coding.Views.SidebarView"
+             x:DataType="vm:MainViewModel">
+    <Border Background="{DynamicResource LayerFillColorBrush}"
+            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+            BorderThickness="0,1,1,0"
+            Padding="12,16">
+        <Grid RowDefinitions="Auto,*,Auto">
+            <StackPanel Grid.Row="0" Spacing="4">
+                <Button x:Name="ProjectButton" Classes="sidebar-button" ToolTip.Tip="项目管理">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ContentControl x:Name="ProjectIcon" Classes="sidebar-icon" />
+                        <TextBlock x:Name="ProjectLabel" Classes="sidebar-label" Text="项目管理" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="EditorButton" Classes="sidebar-button" ToolTip.Tip="切换到编辑器模式">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ContentControl x:Name="EditorIcon" Classes="sidebar-icon" />
+                        <TextBlock x:Name="EditorLabel" Classes="sidebar-label" Text="编辑器模式" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="AgentButton" Classes="sidebar-button" ToolTip.Tip="切换到智能体模式">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ContentControl x:Name="AgentIcon" Classes="sidebar-icon" />
+                        <TextBlock x:Name="AgentLabel" Classes="sidebar-label" Text="智能体模式" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="SearchButton" Classes="sidebar-button" ToolTip.Tip="文本查找">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ContentControl x:Name="SearchIcon" Classes="sidebar-icon" />
+                        <TextBlock x:Name="SearchLabel" Classes="sidebar-label" Text="文本查找" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="TutorialButton" Classes="sidebar-button" ToolTip.Tip="在线教程">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ContentControl x:Name="TutorialIcon" Classes="sidebar-icon" />
+                        <TextBlock x:Name="TutorialLabel" Classes="sidebar-label" Text="在线教程" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <StackPanel Grid.Row="2" Spacing="4">
+                <Button x:Name="SnapshotsButton" Classes="sidebar-button" ToolTip.Tip="版本/快照管理">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ContentControl x:Name="SnapshotsIcon" Classes="sidebar-icon" />
+                        <TextBlock x:Name="SnapshotsLabel" Classes="sidebar-label" Text="版本/快照管理" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="AccountButton" Classes="sidebar-button" ToolTip.Tip="账号">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ContentControl x:Name="AccountIcon" Classes="sidebar-icon" />
+                        <TextBlock x:Name="AccountLabel" Classes="sidebar-label" Text="账号" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="SettingsButton" Classes="sidebar-button" Command="{Binding OpenSettingsCommand}" ToolTip.Tip="设置">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ContentControl x:Name="SettingsIcon" Classes="sidebar-icon" />
+                        <TextBlock x:Name="SettingsLabel" Classes="sidebar-label" Text="设置" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>
