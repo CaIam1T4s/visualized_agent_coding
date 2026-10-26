@@ -1,0 +1,107 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:happy_agent_coding.ViewModels"
+             x:Class="happy_agent_coding.Views.ProjectManagerView"
+             x:DataType="vm:MainViewModel">
+    <Grid Background="#99000000"
+          ColumnDefinitions="0.08*,0.84*,0.08*"
+          RowDefinitions="0.08*,0.84*,0.08*">
+        <Border Grid.Row="1" Grid.Column="1"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                BorderThickness="1" CornerRadius="8" ClipToBounds="True">
+            <Grid RowDefinitions="Auto,*">
+                <Border Grid.Row="0"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="0,0,0,1" Padding="24,10,20,10">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="项目管理" FontSize="20" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                   VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="caption-button"
+                                Command="{Binding CloseProjectManagerCommand}"
+                                ToolTip.Tip="关闭项目管理" AutomationProperties.Name="关闭项目管理">
+                            <TextBlock Classes="caption-glyph" Text="&#xE8BB;" />
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="1" ColumnDefinitions="200,*" ColumnSpacing="0">
+                    <Grid Grid.Column="0" Margin="16,20" RowDefinitions="Auto,Auto,*">
+                        <TextBlock Grid.Row="0" Text="当前项目" FontSize="18" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                   HorizontalAlignment="Left" Margin="12,0,0,0" />
+                        <StackPanel Grid.Row="1" Margin="12,16,0,0" Spacing="6"
+                                    HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding ProjectDisplayName}"
+                                       FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"
+                                       HorizontalAlignment="Left"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="{Binding ProjectRootPath}" FontSize="12" TextWrapping="Wrap"
+                                       HorizontalAlignment="Left"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       IsVisible="{Binding HasOpenProject}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Margin="0,24,0,0" Spacing="6"
+                                    HorizontalAlignment="Stretch" VerticalAlignment="Top">
+                            <Button Classes="command-button secondary" Content="新建项目"
+                                    Click="OnCreateProjectClicked" HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left" Padding="12,8" />
+                            <Button Classes="command-button secondary" Content="打开项目"
+                                    Click="OnOpenProjectClicked" HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left" Padding="12,8" />
+                            <Button Classes="command-button secondary" Content="关闭当前项目"
+                                    Command="{Binding CloseProjectCommand}" HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left" Padding="12,8" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Grid.Column="1" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="1,0,0,0" Padding="24">
+                        <Grid RowDefinitions="Auto,*">
+                            <TextBlock Text="最近打开的项目" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <Grid Grid.Row="1" Margin="0,16,0,0">
+                                <TextBlock IsVisible="{Binding HasRecentProjects, Converter={x:Static BoolConverters.Not}}"
+                                           Text="最近没有打开的项目" TextAlignment="Center"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Margin="0,0,0,80"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <ScrollViewer IsVisible="{Binding HasRecentProjects}">
+                                    <StackPanel Spacing="8">
+                                        <Expander Header="一天内" IsExpanded="True">
+                                            <ItemsControl ItemsSource="{Binding RecentProjectsToday}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:RecentProjectEntry">
+                                                        <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                                Click="OnRecentProjectClicked"
+                                                                Tag="{Binding Path}">
+                                                            <StackPanel Spacing="2">
+                                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                                <TextBlock Text="{Binding Path}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Expander>
+                                        <Expander Header="一周内">
+                                            <ItemsControl ItemsSource="{Binding RecentProjectsThisWeek}" />
+                                        </Expander>
+                                        <Expander Header="一个月内">
+                                            <ItemsControl ItemsSource="{Binding RecentProjectsThisMonth}" />
+                                        </Expander>
+                                        <Expander Header="很久以前">
+                                            <ItemsControl ItemsSource="{Binding RecentProjectsOlder}" />
+                                        </Expander>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

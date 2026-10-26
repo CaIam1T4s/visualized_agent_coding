@@ -1,0 +1,151 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:happy_agent_coding.ViewModels"
+             xmlns:views="using:happy_agent_coding.Views"
+             x:Class="happy_agent_coding.Views.WorkspaceView"
+             x:DataType="vm:MainViewModel">
+    <Grid x:Name="WorkspaceGrid"
+          ColumnDefinitions="Auto,520,8,*"
+          Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+        <views:SidebarView x:Name="Sidebar" Grid.Column="0" />
+        <Grid x:Name="LeftWorkspaceGrid" Grid.Column="1" Margin="8,8,0,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" MinHeight="340" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="*" MinHeight="180" />
+            </Grid.RowDefinitions>
+            <Border Grid.Row="0"
+                    MinHeight="340"
+                    Background="{DynamicResource LayerFillColorBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="12">
+                <Grid RowDefinitions="Auto,*">
+                    <Grid x:Name="StageToolbar"
+                          ColumnDefinitions="Auto,*"
+                          HorizontalAlignment="Center"
+                          Margin="0,0,0,8">
+                        <Button Classes="command-button primary stage-run-button"
+                                Command="{Binding RunCommand}"
+                                Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
+                                Margin="0,0,12,0"
+                                MinWidth="86">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <ContentControl x:Name="RunIcon"
+                                                Width="16"
+                                                Height="16"
+                                                VerticalAlignment="Center" />
+                                <TextBlock Text="运行"
+                                           Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <ComboBox Grid.Column="1"
+                                  Classes="workspace-view-selector"
+                                  Width="88"
+                                  HorizontalAlignment="Right"
+                                  SelectedIndex="0">
+                            <ComboBoxItem Content="终端" />
+                            <ComboBoxItem Content="舞台" />
+                        </ComboBox>
+                    </Grid>
+                    <Viewbox x:Name="StageCanvasViewbox"
+                             Grid.Row="1"
+                             Stretch="Uniform"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center"
+                             MinWidth="360"
+                             MinHeight="270"
+                             SizeChanged="OnStageCanvasSizeChanged">
+                        <Border Width="480"
+                                Height="360"
+                                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                CornerRadius="8"
+                                ClipToBounds="True">
+                            <TextBlock Text="舞台画布"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </Border>
+                    </Viewbox>
+                </Grid>
+            </Border>
+            <GridSplitter x:Name="HorizontalSplitter"
+                          Grid.Row="1"
+                          Height="8"
+                          Opacity="0"
+                          HorizontalAlignment="Stretch"
+                          ResizeDirection="Rows"
+                          ResizeBehavior="PreviousAndNext" />
+            <Border Grid.Row="2"
+                    MinHeight="180"
+                    Background="{DynamicResource LayerFillColorBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="12">
+                <Grid RowDefinitions="Auto,Auto,*,Auto">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="资源管理器"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1"
+                                  Classes="workspace-view-selector"
+                                  SelectedIndex="0">
+                            <ComboBoxItem Content="资源筛选器" />
+                        </ComboBox>
+                    </Grid>
+                    <TextBox Grid.Row="1"
+                             Text="{Binding ResourceSearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                             PlaceholderText="按名称或路径筛选脚本"
+                             Margin="0,8,0,8" />
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Spacing="8">
+                            <Expander Header="用户脚本" IsExpanded="False">
+                                <ItemsControl ItemsSource="{Binding UserScripts}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DisplayName}" Margin="8,5" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Expander>
+                            <Expander Header="对象脚本">
+                                <ItemsControl ItemsSource="{Binding ObjectScripts}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DisplayName}" Margin="8,5" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Expander>
+                            <Expander Header="背景脚本">
+                                <ItemsControl ItemsSource="{Binding BackdropScripts}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DisplayName}" Margin="8,5" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Expander>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <TextBlock Grid.Row="3"
+                               Text="{Binding ProjectResourceStatus}"
+                               HorizontalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Margin="0,8,0,0" />
+                </Grid>
+            </Border>
+        </Grid>
+        <GridSplitter x:Name="VerticalSplitter"
+                      Grid.Column="2"
+                      Width="8"
+                      Opacity="0"
+                      HorizontalAlignment="Stretch"
+                      ResizeDirection="Columns"
+                      ResizeBehavior="PreviousAndNext" />
+        <views:PythonEditorView Grid.Column="3" />
+    </Grid>
+</UserControl>

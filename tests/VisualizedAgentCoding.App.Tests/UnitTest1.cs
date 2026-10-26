@@ -18,13 +18,102 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void SavingUpdatesEditorState()
+    public void SavingWithoutAProjectReportsThatNoProjectIsOpen()
     {
         var viewModel = new MainViewModel();
 
         viewModel.SaveCommand.Execute(null);
 
-        Assert.Equal("已保存", viewModel.EditorState);
+        Assert.Equal("尚未打开项目", viewModel.EditorState);
+    }
+
+    [Fact]
+    public void ProjectCreationAndOpeningRoundTripMainScript()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"visualized-project-{Guid.NewGuid():N}");
+        try
+        {
+            var viewModel = new MainViewModel(new InMemorySettingsStore());
+            viewModel.CreateProject(root, "Demo");
+
+            Assert.Equal("Demo", viewModel.ProjectName);
+            Assert.True(Directory.Exists(Path.Combine(root, "scripts", "user")));
+            Assert.Contains("def main():", File.ReadAllText(Path.Combine(root, "scripts", "main.py")));
+
+            viewModel.PythonCode = "print('saved')";
+            viewModel.SaveCommand.Execute(null);
+            var reopened = new MainViewModel(new InMemorySettingsStore());
+            reopened.OpenProject(root);
+
+            Assert.Equal("print('saved')", reopened.PythonCode);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ResourceExplorerGroupsOnlyScriptsFromTheThreeScriptDirectories()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"visualized-project-{Guid.NewGuid():N}");
+        try
+        {
+            ProjectWorkspace.Create(root, "Demo");
+            File.WriteAllText(Path.Combine(root, "scripts", "user", "helpers.py"), "pass");
+            File.WriteAllText(Path.Combine(root, "scripts", "objects", "hero.py"), "pass");
+            File.WriteAllText(Path.Combine(root, "scripts", "backdrops", "forest.py"), "pass");
+            File.WriteAllText(Path.Combine(root, "scripts", "user", "notes.json"), "{}");
+            Directory.CreateDirectory(Path.Combine(root, "assets", "images"));
+            File.WriteAllText(Path.Combine(root, "assets", "images", "hero.png"), "image");
+            var viewModel = new MainViewModel(new InMemorySettingsStore());
+            viewModel.OpenProject(root);
+
+            Assert.Equal("helpers", Assert.Single(viewModel.UserScripts).DisplayName);
+            Assert.Equal("hero", Assert.Single(viewModel.ObjectScripts).DisplayName);
+            Assert.Equal("forest", Assert.Single(viewModel.BackdropScripts).DisplayName);
+
+            viewModel.ResourceSearchQuery = "hero";
+
+            Assert.Empty(viewModel.UserScripts);
+            Assert.Equal("scripts/objects/hero.py", Assert.Single(viewModel.ObjectScripts).RelativePath);
+            Assert.Empty(viewModel.BackdropScripts);
+            Assert.Equal("1 项脚本", viewModel.ProjectResourceStatus);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void SwitchingProjectsSavesThePreviousMainScript()
+    {
+        var first = Path.Combine(Path.GetTempPath(), $"visualized-project-{Guid.NewGuid():N}");
+        var second = Path.Combine(Path.GetTempPath(), $"visualized-project-{Guid.NewGuid():N}");
+        try
+        {
+            var viewModel = new MainViewModel(new InMemorySettingsStore());
+            viewModel.CreateProject(first);
+            viewModel.PythonCode = "print('first')";
+            viewModel.CreateProject(second);
+
+            Assert.Equal("print('first')", File.ReadAllText(Path.Combine(first, "scripts", "main.py")));
+            Assert.Equal(Path.GetFullPath(second), viewModel.ProjectRootPath);
+
+            viewModel.CloseProject();
+            Assert.Null(viewModel.ProjectName);
+            Assert.Equal(string.Empty, viewModel.PythonCode);
+        }
+        finally
+        {
+            if (Directory.Exists(first))
+                Directory.Delete(first, recursive: true);
+            if (Directory.Exists(second))
+                Directory.Delete(second, recursive: true);
+        }
     }
 
     [Fact]

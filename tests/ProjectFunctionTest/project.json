@@ -1,0 +1,5 @@
+{
+  "SchemaVersion": 1,
+  "Name": "ProjectFunctionTest",
+  "MainScript": "scripts/main.py"
+}

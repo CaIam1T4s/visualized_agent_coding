@@ -1,6 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:atom="using:AtomUI.Controls"
              xmlns:vm="using:happy_agent_coding.ViewModels"
              x:Class="happy_agent_coding.Views.TitleBarView"
              x:DataType="vm:MainViewModel">
@@ -9,16 +8,14 @@
                 Background="Transparent"
                 PointerPressed="OnTitleBarPointerPressed"
                 DoubleTapped="OnTitleBarDoubleTapped">
-            <Grid Background="Transparent">
-                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="12,0">
-                    <ContentControl x:Name="TitleBarAppIcon" Width="16" Height="16" />
-                    <TextBlock Text="Visualized Agent Coding"
-                               FontFamily="Segoe UI"
-                               FontSize="12"
-                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                               VerticalAlignment="Center" />
-                </StackPanel>
-            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="12,0">
+                <ContentControl x:Name="TitleBarAppIcon" Width="16" Height="16" />
+                <TextBlock Text="Visualized Agent Coding"
+                           FontFamily="Segoe UI"
+                           FontSize="12"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
         </Border>
         <Button Grid.Column="1"
                 Classes="titlebar-save-button"
@@ -39,7 +36,7 @@
                     Click="OnMinimizeClick"
                     ToolTip.Tip="最小化"
                     AutomationProperties.Name="最小化">
-                <TextBlock x:Name="MinimizeIcon" Classes="caption-glyph" Text="&#xE921;" />
+                <TextBlock Classes="caption-glyph" Text="&#xE921;" />
             </Button>
             <Button x:Name="MaximizeButton"
                     Classes="caption-button"

@@ -9,102 +9,69 @@
         x:DataType="vm:MainViewModel"
         Title="Python 编辑器 - Visualized Agent Coding"
         WindowDecorations="None"
+        TransparencyLevelHint="Transparent"
+        Background="Transparent"
+        CanResize="True"
         MinWidth="1100"
         MinHeight="700">
+
+    <Window.Styles>
+        <Style Selector="Border.window-frame">
+            <Setter Property="Margin" Value="10" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="BoxShadow" Value="0 2 12 0 #80000000" />
+        </Style>
+        <Style Selector="Border.window-frame.maximized">
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="BoxShadow" Value="0 0 0 0 #00000000" />
+        </Style>
+    </Window.Styles>
 
     <Design.DataContext>
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <Grid RowDefinitions="36,*" Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
-        <views:TitleBarView Grid.Row="0" />
-        <Grid x:Name="WorkspaceGrid" Grid.Row="1" MinWidth="0" ColumnDefinitions="Auto,1*,5,1*">
-                <views:SidebarView x:Name="SidebarView"
-                                   Grid.Column="0"
-                                   VerticalAlignment="Stretch" />
-
-            <Grid x:Name="MainContentGrid" Grid.Column="1" MinWidth="0" RowDefinitions="1*,5,1*">
-                <Border Grid.Row="0"
-                        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
-                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                        BorderThickness="0,1,0,0"
-                        Padding="16">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <ComboBox Classes="workspace-view-selector"
-                                  SelectedIndex="0"
-                                  ToolTip.Tip="切换工作区页面"
-                                  AutomationProperties.Name="切换工作区页面"
-                                  HorizontalAlignment="Left"
-                                  VerticalAlignment="Top">
-                            <ComboBoxItem Content="终端" />
-                            <ComboBoxItem Content="舞台" />
-                        </ComboBox>
-                        <Button Grid.Column="1"
-                                Classes="command-button primary"
-                                Command="{Binding RunCommand}"
-                                Width="86"
-                                Height="32"
-                                MinHeight="32"
-                                Padding="0"
-                                HorizontalContentAlignment="Center"
-                                VerticalContentAlignment="Center"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Top">
-                            <Grid Width="54" ColumnDefinitions="16,8,*"
-                                  HorizontalAlignment="Center">
-                                <ContentControl x:Name="RunIcon"
-                                                Width="16"
-                                                Height="16"
-                                                VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="2"
-                                           Text="运行"
-                                           HorizontalAlignment="Left"
-                                           VerticalAlignment="Center" />
-                            </Grid>
-                        </Button>
-                    </Grid>
-                </Border>
-
-                <GridSplitter x:Name="HorizontalLayoutSplitter" Grid.Row="1"
-                              ResizeDirection="Rows"
-                              ResizeBehavior="PreviousAndNext"
-                              ShowsPreview="False"
-                              Background="{DynamicResource ControlStrokeColorDefaultBrush}"
-                              HorizontalAlignment="Stretch"
-                              VerticalAlignment="Stretch" />
-
-                <Border Grid.Row="2"
-                        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
-                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                        BorderThickness="0,0,0,0"
-                        Padding="16">
-                    <TextBlock Text="中间页面"
-                               FontSize="14"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               VerticalAlignment="Top" />
-                </Border>
+    <Grid Background="Transparent">
+        <Border x:Name="WindowFrame"
+                Classes="window-frame"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+            <Grid RowDefinitions="36,*" Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+                <views:TitleBarView x:Name="TitleBarView" Grid.Row="0" />
+                <views:WorkspaceView Grid.Row="1" />
+                <views:SettingsView x:Name="SettingsViewHost"
+                                    Grid.RowSpan="2"
+                                    IsVisible="{Binding IsSettingsOpen}" />
+                <views:ProjectManagerView x:Name="ProjectManagerViewHost"
+                                          Grid.RowSpan="2"
+                                          IsVisible="{Binding IsProjectManagerOpen}" />
             </Grid>
+        </Border>
 
-            <GridSplitter x:Name="VerticalLayoutSplitter" Grid.Column="2"
-                          ResizeDirection="Columns"
-                          ResizeBehavior="PreviousAndNext"
-                          ShowsPreview="False"
-                          Background="{DynamicResource ControlStrokeColorDefaultBrush}"
-                          HorizontalAlignment="Stretch"
-                          VerticalAlignment="Stretch" />
-
-                <Border Grid.Column="3"
-                        MinWidth="0"
-                        ClipToBounds="True"
-                        Margin="0,0,0,16"
-                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                        BorderThickness="0,1,0,0"
-                        VerticalAlignment="Stretch">
-                    <views:PythonEditorView VerticalAlignment="Stretch" />
-                </Border>
+        <Grid x:Name="ResizeGripGrid"
+              ColumnDefinitions="12,*,12"
+              RowDefinitions="12,*,12"
+              IsHitTestVisible="False">
+            <Border Grid.Column="0" Grid.Row="1" Width="6" HorizontalAlignment="Left"
+                    Background="Transparent" IsHitTestVisible="True" Tag="West"
+                    PointerPressed="OnResizeGripPointerPressed" />
+            <Border Grid.Column="2" Grid.Row="1" Width="6" HorizontalAlignment="Right"
+                    Background="Transparent" IsHitTestVisible="True" Tag="East"
+                    PointerPressed="OnResizeGripPointerPressed" />
+            <Border Grid.Column="1" Grid.Row="0" Height="6" VerticalAlignment="Top"
+                    Background="Transparent" IsHitTestVisible="True" Tag="North"
+                    PointerPressed="OnResizeGripPointerPressed" />
+            <Border Grid.Column="1" Grid.Row="2" Height="6" VerticalAlignment="Bottom"
+                    Background="Transparent" IsHitTestVisible="True" Tag="South"
+                    PointerPressed="OnResizeGripPointerPressed" />
+            <Border Grid.Column="0" Grid.Row="0" Width="12" Height="12" Background="Transparent"
+                    IsHitTestVisible="True" Tag="NorthWest" PointerPressed="OnResizeGripPointerPressed" />
+            <Border Grid.Column="2" Grid.Row="0" Width="12" Height="12" Background="Transparent"
+                    IsHitTestVisible="True" Tag="NorthEast" PointerPressed="OnResizeGripPointerPressed" />
+            <Border Grid.Column="0" Grid.Row="2" Width="12" Height="12" Background="Transparent"
+                    IsHitTestVisible="True" Tag="SouthWest" PointerPressed="OnResizeGripPointerPressed" />
+            <Border Grid.Column="2" Grid.Row="2" Width="12" Height="12" Background="Transparent"
+                    IsHitTestVisible="True" Tag="SouthEast" PointerPressed="OnResizeGripPointerPressed" />
         </Grid>
-        <views:SettingsView Grid.Row="0"
-                            Grid.RowSpan="2"
-                            IsVisible="{Binding IsSettingsOpen}" />
     </Grid>
 </Window>

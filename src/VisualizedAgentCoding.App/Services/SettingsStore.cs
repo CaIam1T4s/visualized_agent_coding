@@ -9,10 +9,15 @@ namespace happy_agent_coding.Services;
 public static class LayoutSettingValues
 {
     public const double DefaultMainContentWidth = 520;
-    public const double MinMainContentWidth = 320;
+    public const double MinMainContentWidth = 400;
     public const double MaxMainContentWidth = 900;
+    public const double DefaultAuxiliaryWidth = 520;
+    public const double MinAuxiliaryWidth = 410;
+    public const double MaxAuxiliaryWidth = 900;
     public const double LegacyWorkspaceWidth = 920;
     public const double DefaultTopPanelRatio = 0.5;
+    public const double MinTopPanelHeight = 340;
+    public const double MinBottomPanelHeight = 180;
     public const double MinTopPanelRatio = 0.15;
     public const double MaxTopPanelRatio = 0.85;
 
@@ -25,13 +30,19 @@ public static class LayoutSettingValues
         double.IsFinite(value)
             ? Math.Clamp(value, MinTopPanelRatio, MaxTopPanelRatio)
             : DefaultTopPanelRatio;
+
+    public static double ClampAuxiliaryWidth(double value) =>
+        double.IsFinite(value)
+            ? Math.Clamp(value, MinAuxiliaryWidth, MaxAuxiliaryWidth)
+            : DefaultAuxiliaryWidth;
 }
 
 public sealed record AppSettings(
     int SidebarDisplayModeIndex = 0,
     int ThemeIndex = 0,
     double MainContentWidth = LayoutSettingValues.DefaultMainContentWidth,
-    double TopPanelRatio = LayoutSettingValues.DefaultTopPanelRatio);
+    double TopPanelRatio = LayoutSettingValues.DefaultTopPanelRatio,
+    double AuxiliaryWidth = LayoutSettingValues.DefaultAuxiliaryWidth);
 
 public static class SettingsKeys
 {
@@ -41,6 +52,7 @@ public static class SettingsKeys
     public const string LegacyRightPanelRatio = "Layout.RightPanelRatio";
     public const string LegacyRightPanelWidth = "Layout.RightPanelWidth";
     public const string TopPanelRatio = "Layout.TopPanelRatio";
+    public const string AuxiliaryWidth = "Layout.AuxiliaryWidth";
 }
 
 public static class SettingsValueNames
@@ -104,7 +116,9 @@ public sealed class JsonSettingsStore : ISettingsStore
                 ClampIndex(ReadIndex(values, SettingsKeys.Theme, MapTheme)),
                 LayoutSettingValues.ClampMainContentWidth(mainContentWidth),
                 LayoutSettingValues.ClampTopPanelRatio(
-                    ReadDouble(values, SettingsKeys.TopPanelRatio, LayoutSettingValues.DefaultTopPanelRatio)));
+                    ReadDouble(values, SettingsKeys.TopPanelRatio, LayoutSettingValues.DefaultTopPanelRatio)),
+                LayoutSettingValues.ClampAuxiliaryWidth(
+                    ReadDouble(values, SettingsKeys.AuxiliaryWidth, LayoutSettingValues.DefaultAuxiliaryWidth)));
         }
         catch (JsonException)
         {
@@ -128,6 +142,7 @@ public sealed class JsonSettingsStore : ISettingsStore
             [SettingsKeys.Theme] = ThemeName(settings.ThemeIndex),
             [SettingsKeys.MainContentWidth] = LayoutSettingValues.ClampMainContentWidth(settings.MainContentWidth),
             [SettingsKeys.TopPanelRatio] = LayoutSettingValues.ClampTopPanelRatio(settings.TopPanelRatio),
+            [SettingsKeys.AuxiliaryWidth] = LayoutSettingValues.ClampAuxiliaryWidth(settings.AuxiliaryWidth),
         };
 
         var directory = Path.GetDirectoryName(FilePath);

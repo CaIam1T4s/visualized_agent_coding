@@ -4,12 +4,12 @@
              x:Class="happy_agent_coding.Views.SidebarView"
              x:DataType="vm:MainViewModel">
     <Border Background="{DynamicResource LayerFillColorBrush}"
-            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-            BorderThickness="0,1,1,0"
+            BorderBrush="Transparent"
+            BorderThickness="0"
             Padding="12,16">
         <Grid RowDefinitions="Auto,*,Auto">
             <StackPanel Grid.Row="0" Spacing="4">
-                <Button x:Name="ProjectButton" Classes="sidebar-button" ToolTip.Tip="项目管理">
+                <Button x:Name="ProjectButton" Classes="sidebar-button" Command="{Binding OpenProjectManagerCommand}" ToolTip.Tip="项目管理">
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <ContentControl x:Name="ProjectIcon" Classes="sidebar-icon" />
                         <TextBlock x:Name="ProjectLabel" Classes="sidebar-label" Text="项目管理" />
