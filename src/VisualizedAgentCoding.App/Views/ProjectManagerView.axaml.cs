@@ -34,13 +34,9 @@ public partial class ProjectManagerView : UserControl
         {
             viewModel.CreateProject(path);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            viewModel.ProjectStatus = ex.Message;
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            viewModel.ProjectStatus = ex.Message;
+            viewModel.ReportProjectError(ex.Message);
         }
     }
 
@@ -71,17 +67,9 @@ public partial class ProjectManagerView : UserControl
         {
             viewModel.OpenProject(path);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
-            viewModel.ProjectStatus = ex.Message;
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            viewModel.ProjectStatus = ex.Message;
-        }
-        catch (System.Text.Json.JsonException ex)
-        {
-            viewModel.ProjectStatus = ex.Message;
+            viewModel.ReportProjectError(ex.Message);
         }
     }
 }

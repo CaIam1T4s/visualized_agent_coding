@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
@@ -6,10 +7,30 @@ namespace happy_agent_coding.Services;
 
 public sealed record ProjectManifest(int SchemaVersion, string Name, string MainScript);
 
+/// <summary>Raised when a folder is not a valid project workspace.</summary>
+public sealed class ProjectFormatException(string message) : IOException(message);
+
 public sealed class ProjectWorkspace
 {
+    private const string ManifestFileName = "project.json";
+    private const string MainScriptRelativePath = "scripts/main.py";
     private const int CurrentSchemaVersion = 1;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+
+    /// <summary>Directories created for every project workspace, relative to the project root.</summary>
+    public static readonly IReadOnlyList<string> ProjectDirectories =
+    [
+        "scenes",
+        "scripts",
+        "scripts/user",
+        "scripts/objects",
+        "scripts/backdrops",
+        "runtime",
+        "blocks",
+        "assets",
+        "assets/images",
+        "assets/objects",
+    ];
 
     public string RootPath { get; }
     public string Name { get; }
@@ -26,37 +47,84 @@ public sealed class ProjectWorkspace
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
         var root = Path.GetFullPath(rootPath);
+        if (File.Exists(root))
+            throw new ProjectFormatException("The selected path is a file, not a project folder.");
+
         Directory.CreateDirectory(root);
-        var manifestPath = Path.Combine(root, "project.json");
+        var manifestPath = Path.Combine(root, ManifestFileName);
         if (File.Exists(manifestPath))
-            throw new IOException("A project already exists at this location.");
+            throw new ProjectFormatException("A project already exists at this location.");
 
         var projectName = string.IsNullOrWhiteSpace(name) ? new DirectoryInfo(root).Name : name.Trim();
-        Directory.CreateDirectory(Path.Combine(root, "scripts"));
-        EnsureScriptDirectories(root);
+        EnsureProjectDirectories(root);
         WriteAtomically(manifestPath, JsonSerializer.Serialize(
-            new ProjectManifest(CurrentSchemaVersion, projectName, "scripts/main.py"), JsonOptions));
+            new ProjectManifest(CurrentSchemaVersion, projectName, MainScriptRelativePath), JsonOptions));
         WriteAtomically(Path.Combine(root, "scripts", "main.py"), "def main():\n    pass\n\n\nif __name__ == \"__main__\":\n    main()\n");
         return new ProjectWorkspace(root, projectName);
+    }
+
+    /// <summary>Checks whether the folder holds a valid project workspace, without repairing it.</summary>
+    public static bool IsProject(string rootPath)
+    {
+        if (string.IsNullOrWhiteSpace(rootPath))
+            return false;
+        try
+        {
+            var root = Path.GetFullPath(rootPath);
+            if (!Directory.Exists(root))
+                return false;
+
+            ReadManifest(root);
+            return File.Exists(Path.Combine(root, MainScriptRelativePath.Replace('/', Path.DirectorySeparatorChar)));
+        }
+        catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     public static ProjectWorkspace Open(string rootPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
         var root = Path.GetFullPath(rootPath);
-        var manifestPath = Path.Combine(root, "project.json");
-        var manifest = JsonSerializer.Deserialize<ProjectManifest>(File.ReadAllText(manifestPath))
-            ?? throw new InvalidDataException("The project manifest is empty or invalid.");
-        if (manifest.SchemaVersion != CurrentSchemaVersion)
-            throw new InvalidDataException($"Unsupported project schema version: {manifest.SchemaVersion}.");
-        if (string.IsNullOrWhiteSpace(manifest.Name) || manifest.MainScript != "scripts/main.py")
-            throw new InvalidDataException("The project manifest contains unsupported project paths.");
+        if (!Directory.Exists(root))
+            throw new ProjectFormatException("The selected folder does not exist.");
 
+        var manifest = ReadManifest(root);
         var project = new ProjectWorkspace(root, manifest.Name);
         if (!File.Exists(project.MainScriptPath))
-            throw new FileNotFoundException("The project main script is missing.", project.MainScriptPath);
-        EnsureScriptDirectories(root);
+            throw new ProjectFormatException($"The project is missing its entry script: {MainScriptRelativePath}.");
+
+        EnsureProjectDirectories(root);
         return project;
+    }
+
+    private static ProjectManifest ReadManifest(string root)
+    {
+        var manifestPath = Path.Combine(root, ManifestFileName);
+        if (!File.Exists(manifestPath))
+            throw new ProjectFormatException(
+                $"The selected folder is not a project: {ManifestFileName} was not found.");
+
+        ProjectManifest manifest;
+        try
+        {
+            manifest = JsonSerializer.Deserialize<ProjectManifest>(File.ReadAllText(manifestPath))
+                ?? throw new ProjectFormatException($"{ManifestFileName} is empty.");
+        }
+        catch (JsonException ex)
+        {
+            throw new ProjectFormatException($"{ManifestFileName} is not valid project JSON: {ex.Message}");
+        }
+
+        if (manifest.SchemaVersion != CurrentSchemaVersion)
+            throw new ProjectFormatException($"Unsupported project schema version: {manifest.SchemaVersion}.");
+        if (string.IsNullOrWhiteSpace(manifest.Name))
+            throw new ProjectFormatException($"{ManifestFileName} does not declare a project name.");
+        if (!string.Equals(manifest.MainScript, MainScriptRelativePath, StringComparison.Ordinal))
+            throw new ProjectFormatException($"{ManifestFileName} declares an unsupported entry script.");
+
+        return manifest;
     }
 
     public string LoadMainScript() => File.ReadAllText(MainScriptPath);
@@ -67,10 +135,10 @@ public sealed class ProjectWorkspace
         WriteAtomically(MainScriptPath, content);
     }
 
-    private static void EnsureScriptDirectories(string root)
+    private static void EnsureProjectDirectories(string root)
     {
-        foreach (var directory in new[] { "user", "objects", "backdrops" })
-            Directory.CreateDirectory(Path.Combine(root, "scripts", directory));
+        foreach (var directory in ProjectDirectories)
+            Directory.CreateDirectory(Path.Combine(root, directory.Replace('/', Path.DirectorySeparatorChar)));
     }
 
     private static void WriteAtomically(string path, string content)

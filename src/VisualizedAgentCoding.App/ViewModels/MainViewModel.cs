@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using Avalonia;
 using Avalonia.Styling;
 using AvaloniaFluentUI.Styling;
@@ -80,6 +81,17 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private string projectStatus = "未打开项目";
 
+    /// <summary>Message shown when a folder was rejected as a project.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasProjectError))]
+    private string? projectError;
+
+    public bool HasProjectError => !string.IsNullOrWhiteSpace(ProjectError);
+
+    public void ReportProjectError(string message) => ProjectError = message;
+
+    public void ClearProjectError() => ProjectError = null;
+
     [ObservableProperty]
     private string resourceSearchQuery = string.Empty;
 
@@ -127,17 +139,9 @@ public partial class MainViewModel : ViewModelBase
         {
             OpenProject(path);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            ProjectStatus = ex.Message;
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            ProjectStatus = ex.Message;
-        }
-        catch (System.Text.Json.JsonException ex)
-        {
-            ProjectStatus = ex.Message;
+            ReportProjectError(ex.Message);
         }
     }
 
@@ -145,6 +149,7 @@ public partial class MainViewModel : ViewModelBase
     {
         SaveActiveProject();
         activeProject = project;
+        ClearProjectError();
         AddRecentProject(project);
         PythonCode = project.LoadMainScript();
         RefreshProjectResources();
