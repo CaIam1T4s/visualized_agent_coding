@@ -1,9 +1,0 @@
-{
-  "schemaVersion": 2,
-  "projectId": "project-ff8f043a84514a6c84af5340d00d7114",
-  "name": "ProjectFunctionTest",
-  "mainScript": "scripts/main.py",
-  "mainScriptId": "script-d236d0372fda4a6b873e39096becb59f",
-  "scripts": [],
-  "eventHandlers": []
-}
