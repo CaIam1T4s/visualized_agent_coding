@@ -84,7 +84,7 @@
                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
-                    Padding="12">
+                    Padding="12,12,12,8">
                 <Grid RowDefinitions="Auto,Auto,*,Auto">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Text="资源管理器"
@@ -100,7 +100,7 @@
                              Text="{Binding ResourceSearchQuery, UpdateSourceTrigger=PropertyChanged}"
                              PlaceholderText="按名称或路径筛选脚本"
                              Margin="0,8,0,8" />
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Hidden">
                         <StackPanel Spacing="8">
                             <Expander Header="用户脚本" IsExpanded="False">
                                 <ItemsControl ItemsSource="{Binding UserScripts}">
@@ -133,7 +133,9 @@
                     </ScrollViewer>
                     <TextBlock Grid.Row="3"
                                Text="{Binding ProjectResourceStatus}"
-                               HorizontalAlignment="Center"
+                               FontSize="11"
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Bottom"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                Margin="0,8,0,0" />
                 </Grid>
