@@ -1,7 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
-using System.Collections.ObjectModel;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Styling;
@@ -15,23 +16,40 @@ using VisualizedAgentCoding.Domain.Projects;
 namespace happy_agent_coding.ViewModels;
 
 public sealed record RecentProjectEntry(string Name, string Path, DateTimeOffset OpenedAt);
-public sealed record ProjectScriptEntry(string DisplayName, string RelativePath);
 
 public partial class MainViewModel : ViewModelBase
 {
     private readonly ISettingsStore settingsStore;
     private readonly IProjectSession projectSession;
     private ProjectWorkspace? activeProject;
+    private Dictionary<ProjectScriptKind, bool>? expansionBeforeSearch;
+    private readonly ScriptCategory userScripts;
+    private readonly ScriptCategory objectScripts;
+    private readonly ScriptCategory backdropScripts;
     public ObservableCollection<RecentProjectEntry> RecentProjectsToday { get; } = [];
     public ObservableCollection<RecentProjectEntry> RecentProjectsThisWeek { get; } = [];
-    public ObservableCollection<ProjectScriptEntry> UserScripts { get; } = [];
-    public ObservableCollection<ProjectScriptEntry> ObjectScripts { get; } = [];
-    public ObservableCollection<ProjectScriptEntry> BackdropScripts { get; } = [];
+
+    /// <summary>Script families shown in the resource filter, each with its own inline creation editor.</summary>
+    public ObservableCollection<ScriptCategory> ScriptCategories { get; } = [];
+
+    public ObservableCollection<ProjectScriptItem> UserScripts => userScripts.Scripts;
+    public ObservableCollection<ProjectScriptItem> ObjectScripts => objectScripts.Scripts;
+    public ObservableCollection<ProjectScriptItem> BackdropScripts => backdropScripts.Scripts;
     public string ProjectResourceStatus { get; private set; } = "打开项目后显示脚本";
+
+    /// <summary>Transient feedback (e.g. a created script) shown at the explorer's bottom left.</summary>
+    public string ProjectResourceMessage { get; private set; } = string.Empty;
+
     public ObservableCollection<RecentProjectEntry> RecentProjectsThisMonth { get; } = [];
     public ObservableCollection<RecentProjectEntry> RecentProjectsOlder { get; } = [];
     public bool HasRecentProjects => RecentProjectsToday.Count + RecentProjectsThisWeek.Count +
         RecentProjectsThisMonth.Count + RecentProjectsOlder.Count > 0;
+
+    private void ReportResourceMessage(string message)
+    {
+        ProjectResourceMessage = message;
+        OnPropertyChanged(nameof(ProjectResourceMessage));
+    }
 
     public MainViewModel()
         : this(new JsonSettingsStore(), new ProjectSession())
@@ -50,6 +68,13 @@ public partial class MainViewModel : ViewModelBase
         this.settingsStore = settingsStore;
         this.projectSession = projectSession;
         var settings = this.settingsStore.Load();
+
+        userScripts = new ScriptCategory(ProjectScriptKind.User, "用户脚本", "新建用户脚本", CreateScript);
+        objectScripts = new ScriptCategory(ProjectScriptKind.Object, "对象脚本", "新建对象脚本", CreateScript);
+        backdropScripts = new ScriptCategory(ProjectScriptKind.Backdrop, "背景脚本", "新建背景脚本", CreateScript);
+        ScriptCategories.Add(userScripts);
+        ScriptCategories.Add(objectScripts);
+        ScriptCategories.Add(backdropScripts);
 
         sidebarDisplayModeIndex = Math.Clamp(settings.SidebarDisplayModeIndex, 0, 2);
         selectedThemeIndex = Math.Clamp(settings.ThemeIndex, 0, 2);
@@ -105,6 +130,12 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private string resourceSearchQuery = string.Empty;
 
+    /// <summary>0 = resource filter, 1 = object manager (placeholder).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsResourceFilterMode))]
+    [NotifyPropertyChangedFor(nameof(IsObjectManagerMode))]
+    private int resourceExplorerModeIndex;
+
     public string FileName => activeProject is null ? "main.py" : Path.GetFileName(activeProject.MainScriptPath);
 
     public string? ProjectName => activeProject?.Name;
@@ -115,6 +146,13 @@ public partial class MainViewModel : ViewModelBase
 
     public bool HasOpenProject => activeProject is not null;
 
+    /// <summary>True while the resource explorer lists scripts (the object manager is a placeholder).</summary>
+    public bool IsResourceFilterMode => ResourceExplorerModeIndex == 0;
+
+    public bool IsObjectManagerMode => ResourceExplorerModeIndex == 1;
+
+    public bool CanCreateScript => activeProject is not null;
+
     public void CreateProject(string rootPath, string? name = null) => ActivateProject(projectSession.Create(rootPath, name));
 
     public void OpenProject(string rootPath) => ActivateProject(projectSession.Open(rootPath));
@@ -124,12 +162,14 @@ public partial class MainViewModel : ViewModelBase
         SaveActiveProject();
         activeProject = null;
         PythonCode = string.Empty;
+        ResetExplorerState();
         RefreshProjectResources();
         OnPropertyChanged(nameof(FileName));
         OnPropertyChanged(nameof(ProjectName));
         OnPropertyChanged(nameof(ProjectDisplayName));
         OnPropertyChanged(nameof(ProjectRootPath));
         OnPropertyChanged(nameof(HasOpenProject));
+        OnPropertyChanged(nameof(CanCreateScript));
         ProjectStatus = "未打开项目";
     }
 
@@ -140,7 +180,7 @@ public partial class MainViewModel : ViewModelBase
     private void CloseProjectManager() => IsProjectManagerOpen = false;
 
     [RelayCommand]
-    private void CloseProjectCommand() => CloseProject();
+    private void CloseActiveProject() => CloseProject();
 
     [RelayCommand]
     private void OpenRecentProject(string path)
@@ -162,12 +202,15 @@ public partial class MainViewModel : ViewModelBase
         ClearProjectError();
         AddRecentProject(project);
         PythonCode = projectSession.LoadMainScript(project);
+        ResetExplorerState();
+        CollapseCategories();
         RefreshProjectResources();
         OnPropertyChanged(nameof(FileName));
         OnPropertyChanged(nameof(ProjectName));
         OnPropertyChanged(nameof(ProjectDisplayName));
         OnPropertyChanged(nameof(ProjectRootPath));
         OnPropertyChanged(nameof(HasOpenProject));
+        OnPropertyChanged(nameof(CanCreateScript));
         ProjectStatus = project.Name;
         IsProjectManagerOpen = false;
     }
@@ -178,6 +221,14 @@ public partial class MainViewModel : ViewModelBase
             projectSession.SaveMainScript(activeProject, PythonCode);
     }
 
+    /// <summary>Clears the search box so a closed project does not keep a stale filter.</summary>
+    private void ResetExplorerState()
+    {
+        ResourceSearchQuery = string.Empty;
+        ProjectResourceMessage = string.Empty;
+        OnPropertyChanged(nameof(ProjectResourceMessage));
+    }
+
     partial void OnResourceSearchQueryChanged(string value)
     {
         RefreshProjectResources();
@@ -185,56 +236,130 @@ public partial class MainViewModel : ViewModelBase
 
     private void RefreshProjectResources()
     {
-        UserScripts.Clear();
-        ObjectScripts.Clear();
-        BackdropScripts.Clear();
+        foreach (var category in ScriptCategories)
+        {
+            category.Scripts.Clear();
+            category.CanCreate = activeProject is not null;
+        }
+
         if (activeProject is null)
         {
+            CollapseCategories();
+            ProjectResourceMessage = string.Empty;
+            OnPropertyChanged(nameof(ProjectResourceMessage));
             ProjectResourceStatus = "打开项目后显示脚本";
             OnPropertyChanged(nameof(ProjectResourceStatus));
             return;
         }
 
-        try
+        var query = ResourceSearchQuery.Trim();
+        foreach (var script in activeProject.Manifest.Scripts)
         {
-            PopulateScripts("scripts/user", UserScripts);
-            PopulateScripts("scripts/objects", ObjectScripts);
-            PopulateScripts("scripts/backdrops", BackdropScripts);
-            var count = UserScripts.Count + ObjectScripts.Count + BackdropScripts.Count;
-            ProjectResourceStatus = count == 0
-                ? string.IsNullOrWhiteSpace(ResourceSearchQuery) ? "当前项目暂无脚本" : "没有匹配的脚本"
-                : $"{count} 项脚本";
-        }
-        catch (IOException)
-        {
-            ProjectResourceStatus = "无法读取项目脚本";
-        }
-        catch (UnauthorizedAccessException)
-        {
-            ProjectResourceStatus = "无法读取项目脚本";
+            var displayName = Path.GetFileNameWithoutExtension(script.Path);
+            if (!MatchesQuery(displayName, script.Path, query))
+                continue;
+
+            CategoryFor(script.Kind).Scripts.Add(
+                new ProjectScriptItem(script.Id, displayName, script.Path, script.Kind));
         }
 
+        foreach (var category in ScriptCategories)
+            SortScripts(category);
+
+        UpdateCategoryExpansion(query);
+
+        var count = ScriptCategories.Sum(category => category.Scripts.Count);
+        ProjectResourceStatus = count == 0
+            ? string.IsNullOrWhiteSpace(query) ? "当前项目暂无脚本" : "没有匹配的脚本"
+            : $"{count} 项脚本";
         OnPropertyChanged(nameof(ProjectResourceStatus));
     }
 
-    private void PopulateScripts(string relativeDirectory, ObservableCollection<ProjectScriptEntry> destination)
+    private static bool MatchesQuery(string displayName, string relativePath, string query) =>
+        string.IsNullOrWhiteSpace(query)
+        || displayName.Contains(query, StringComparison.OrdinalIgnoreCase)
+        || relativePath.Contains(query, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// While filtering, only categories with matches stay open so every hit is visible. The
+    /// expansion the user chose before the query is saved once and put back when the box clears.
+    /// </summary>
+    private void UpdateCategoryExpansion(string query)
     {
-        var directory = Path.Combine(activeProject!.RootPath, relativeDirectory.Replace('/', Path.DirectorySeparatorChar));
-        if (!Directory.Exists(directory))
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            RestoreCategoryExpansion();
+            return;
+        }
+
+        expansionBeforeSearch ??= ScriptCategories.ToDictionary(category => category.Kind, category => category.IsExpanded);
+        foreach (var category in ScriptCategories)
+            category.IsExpanded = category.Scripts.Count > 0;
+    }
+
+    private void RestoreCategoryExpansion()
+    {
+        if (expansionBeforeSearch is null)
             return;
 
-        var query = ResourceSearchQuery.Trim();
-        var scripts = Directory.EnumerateFiles(directory, "*.py", SearchOption.AllDirectories)
-            .Where(path => string.IsNullOrWhiteSpace(query) ||
-                Path.GetFileNameWithoutExtension(path).Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                Path.GetRelativePath(activeProject.RootPath, path).Contains(query, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var path in scripts)
+        foreach (var category in ScriptCategories)
         {
-            destination.Add(new ProjectScriptEntry(
-                Path.GetFileNameWithoutExtension(path),
-                Path.GetRelativePath(activeProject.RootPath, path).Replace(Path.DirectorySeparatorChar, '/')));
+            if (expansionBeforeSearch.TryGetValue(category.Kind, out var isExpanded))
+                category.IsExpanded = isExpanded;
+        }
+
+        expansionBeforeSearch = null;
+    }
+
+    /// <summary>Collapses every category, used when the project list no longer applies.</summary>
+    private void CollapseCategories()
+    {
+        expansionBeforeSearch = null;
+        foreach (var category in ScriptCategories)
+        {
+            category.IsExpanded = false;
+            category.CompleteCreation();
+        }
+    }
+
+    private static void SortScripts(ScriptCategory category)
+    {
+        var ordered = category.Scripts
+            .OrderBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        category.Scripts.Clear();
+        foreach (var item in ordered)
+            category.Scripts.Add(item);
+    }
+
+    private ScriptCategory CategoryFor(ProjectScriptKind kind) => kind switch
+    {
+        ProjectScriptKind.Object => objectScripts,
+        ProjectScriptKind.Backdrop => backdropScripts,
+        _ => userScripts,
+    };
+
+    /// <summary>Creates the script named in a category's inline editor and refreshes the project files.</summary>
+    private void CreateScript(ScriptCategory category)
+    {
+        if (activeProject is null)
+        {
+            category.ReportError("尚未打开项目。");
+            return;
+        }
+
+        try
+        {
+            var creation = projectSession.CreateScript(activeProject, category.Kind, category.NewScriptName);
+            activeProject = creation.Project;
+            category.CompleteCreation();
+            RefreshProjectResources();
+            ReportResourceMessage($"已创建 {Path.GetFileName(creation.Script.Path)}");
+        }
+        catch (Exception ex) when (ex is ProjectOperationException or IOException or UnauthorizedAccessException)
+        {
+            category.ReportError(ex.Message);
         }
     }
 

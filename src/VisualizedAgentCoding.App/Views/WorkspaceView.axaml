@@ -92,52 +92,124 @@
                                    VerticalAlignment="Center" />
                         <ComboBox Grid.Column="1"
                                   Classes="workspace-view-selector"
-                                  SelectedIndex="0">
+                                  SelectedIndex="{Binding ResourceExplorerModeIndex}">
                             <ComboBoxItem Content="资源筛选器" />
+                            <ComboBoxItem Content="对象管理器" />
                         </ComboBox>
                     </Grid>
                     <TextBox Grid.Row="1"
                              Text="{Binding ResourceSearchQuery, UpdateSourceTrigger=PropertyChanged}"
                              PlaceholderText="按名称或路径筛选脚本"
+                             IsVisible="{Binding IsResourceFilterMode}"
                              Margin="0,8,0,8" />
                     <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Hidden">
-                        <StackPanel Spacing="8">
-                            <Expander Header="用户脚本" IsExpanded="False">
-                                <ItemsControl ItemsSource="{Binding UserScripts}">
+                        <Panel>
+                            <StackPanel Spacing="8" IsVisible="{Binding IsResourceFilterMode}">
+                                <ItemsControl ItemsSource="{Binding ScriptCategories}">
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding DisplayName}" Margin="8,5" />
+                                        <DataTemplate x:DataType="vm:ScriptCategory">
+                                            <Border Background="Transparent"
+                                                    ContextRequested="OnCategoryContextRequested">
+                                                <StackPanel Spacing="2">
+                                                    <Grid ColumnDefinitions="*,Auto">
+                                                        <ToggleButton Classes="explorer-category-header"
+                                                                      IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                                                                      AutomationProperties.Name="{Binding Title}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                <TextBlock Classes="explorer-chevron"
+                                                                           Text="&#xE76C;"
+                                                                           IsVisible="{Binding IsCollapsed}" />
+                                                                <TextBlock Classes="explorer-chevron"
+                                                                           Text="&#xE70D;"
+                                                                           IsVisible="{Binding IsExpanded}" />
+                                                                <TextBlock Classes="explorer-category-title"
+                                                                           Text="{Binding Title}" />
+                                                            </StackPanel>
+                                                        </ToggleButton>
+                                                        <Button Grid.Column="1"
+                                                                Classes="explorer-action"
+                                                                ToolTip.Tip="{Binding CreateMenuHeader}"
+                                                                AutomationProperties.Name="{Binding CreateMenuHeader}"
+                                                                IsEnabled="{Binding CanCreate}"
+                                                                Command="{Binding StartCreateCommand}">
+                                                            <TextBlock Classes="explorer-glyph" Text="&#xE710;" />
+                                                        </Button>
+                                                    </Grid>
+                                                    <StackPanel Spacing="6"
+                                                                Margin="14,4,0,0"
+                                                                IsVisible="{Binding IsExpanded}">
+                                                        <StackPanel Spacing="6" IsVisible="{Binding IsCreating}">
+                                                            <TextBox Text="{Binding NewScriptName, UpdateSourceTrigger=PropertyChanged}"
+                                                                     PlaceholderText="脚本名">
+                                                                <TextBox.KeyBindings>
+                                                                    <KeyBinding Gesture="Enter"
+                                                                                Command="{Binding ConfirmCreateCommand}" />
+                                                                    <KeyBinding Gesture="Escape"
+                                                                                Command="{Binding CancelCreateCommand}" />
+                                                                </TextBox.KeyBindings>
+                                                            </TextBox>
+                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                <Button Classes="command-button secondary explorer-inline-button"
+                                                                        Content="创建"
+                                                                        Command="{Binding ConfirmCreateCommand}" />
+                                                                <Button Classes="command-button secondary explorer-inline-button"
+                                                                        Content="取消"
+                                                                        Command="{Binding CancelCreateCommand}" />
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding ErrorMessage}"
+                                                                       IsVisible="{Binding HasError}"
+                                                                       TextWrapping="Wrap"
+                                                                       FontSize="11"
+                                                                       Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                                                        </StackPanel>
+                                                        <TextBlock Text="暂无脚本"
+                                                                   Margin="8,5"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                                   IsVisible="{Binding IsEmpty}" />
+                                                        <ItemsControl ItemsSource="{Binding Scripts}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="vm:ProjectScriptItem">
+                                                                    <Border Classes="explorer-item"
+                                                                            ToolTip.Tip="{Binding RelativePath}">
+                                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                                   Margin="8,5" />
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                            </Expander>
-                            <Expander Header="对象脚本">
-                                <ItemsControl ItemsSource="{Binding ObjectScripts}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding DisplayName}" Margin="8,5" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </Expander>
-                            <Expander Header="背景脚本">
-                                <ItemsControl ItemsSource="{Binding BackdropScripts}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding DisplayName}" Margin="8,5" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </Expander>
-                        </StackPanel>
+                            </StackPanel>
+                            <StackPanel Spacing="6" IsVisible="{Binding IsObjectManagerMode}">
+                                <TextBlock Text="对象管理器"
+                                          FontWeight="SemiBold"
+                                          Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="尚未实现"
+                                          Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                <TextBlock Text="后续在此列出舞台中的角色与背景，并显示所选对象的属性。"
+                                          TextWrapping="Wrap"
+                                          FontSize="11"
+                                          Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            </StackPanel>
+                        </Panel>
                     </ScrollViewer>
-                    <TextBlock Grid.Row="3"
-                               Text="{Binding ProjectResourceStatus}"
-                               FontSize="11"
-                               HorizontalAlignment="Right"
-                               VerticalAlignment="Bottom"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               Margin="0,8,0,0" />
+                    <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                        <TextBlock Text="{Binding ProjectResourceMessage}"
+                                   FontSize="11"
+                                   TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Bottom"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding ProjectResourceStatus}"
+                                   FontSize="11"
+                                   VerticalAlignment="Bottom"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </Grid>
                 </Grid>
             </Border>
         </Grid>

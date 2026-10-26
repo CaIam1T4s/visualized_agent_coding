@@ -1,7 +1,9 @@
 using System;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
-using Avalonia.Layout;
+using Avalonia.VisualTree;
 using AtomUI.Icons.AntDesign;
 using happy_agent_coding.Services;
 using happy_agent_coding.ViewModels;
@@ -114,6 +116,46 @@ public partial class WorkspaceView : UserControl
         viewModel.UpdateLayout(
             topHeight / (topHeight + bottomHeight),
             auxiliaryWidth);
+    }
+
+    /// <summary>
+    /// Shows the category menu only on empty space. Right-clicking a script row keeps the row's
+    /// own context (which has no menu) so the row is never acted on by accident.
+    /// </summary>
+    private void OnCategoryContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is not Control { DataContext: ScriptCategory category } source)
+            return;
+
+        if (e.Source is Visual hit && IsWithinScriptRow(hit, source))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        var menu = new MenuFlyout();
+        menu.Items.Add(new MenuItem
+        {
+            Header = category.CreateMenuHeader,
+            IsEnabled = category.CanCreate,
+            Command = category.StartCreateCommand,
+            Focusable = false,
+        });
+        menu.ShowAt(source, true);
+
+        e.Handled = true;
+    }
+
+    /// <summary>True when the hit control lives inside a script row rather than the category header.</summary>
+    private static bool IsWithinScriptRow(Visual hit, Control categoryRoot)
+    {
+        for (var current = hit; current is not null && current != categoryRoot; current = current.GetVisualParent())
+        {
+            if (current is Control { Classes: var classes } && classes.Contains("explorer-item"))
+                return true;
+        }
+
+        return false;
     }
 
     public void SaveCurrentLayout()

@@ -51,7 +51,7 @@
                                     Click="OnOpenProjectClicked" HorizontalAlignment="Stretch"
                                     HorizontalContentAlignment="Left" Padding="12,8" />
                             <Button Classes="command-button secondary" Content="关闭当前项目"
-                                    Command="{Binding CloseProjectCommand}" HorizontalAlignment="Stretch"
+                                    Command="{Binding CloseActiveProjectCommand}" HorizontalAlignment="Stretch"
                                     HorizontalContentAlignment="Left" Padding="12,8" />
                             <TextBlock Text="{Binding ProjectError}"
                                        IsVisible="{Binding HasProjectError}"
