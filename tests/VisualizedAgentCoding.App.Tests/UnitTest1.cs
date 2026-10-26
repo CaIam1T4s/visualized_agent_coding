@@ -127,15 +127,14 @@ public class MainViewModelTests
             store.Save(new AppSettings(
                 SidebarDisplayModeIndex: 2,
                 ThemeIndex: 1,
-                MainContentWidth: 520,
                 TopPanelRatio: 0.7));
 
             var json = File.ReadAllText(filePath);
             Assert.Contains("\"Appearance.SidebarDisplayMode\": \"IconAndText\"", json);
             Assert.Contains("\"Appearance.Theme\": \"Light\"", json);
-            Assert.Contains("\"Layout.MainContentWidth\": 520", json);
+            Assert.DoesNotContain("Layout.MainContentWidth", json);
             Assert.Contains("\"Layout.TopPanelRatio\": 0.7", json);
-            Assert.Equal(new AppSettings(2, 1, 520, 0.7), store.Load());
+            Assert.Equal(new AppSettings(2, 1, 0.7), store.Load());
         }
         finally
         {
@@ -164,16 +163,17 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void LegacyLayoutWidthIsConvertedToMainContentWidth()
+    public void LegacyEditorWidthIsIgnoredWhileOtherLayoutSettingsAreLoaded()
     {
         var filePath = Path.Combine(AppContext.BaseDirectory, $"legacy-layout-{Guid.NewGuid():N}.json");
 
         try
         {
-            File.WriteAllText(filePath, "{\"Layout.RightPanelWidth\": 460}");
+            File.WriteAllText(filePath,
+                "{\"Layout.MainContentWidth\": 720,\"Layout.TopPanelRatio\": 0.7,\"Layout.AuxiliaryWidth\": 560}");
             var store = new JsonSettingsStore(filePath);
 
-            Assert.Equal(460, store.Load().MainContentWidth);
+            Assert.Equal(new AppSettings(0, 0, 0.7, 560), store.Load());
         }
         finally
         {
@@ -195,15 +195,15 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void SavingLayoutPersistsTheCurrentDimensions()
+    public void SavingLayoutPersistsTheSupportedLayoutSettings()
     {
         var store = new InMemorySettingsStore();
         var viewModel = new MainViewModel(store);
 
-        viewModel.UpdateLayout(512, 0.7);
+        viewModel.UpdateLayout(0.7, 560);
         viewModel.SaveLayout();
 
-        Assert.Equal(new AppSettings(0, 0, 512, 0.7), store.Settings);
+        Assert.Equal(new AppSettings(0, 0, 0.7, 560), store.Settings);
     }
 
     private sealed class InMemorySettingsStore : ISettingsStore

@@ -38,7 +38,7 @@
                 Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
             <Grid RowDefinitions="36,*" Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
                 <views:TitleBarView x:Name="TitleBarView" Grid.Row="0" />
-                <views:WorkspaceView Grid.Row="1" />
+                <views:WorkspaceView x:Name="WorkspaceViewHost" Grid.Row="1" />
                 <views:SettingsView x:Name="SettingsViewHost"
                                     Grid.RowSpan="2"
                                     IsVisible="{Binding IsSettingsOpen}" />

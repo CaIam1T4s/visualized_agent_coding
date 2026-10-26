@@ -11,6 +11,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         PropertyChanged += OnWindowPropertyChanged;
+        Closing += OnClosing;
         UpdateWindowChromeState();
     }
 
@@ -26,6 +27,11 @@ public partial class MainWindow : Window
         WindowFrame.Classes.Set("maximized", isMaximized);
         ResizeGripGrid.IsVisible = !isMaximized;
         TitleBarView.UpdateWindowState(WindowState);
+    }
+
+    private void OnClosing(object? sender, WindowClosingEventArgs e)
+    {
+        WorkspaceViewHost.SaveCurrentLayout();
     }
 
     private void OnResizeGripPointerPressed(object? sender, PointerPressedEventArgs e)

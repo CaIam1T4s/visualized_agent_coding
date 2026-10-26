@@ -42,7 +42,6 @@ public partial class MainViewModel : ViewModelBase
 
         sidebarDisplayModeIndex = Math.Clamp(settings.SidebarDisplayModeIndex, 0, 2);
         selectedThemeIndex = Math.Clamp(settings.ThemeIndex, 0, 2);
-        mainContentWidth = LayoutSettingValues.ClampMainContentWidth(settings.MainContentWidth);
         topPanelRatio = LayoutSettingValues.ClampTopPanelRatio(settings.TopPanelRatio);
         auxiliaryWidth = LayoutSettingValues.ClampAuxiliaryWidth(settings.AuxiliaryWidth);
         PythonCode = "def main():\n    print(\"Hello, world!\")\n\n\nif __name__ == \"__main__\":\n    main()";
@@ -62,9 +61,6 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private int sidebarDisplayModeIndex;
-
-    [ObservableProperty]
-    private double mainContentWidth = LayoutSettingValues.DefaultMainContentWidth;
 
     [ObservableProperty]
     private double topPanelRatio = LayoutSettingValues.DefaultTopPanelRatio;
@@ -266,17 +262,16 @@ public partial class MainViewModel : ViewModelBase
     partial void OnSelectedThemeIndexChanged(int value)
     {
         ApplyTheme(value);
-        SaveSettings();
+        SaveSettings(includeLayout: false);
     }
 
     partial void OnSidebarDisplayModeIndexChanged(int value)
     {
-        SaveSettings();
+        SaveSettings(includeLayout: false);
     }
 
-    public void UpdateLayout(double mainContentWidth, double topPanelRatio, double? auxiliaryWidth = null)
+    public void UpdateLayout(double topPanelRatio, double? auxiliaryWidth = null)
     {
-        MainContentWidth = LayoutSettingValues.ClampMainContentWidth(mainContentWidth);
         TopPanelRatio = LayoutSettingValues.ClampTopPanelRatio(topPanelRatio);
         if (auxiliaryWidth.HasValue)
             AuxiliaryWidth = LayoutSettingValues.ClampAuxiliaryWidth(auxiliaryWidth.Value);
@@ -284,7 +279,7 @@ public partial class MainViewModel : ViewModelBase
 
     public void SaveLayout()
     {
-        SaveSettings();
+        SaveSettings(includeLayout: true);
     }
 
     private static void ApplyTheme(int value)
@@ -302,16 +297,16 @@ public partial class MainViewModel : ViewModelBase
         application.RequestedThemeVariant = AvaloniaFluentTheme.Instance.CurrentTheme;
     }
 
-    private void SaveSettings()
+    private void SaveSettings(bool includeLayout)
     {
         try
         {
+            var savedSettings = settingsStore.Load();
             settingsStore.Save(new AppSettings(
                 SidebarDisplayModeIndex,
                 SelectedThemeIndex,
-                MainContentWidth,
-                TopPanelRatio,
-                AuxiliaryWidth));
+                includeLayout ? TopPanelRatio : savedSettings.TopPanelRatio,
+                includeLayout ? AuxiliaryWidth : savedSettings.AuxiliaryWidth));
         }
         catch (IOException)
         {

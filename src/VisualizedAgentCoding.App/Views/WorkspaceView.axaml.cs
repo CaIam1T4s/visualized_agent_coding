@@ -63,7 +63,7 @@ public partial class WorkspaceView : UserControl
         if (DataContext is not MainViewModel viewModel || WorkspaceGrid.Bounds.Width <= 0)
             return;
 
-        var editorMinimumWidth = viewModel.MainContentWidth;
+        var editorMinimumWidth = LayoutSettingValues.MinMainContentWidth;
         var splitterWidth = VerticalSplitter.Bounds.Width > 0
             ? VerticalSplitter.Bounds.Width
             : 8;
@@ -93,7 +93,8 @@ public partial class WorkspaceView : UserControl
         applyingLayout = true;
         WorkspaceGrid.ColumnDefinitions[1].Width = new GridLength(viewModel.AuxiliaryWidth, GridUnitType.Pixel);
         WorkspaceGrid.ColumnDefinitions[1].MinWidth = LayoutSettingValues.MinAuxiliaryWidth;
-        WorkspaceGrid.ColumnDefinitions[3].MinWidth = viewModel.MainContentWidth;
+        WorkspaceGrid.ColumnDefinitions[3].Width = new GridLength(1, GridUnitType.Star);
+        WorkspaceGrid.ColumnDefinitions[3].MinWidth = LayoutSettingValues.MinMainContentWidth;
         LeftWorkspaceGrid.RowDefinitions[0].Height = new GridLength(viewModel.TopPanelRatio, GridUnitType.Star);
         LeftWorkspaceGrid.RowDefinitions[2].Height = new GridLength(1 - viewModel.TopPanelRatio, GridUnitType.Star);
         applyingLayout = false;
@@ -105,14 +106,28 @@ public partial class WorkspaceView : UserControl
             return;
 
         var auxiliaryWidth = WorkspaceGrid.ColumnDefinitions[1].ActualWidth;
-        var editorWidth = WorkspaceGrid.ColumnDefinitions[3].ActualWidth;
         var topHeight = LeftWorkspaceGrid.RowDefinitions[0].ActualHeight;
         var bottomHeight = LeftWorkspaceGrid.RowDefinitions[2].ActualHeight;
-        if (auxiliaryWidth <= 0 || editorWidth <= 0 || topHeight <= 0 || bottomHeight <= 0)
+        if (auxiliaryWidth <= 0 || topHeight <= 0 || bottomHeight <= 0)
             return;
 
         viewModel.UpdateLayout(
-            editorWidth,
+            topHeight / (topHeight + bottomHeight),
+            auxiliaryWidth);
+    }
+
+    public void SaveCurrentLayout()
+    {
+        if (DataContext is not MainViewModel viewModel)
+            return;
+
+        var auxiliaryWidth = WorkspaceGrid.ColumnDefinitions[1].ActualWidth;
+        var topHeight = LeftWorkspaceGrid.RowDefinitions[0].ActualHeight;
+        var bottomHeight = LeftWorkspaceGrid.RowDefinitions[2].ActualHeight;
+        if (auxiliaryWidth <= 0 || topHeight <= 0 || bottomHeight <= 0)
+            return;
+
+        viewModel.UpdateLayout(
             topHeight / (topHeight + bottomHeight),
             auxiliaryWidth);
         viewModel.SaveLayout();
