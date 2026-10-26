@@ -20,6 +20,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\VisualizedAgentCoding.App\VisualizedAgentCoding.App.csproj" />
+    <ProjectReference Include="..\..\src\VisualizedAgentCoding.Domain\VisualizedAgentCoding.Domain.csproj" />
+    <ProjectReference Include="..\..\src\VisualizedAgentCoding.Application\VisualizedAgentCoding.Application.csproj" />
+    <ProjectReference Include="..\..\src\VisualizedAgentCoding.Infrastructure\VisualizedAgentCoding.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -60,7 +60,7 @@ public class MainViewModelTests
         var root = Path.Combine(Path.GetTempPath(), $"visualized-project-{Guid.NewGuid():N}");
         try
         {
-            ProjectWorkspace.Create(root, "Demo");
+            new happy_agent_coding.Services.ProjectSession().Create(root, "Demo");
             File.WriteAllText(Path.Combine(root, "scripts", "user", "helpers.py"), "pass");
             File.WriteAllText(Path.Combine(root, "scripts", "objects", "hero.py"), "pass");
             File.WriteAllText(Path.Combine(root, "scripts", "backdrops", "forest.py"), "pass");

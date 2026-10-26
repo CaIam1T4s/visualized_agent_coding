@@ -9,6 +9,8 @@ using AvaloniaFluentUI.Styling;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using happy_agent_coding.Services;
+using VisualizedAgentCoding.Application.Projects;
+using VisualizedAgentCoding.Domain.Projects;
 
 namespace happy_agent_coding.ViewModels;
 
@@ -18,6 +20,7 @@ public sealed record ProjectScriptEntry(string DisplayName, string RelativePath)
 public partial class MainViewModel : ViewModelBase
 {
     private readonly ISettingsStore settingsStore;
+    private readonly IProjectSession projectSession;
     private ProjectWorkspace? activeProject;
     public ObservableCollection<RecentProjectEntry> RecentProjectsToday { get; } = [];
     public ObservableCollection<RecentProjectEntry> RecentProjectsThisWeek { get; } = [];
@@ -31,14 +34,21 @@ public partial class MainViewModel : ViewModelBase
         RecentProjectsThisMonth.Count + RecentProjectsOlder.Count > 0;
 
     public MainViewModel()
-        : this(new JsonSettingsStore())
+        : this(new JsonSettingsStore(), new ProjectSession())
     {
     }
 
     public MainViewModel(ISettingsStore settingsStore)
+        : this(settingsStore, new ProjectSession())
+    {
+    }
+
+    public MainViewModel(ISettingsStore settingsStore, IProjectSession projectSession)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
+        ArgumentNullException.ThrowIfNull(projectSession);
         this.settingsStore = settingsStore;
+        this.projectSession = projectSession;
         var settings = this.settingsStore.Load();
 
         sidebarDisplayModeIndex = Math.Clamp(settings.SidebarDisplayModeIndex, 0, 2);
@@ -105,9 +115,9 @@ public partial class MainViewModel : ViewModelBase
 
     public bool HasOpenProject => activeProject is not null;
 
-    public void CreateProject(string rootPath, string? name = null) => ActivateProject(ProjectWorkspace.Create(rootPath, name));
+    public void CreateProject(string rootPath, string? name = null) => ActivateProject(projectSession.Create(rootPath, name));
 
-    public void OpenProject(string rootPath) => ActivateProject(ProjectWorkspace.Open(rootPath));
+    public void OpenProject(string rootPath) => ActivateProject(projectSession.Open(rootPath));
 
     public void CloseProject()
     {
@@ -139,7 +149,7 @@ public partial class MainViewModel : ViewModelBase
         {
             OpenProject(path);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException or JsonException)
         {
             ReportProjectError(ex.Message);
         }
@@ -151,7 +161,7 @@ public partial class MainViewModel : ViewModelBase
         activeProject = project;
         ClearProjectError();
         AddRecentProject(project);
-        PythonCode = project.LoadMainScript();
+        PythonCode = projectSession.LoadMainScript(project);
         RefreshProjectResources();
         OnPropertyChanged(nameof(FileName));
         OnPropertyChanged(nameof(ProjectName));
@@ -164,7 +174,8 @@ public partial class MainViewModel : ViewModelBase
 
     private void SaveActiveProject()
     {
-        activeProject?.SaveMainScript(PythonCode);
+        if (activeProject is not null)
+            projectSession.SaveMainScript(activeProject, PythonCode);
     }
 
     partial void OnResourceSearchQueryChanged(string value)

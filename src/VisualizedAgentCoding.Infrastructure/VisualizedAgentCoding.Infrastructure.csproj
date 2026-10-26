@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\VisualizedAgentCoding.Domain\VisualizedAgentCoding.Domain.csproj" />
+    <ProjectReference Include="..\VisualizedAgentCoding.Application\VisualizedAgentCoding.Application.csproj" />
+  </ItemGroup>
+</Project>

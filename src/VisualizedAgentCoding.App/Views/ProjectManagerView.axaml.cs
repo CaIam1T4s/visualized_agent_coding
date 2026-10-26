@@ -3,6 +3,7 @@ using System.IO;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using happy_agent_coding.ViewModels;
+using VisualizedAgentCoding.Domain.Projects;
 
 namespace happy_agent_coding.Views;
 
@@ -34,7 +35,7 @@ public partial class ProjectManagerView : UserControl
         {
             viewModel.CreateProject(path);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException)
         {
             viewModel.ReportProjectError(ex.Message);
         }
@@ -67,7 +68,7 @@ public partial class ProjectManagerView : UserControl
         {
             viewModel.OpenProject(path);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
             viewModel.ReportProjectError(ex.Message);
         }

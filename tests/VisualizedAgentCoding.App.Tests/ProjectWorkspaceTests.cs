@@ -3,6 +3,9 @@ using System.IO;
 using System.Text.Json;
 using happy_agent_coding.Services;
 using happy_agent_coding.ViewModels;
+using VisualizedAgentCoding.Application.Projects;
+using VisualizedAgentCoding.Domain.Projects;
+using VisualizedAgentCoding.Infrastructure.Projects;
 
 namespace VisualizedAgentCoding.App.Tests;
 
@@ -14,13 +17,13 @@ public class ProjectWorkspaceTests
         var root = NewTempDirectory();
         try
         {
-            ProjectWorkspace.Create(root, "Demo");
+            CreateService().Create(root, "Demo");
 
             var manifestPath = Path.Combine(root, "project.json");
             Assert.True(File.Exists(manifestPath));
             Assert.Contains("def main():", File.ReadAllText(Path.Combine(root, "scripts", "main.py")));
 
-            foreach (var directory in ProjectWorkspace.ProjectDirectories)
+            foreach (var directory in ProjectLayout.Directories)
                 Assert.True(Directory.Exists(Path.Combine(root, directory)), $"Missing directory: {directory}");
 
             var manifest = JsonSerializer.Deserialize<ProjectManifest>(File.ReadAllText(manifestPath));
@@ -40,7 +43,7 @@ public class ProjectWorkspaceTests
         var root = NewTempDirectory();
         try
         {
-            var project = ProjectWorkspace.Create(root);
+            var project = CreateService().Create(root);
 
             Assert.Equal(new DirectoryInfo(root).Name, project.Name);
             Assert.True(Directory.Exists(Path.Combine(root, "scripts")));
@@ -57,10 +60,11 @@ public class ProjectWorkspaceTests
         var root = NewTempDirectory();
         try
         {
-            ProjectWorkspace.Create(root, "First");
+            var service = CreateService();
+            service.Create(root, "First");
 
-            Assert.Throws<ProjectFormatException>(() => ProjectWorkspace.Create(root, "Second"));
-            Assert.False(ProjectWorkspace.IsProject(Path.Combine(root, "scenes")));
+            Assert.Throws<ProjectFormatException>(() => service.Create(root, "Second"));
+            Assert.False(service.IsProject(Path.Combine(root, "scenes")));
         }
         finally
         {
@@ -74,8 +78,10 @@ public class ProjectWorkspaceTests
         var root = NewTempDirectory();
         try
         {
-            Assert.Throws<ProjectFormatException>(() => ProjectWorkspace.Open(root));
-            Assert.False(ProjectWorkspace.IsProject(root));
+            var service = CreateService();
+
+            Assert.Throws<ProjectFormatException>(() => service.Open(root));
+            Assert.False(service.IsProject(root));
         }
         finally
         {
@@ -90,9 +96,10 @@ public class ProjectWorkspaceTests
         try
         {
             File.WriteAllText(Path.Combine(root, "project.json"), "{ not json");
+            var service = CreateService();
 
-            Assert.Throws<ProjectFormatException>(() => ProjectWorkspace.Open(root));
-            Assert.False(ProjectWorkspace.IsProject(root));
+            Assert.Throws<ProjectFormatException>(() => service.Open(root));
+            Assert.False(service.IsProject(root));
         }
         finally
         {
@@ -109,10 +116,11 @@ public class ProjectWorkspaceTests
         var root = NewTempDirectory();
         try
         {
-            ProjectWorkspace.Create(root, "Demo");
+            var service = CreateService();
+            service.Create(root, "Demo");
             WriteManifest(root, new ProjectManifest(schemaVersion, "Demo", "scripts/main.py"));
 
-            Assert.Throws<ProjectFormatException>(() => ProjectWorkspace.Open(root));
+            Assert.Throws<ProjectFormatException>(() => service.Open(root));
         }
         finally
         {
@@ -126,10 +134,11 @@ public class ProjectWorkspaceTests
         var root = NewTempDirectory();
         try
         {
-            ProjectWorkspace.Create(root, "Demo");
+            var service = CreateService();
+            service.Create(root, "Demo");
             WriteManifest(root, new ProjectManifest(1, "Demo", "scripts/start.py"));
 
-            Assert.Throws<ProjectFormatException>(() => ProjectWorkspace.Open(root));
+            Assert.Throws<ProjectFormatException>(() => service.Open(root));
         }
         finally
         {
@@ -143,11 +152,12 @@ public class ProjectWorkspaceTests
         var root = NewTempDirectory();
         try
         {
-            ProjectWorkspace.Create(root, "Demo");
+            var service = CreateService();
+            service.Create(root, "Demo");
             File.Delete(Path.Combine(root, "scripts", "main.py"));
 
-            Assert.Throws<ProjectFormatException>(() => ProjectWorkspace.Open(root));
-            Assert.False(ProjectWorkspace.IsProject(root));
+            Assert.Throws<ProjectFormatException>(() => service.Open(root));
+            Assert.False(service.IsProject(root));
         }
         finally
         {
@@ -161,14 +171,15 @@ public class ProjectWorkspaceTests
         var root = NewTempDirectory();
         try
         {
-            ProjectWorkspace.Create(root, "Demo");
+            var service = CreateService();
+            service.Create(root, "Demo");
             File.WriteAllText(Path.Combine(root, "scripts", "main.py"), "print('kept')");
             Directory.Delete(Path.Combine(root, "assets"), recursive: true);
 
-            var project = ProjectWorkspace.Open(root);
+            var project = service.Open(root);
 
             Assert.Equal("Demo", project.Name);
-            Assert.Equal("print('kept')", project.LoadMainScript());
+            Assert.Equal("print('kept')", service.LoadMainScript(project));
             Assert.True(Directory.Exists(Path.Combine(root, "assets", "images")));
         }
         finally
@@ -183,7 +194,7 @@ public class ProjectWorkspaceTests
         var root = NewTempDirectory();
         try
         {
-            ProjectWorkspace.Create(root, "Demo");
+            CreateService().Create(root, "Demo");
             File.WriteAllText(Path.Combine(root, "scripts", "user", "helpers.py"), "pass");
             var viewModel = new MainViewModel(new TestSettingsStore());
 
@@ -223,6 +234,8 @@ public class ProjectWorkspaceTests
             DeleteDirectory(invalidRoot);
         }
     }
+
+    private static ProjectService CreateService() => new(new JsonProjectStore());
 
     private static string NewTempDirectory()
     {

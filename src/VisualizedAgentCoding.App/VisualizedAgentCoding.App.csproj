@@ -24,4 +24,10 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="AtomUI.Icons.AntDesign" Version="6.2.8" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VisualizedAgentCoding.Domain\VisualizedAgentCoding.Domain.csproj" />
+    <ProjectReference Include="..\VisualizedAgentCoding.Application\VisualizedAgentCoding.Application.csproj" />
+    <ProjectReference Include="..\VisualizedAgentCoding.Infrastructure\VisualizedAgentCoding.Infrastructure.csproj" />
+  </ItemGroup>
 </Project>
