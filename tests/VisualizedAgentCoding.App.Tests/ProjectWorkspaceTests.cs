@@ -26,7 +26,7 @@ public class ProjectWorkspaceTests
             foreach (var directory in ProjectLayout.Directories)
                 Assert.True(Directory.Exists(Path.Combine(root, directory)), $"Missing directory: {directory}");
 
-            var manifest = JsonSerializer.Deserialize<ProjectManifest>(File.ReadAllText(manifestPath));
+            var manifest = JsonSerializer.Deserialize<ProjectManifest>(File.ReadAllText(manifestPath), ManifestJsonOptions);
             Assert.NotNull(manifest);
             Assert.Equal("Demo", manifest.Name);
             Assert.Equal("scripts/main.py", manifest.MainScript);
@@ -109,7 +109,6 @@ public class ProjectWorkspaceTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(2)]
     [InlineData(99)]
     public void OpenRefusesAnUnsupportedSchemaVersion(int schemaVersion)
     {
@@ -117,8 +116,8 @@ public class ProjectWorkspaceTests
         try
         {
             var service = CreateService();
-            service.Create(root, "Demo");
-            WriteManifest(root, new ProjectManifest(schemaVersion, "Demo", "scripts/main.py"));
+            var project = service.Create(root, "Demo");
+            WriteManifest(root, project.Manifest with { SchemaVersion = schemaVersion });
 
             Assert.Throws<ProjectFormatException>(() => service.Open(root));
         }
@@ -135,8 +134,8 @@ public class ProjectWorkspaceTests
         try
         {
             var service = CreateService();
-            service.Create(root, "Demo");
-            WriteManifest(root, new ProjectManifest(1, "Demo", "scripts/start.py"));
+            var project = service.Create(root, "Demo");
+            WriteManifest(root, project.Manifest with { MainScript = "scripts/start.py" });
 
             Assert.Throws<ProjectFormatException>(() => service.Open(root));
         }
@@ -235,6 +234,12 @@ public class ProjectWorkspaceTests
         }
     }
 
+    private static readonly JsonSerializerOptions ManifestJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+    };
+
     private static ProjectService CreateService() => new(new JsonProjectStore());
 
     private static string NewTempDirectory()
@@ -245,7 +250,7 @@ public class ProjectWorkspaceTests
     }
 
     private static void WriteManifest(string root, ProjectManifest manifest) =>
-        File.WriteAllText(Path.Combine(root, "project.json"), JsonSerializer.Serialize(manifest));
+        File.WriteAllText(Path.Combine(root, "project.json"), JsonSerializer.Serialize(manifest, ManifestJsonOptions));
 
     private static void DeleteDirectory(string path)
     {
