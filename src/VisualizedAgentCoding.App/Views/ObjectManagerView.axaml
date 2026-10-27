@@ -102,7 +102,7 @@
     <TabControl Classes="object-manager-tabs"
                 SelectedIndex="{Binding ObjectManagerTabIndex}">
         <TabItem Header="角色">
-            <Grid ColumnDefinitions="*,12,180" Margin="0,8,0,0">
+            <Grid ColumnDefinitions="*,180" Margin="0,8,0,0">
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                               VerticalScrollBarVisibility="Hidden">
                     <views:ObjectTileWrapHost ItemsSource="{Binding StageSprites}"
@@ -127,7 +127,7 @@
                         </views:ObjectTileWrapHost.TrailingContent>
                     </views:ObjectTileWrapHost>
                 </ScrollViewer>
-                <ContentControl Grid.Column="2"
+                <ContentControl Grid.Column="1"
                                 Width="180"
                                 MinWidth="180"
                                 MaxWidth="180"

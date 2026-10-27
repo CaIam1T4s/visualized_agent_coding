@@ -231,7 +231,7 @@ public class ScriptCreationTests
     [Fact]
     public void CreatingIsUnavailableUntilAProjectIsOpen()
     {
-        var viewModel = new MainViewModel(new TestSettingsStore());
+        var viewModel = TestMainViewModelFactory.Create(new TestSettingsStore());
 
         Assert.All(viewModel.ScriptCategories, category => Assert.False(category.CanCreate));
 
@@ -664,14 +664,14 @@ public class ScriptCreationTests
     private static MainViewModel OpenProject(string root)
     {
         CreateService().Create(root, "Demo");
-        var viewModel = new MainViewModel(new TestSettingsStore());
+        var viewModel = TestMainViewModelFactory.Create(new TestSettingsStore());
         viewModel.OpenProject(root);
         return viewModel;
     }
 
     private static MainViewModel ReopenProject(string root)
     {
-        var viewModel = new MainViewModel(new TestSettingsStore());
+        var viewModel = TestMainViewModelFactory.Create(new TestSettingsStore());
         viewModel.OpenProject(root);
         return viewModel;
     }

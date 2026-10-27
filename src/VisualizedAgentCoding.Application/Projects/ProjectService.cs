@@ -11,7 +11,7 @@ namespace VisualizedAgentCoding.Application.Projects;
 public sealed record ProjectScriptCreation(ProjectWorkspace Project, ProjectScriptEntry Script);
 
 /// <summary>Use cases for creating, opening, saving and indexing project workspaces.</summary>
-public sealed class ProjectService
+public sealed class ProjectService : IProjectValidityChecker
 {
     private const string DefaultMainScript =
         "def main():\n    pass\n\n\nif __name__ == \"__main__\":\n    main()\n";
@@ -118,6 +118,78 @@ public sealed class ProjectService
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(script);
         store.WriteScript(project.RootPath, script.Path, content);
+    }
+
+    /// <summary>Renames a user script file and updates its index path. The stable id is kept.</summary>
+    /// <exception cref="ProjectOperationException">The script is the entry script, is not a user script, or the new name is unusable or taken.</exception>
+    public ProjectWorkspace RenameScript(ProjectWorkspace project, string scriptId, string newName)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        var script = ResolveIndexedScript(project, scriptId);
+        if (script.Kind != ProjectScriptKind.User)
+            throw new ProjectOperationException("当前仅支持重命名用户脚本。");
+
+        var fileName = SanitizeScriptName(newName)
+            ?? throw new ProjectOperationException("脚本名只能包含字母、数字、下划线和连字符。");
+        var newPath = $"{ProjectLayout.UserScriptDirectory}/{fileName}.py";
+        if (string.Equals(newPath, script.Path, StringComparison.OrdinalIgnoreCase))
+            return project;
+        if (store.ScriptExists(project.RootPath, newPath) || HasPath(project.Manifest, newPath))
+            throw new ProjectOperationException($"脚本已存在：{newPath}");
+
+        var content = store.ReadScript(project.RootPath, script.Path);
+        var renamed = script with { Path = newPath };
+        var manifest = project.Manifest with
+        {
+            Scripts = project.Manifest.Scripts.Select(item => item.Id == scriptId ? renamed : item).ToList(),
+        };
+
+        // Write the new file first so a failed manifest write can be undone by deleting only the new file.
+        store.WriteScript(project.RootPath, newPath, content);
+        try
+        {
+            ProjectManifestValidator.Validate(manifest, path => store.ScriptExists(project.RootPath, path));
+            store.WriteManifest(project.RootPath, manifest);
+        }
+        catch
+        {
+            store.DeleteScript(project.RootPath, newPath);
+            throw;
+        }
+
+        store.DeleteScript(project.RootPath, script.Path);
+        return project.WithManifest(manifest);
+    }
+
+    /// <summary>Removes a script from the index, drops its event bindings, then deletes its file.</summary>
+    /// <exception cref="ProjectOperationException">The script is the entry script or is not indexed.</exception>
+    public ProjectWorkspace DeleteScript(ProjectWorkspace project, string scriptId)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        var script = ResolveIndexedScript(project, scriptId);
+        var manifest = project.Manifest with
+        {
+            Scripts = project.Manifest.Scripts.Where(item => item.Id != scriptId).ToList(),
+            EventHandlers = project.Manifest.EventHandlers.Where(handler => handler.ScriptId != scriptId).ToList(),
+        };
+
+        ProjectManifestValidator.Validate(manifest, path => store.ScriptExists(project.RootPath, path));
+        store.WriteManifest(project.RootPath, manifest);
+        store.DeleteScript(project.RootPath, script.Path);
+        return project.WithManifest(manifest);
+    }
+
+    /// <summary>Resolves an indexed script for rename or delete, refusing the entry script.</summary>
+    private static ProjectScriptEntry ResolveIndexedScript(ProjectWorkspace project, string scriptId)
+    {
+        if (string.IsNullOrWhiteSpace(scriptId))
+            throw new ProjectOperationException("缺少脚本 ID。");
+
+        if (string.Equals(project.Manifest.MainScriptId, scriptId, StringComparison.Ordinal))
+            throw new ProjectOperationException("入口脚本 main.py 不能重命名或删除。");
+
+        return project.FindScript(scriptId)
+            ?? throw new ProjectOperationException($"脚本索引中没有该脚本：{scriptId}");
     }
 
     /// <summary>Creates a script file and registers it in the project index with a stable id.</summary>

@@ -10,12 +10,12 @@
         <views:SidebarView x:Name="Sidebar" Grid.Column="0" />
         <Grid x:Name="LeftWorkspaceGrid" Grid.Column="1" Margin="8,8,0,8">
             <Grid.RowDefinitions>
-                <RowDefinition Height="*" MinHeight="340" />
+                <RowDefinition Height="*" MinHeight="350" />
                 <RowDefinition Height="8" />
                 <RowDefinition Height="*" MinHeight="180" />
             </Grid.RowDefinitions>
             <Border Grid.Row="0"
-                    MinHeight="340"
+                    MinHeight="350"
                     Background="{DynamicResource LayerFillColorBrush}"
                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                     BorderThickness="1"

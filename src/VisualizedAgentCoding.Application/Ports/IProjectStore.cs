@@ -32,4 +32,7 @@ public interface IProjectStore
 
     /// <summary>Creates any missing directories so an existing project keeps the documented layout.</summary>
     void EnsureLayout(string rootPath);
+
+    /// <summary>Deletes a project script file. The caller is responsible for removing its index entry.</summary>
+    void DeleteScript(string rootPath, string relativePath);
 }

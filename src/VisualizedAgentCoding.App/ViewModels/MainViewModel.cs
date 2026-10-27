@@ -12,14 +12,14 @@ using CommunityToolkit.Mvvm.Input;
 using happy_agent_coding.Services;
 using VisualizedAgentCoding.Application.Projects;
 using VisualizedAgentCoding.Domain.Projects;
+using VisualizedAgentCoding.Infrastructure.Projects;
 
 namespace happy_agent_coding.ViewModels;
-
-public sealed record RecentProjectEntry(string Name, string Path, DateTimeOffset OpenedAt);
 
 public partial class MainViewModel : ViewModelBase
 {
     private readonly ISettingsStore settingsStore;
+    private readonly RecentProjectsService recentProjectsService;
     private readonly IProjectSession projectSession;
     private ProjectWorkspace? activeProject;
     private string? openScriptId;
@@ -59,22 +59,34 @@ public partial class MainViewModel : ViewModelBase
     }
 
     public MainViewModel()
-        : this(new JsonSettingsStore(), new ProjectSession())
+        : this(new JsonSettingsStore(), new JsonRecentProjectsStore(), new ProjectSession())
     {
     }
 
     public MainViewModel(ISettingsStore settingsStore)
-        : this(settingsStore, new ProjectSession())
+        : this(settingsStore, new JsonRecentProjectsStore(), new ProjectSession())
     {
     }
 
     public MainViewModel(ISettingsStore settingsStore, IProjectSession projectSession)
+        : this(settingsStore, new JsonRecentProjectsStore(), projectSession)
+    {
+    }
+
+    public MainViewModel(
+        ISettingsStore settingsStore,
+        IRecentProjectsStore recentProjectsStore,
+        IProjectSession projectSession)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
+        ArgumentNullException.ThrowIfNull(recentProjectsStore);
         ArgumentNullException.ThrowIfNull(projectSession);
         this.settingsStore = settingsStore;
         this.projectSession = projectSession;
+        recentProjectsService = new RecentProjectsService(recentProjectsStore, projectSession);
         var settings = this.settingsStore.Load();
+
+        SetRecentProjects(recentProjectsService.LoadValidProjects());
 
         userScripts = new ScriptCategory(ProjectScriptKind.User, "用户脚本", "新建用户脚本", CreateScript);
         objectScripts = new ScriptCategory(ProjectScriptKind.Object, "对象脚本", "新建对象脚本", CreateScript);
@@ -591,20 +603,21 @@ public partial class MainViewModel : ViewModelBase
 
     private void AddRecentProject(ProjectWorkspace project)
     {
-        var openedAt = DateTimeOffset.Now;
-        var entry = new RecentProjectEntry(project.Name, project.RootPath, openedAt);
-        var existing = RecentProjectsToday.Concat(RecentProjectsThisWeek)
-            .Concat(RecentProjectsThisMonth).Concat(RecentProjectsOlder)
-            .Where(item => !string.Equals(item.Path, project.RootPath, StringComparison.OrdinalIgnoreCase))
-            .Append(entry).OrderByDescending(item => item.OpenedAt).ToArray();
+        SetRecentProjects(recentProjectsService.RecordOpened(project));
+    }
+
+    private void SetRecentProjects(IEnumerable<RecentProjectEntry> projects)
+    {
+        var ordered = projects.ToArray();
 
         RecentProjectsToday.Clear();
         RecentProjectsThisWeek.Clear();
         RecentProjectsThisMonth.Clear();
         RecentProjectsOlder.Clear();
-        foreach (var item in existing)
+        var now = DateTimeOffset.Now;
+        foreach (var item in ordered)
         {
-            var age = openedAt - item.OpenedAt;
+            var age = now - item.OpenedAt;
             var bucket = age.TotalDays < 1 ? RecentProjectsToday
                 : age.TotalDays < 7 ? RecentProjectsThisWeek
                 : age.TotalDays < 30 ? RecentProjectsThisMonth

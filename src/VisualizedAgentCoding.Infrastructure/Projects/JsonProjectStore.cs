@@ -125,6 +125,14 @@ public sealed class JsonProjectStore : IProjectStore
             Directory.CreateDirectory(ToPlatformPath(root, directory));
     }
 
+    public void DeleteScript(string rootPath, string relativePath)
+    {
+        var path = ResolveScriptPath(rootPath, relativePath)
+            ?? throw new ProjectFormatException($"Script path escapes the project: {relativePath}");
+        if (File.Exists(path))
+            File.Delete(path);
+    }
+
     private static string ManifestPath(string rootPath) =>
         Path.Combine(Path.GetFullPath(rootPath), ProjectLayout.ManifestFileName);
 

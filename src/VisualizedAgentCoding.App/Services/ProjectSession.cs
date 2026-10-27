@@ -7,13 +7,11 @@ using VisualizedAgentCoding.Infrastructure.Projects;
 namespace happy_agent_coding.Services;
 
 /// <summary>Composition root for project use cases used by the Avalonia layer.</summary>
-public interface IProjectSession
+public interface IProjectSession : IProjectValidityChecker
 {
     ProjectWorkspace Create(string rootPath, string? name = null);
 
     ProjectWorkspace Open(string rootPath);
-
-    bool IsProject(string? rootPath);
 
     string LoadMainScript(ProjectWorkspace project);
 

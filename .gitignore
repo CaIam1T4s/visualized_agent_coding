@@ -2,3 +2,7 @@ bin/
 docs/
 obj/
 /tests/ProjectFunctionTest/
+
+# Python bytecode caches
+__pycache__/
+*.py[cod]

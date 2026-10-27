@@ -195,7 +195,7 @@ public class ProjectWorkspaceTests
         {
             CreateService().Create(root, "Demo");
             File.WriteAllText(Path.Combine(root, "scripts", "user", "helpers.py"), "pass");
-            var viewModel = new MainViewModel(new TestSettingsStore());
+            var viewModel = TestMainViewModelFactory.Create(new TestSettingsStore());
 
             viewModel.OpenProject(root);
 
@@ -217,7 +217,7 @@ public class ProjectWorkspaceTests
         var invalidRoot = NewTempDirectory();
         try
         {
-            var viewModel = new MainViewModel(new TestSettingsStore());
+            var viewModel = TestMainViewModelFactory.Create(new TestSettingsStore());
             viewModel.CreateProject(validRoot, "Valid");
             viewModel.PythonCode = "print('valid')";
 

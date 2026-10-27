@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using happy_agent_coding.Services;
 using happy_agent_coding.ViewModels;
+using VisualizedAgentCoding.Application.Projects;
+using VisualizedAgentCoding.Infrastructure.Projects;
 
 namespace VisualizedAgentCoding.App.Tests;
 
@@ -24,6 +26,87 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void JsonRecentProjectsStoreRoundTripsRecentProjectEntries()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"recent-projects-{Guid.NewGuid():N}");
+        var filePath = Path.Combine(root, "recent-projects.json");
+        try
+        {
+            var entry = new RecentProjectEntry("Demo", Path.Combine(root, "project"), DateTimeOffset.Now);
+            var store = new JsonRecentProjectsStore(filePath);
+            store.Save([entry]);
+
+            var loaded = store.Load();
+
+            Assert.Single(loaded);
+            Assert.Equal(entry, loaded[0]);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void OpeningAProjectPersistsRecentEntryForTheNextViewModel()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"recent-projects-{Guid.NewGuid():N}");
+        var projectRoot = Path.Combine(root, "project");
+        var filePath = Path.Combine(root, "recent-projects.json");
+        try
+        {
+            var store = new JsonRecentProjectsStore(filePath);
+            var viewModel = new MainViewModel(new InMemorySettingsStore(), store, new ProjectSession());
+            viewModel.CreateProject(projectRoot, "Demo");
+
+            var reopened = new MainViewModel(new InMemorySettingsStore(), store, new ProjectSession());
+
+            var recent = Assert.Single(reopened.RecentProjectsToday);
+            Assert.Equal("Demo", recent.Name);
+            Assert.Equal(projectRoot, recent.Path);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void StartupRemovesMissingAndInvalidProjectsFromRecentList()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"recent-project-cleanup-{Guid.NewGuid():N}");
+        var validRoot = Path.Combine(root, "valid");
+        var missingRoot = Path.Combine(root, "missing");
+        try
+        {
+            var projectSession = new ProjectSession();
+            var validProject = projectSession.Create(validRoot, "Valid");
+            var recentStore = new InMemoryRecentProjectsStore(
+            [
+                new RecentProjectEntry("Missing", missingRoot, DateTimeOffset.Now),
+                new RecentProjectEntry("Invalid", root, DateTimeOffset.Now.AddMinutes(-1)),
+                new RecentProjectEntry(validProject.Name, validRoot, DateTimeOffset.Now.AddMinutes(-2)),
+            ]);
+
+            var viewModel = new MainViewModel(
+                new InMemorySettingsStore(), recentStore, projectSession);
+
+            var recent = Assert.Single(viewModel.RecentProjectsToday);
+            Assert.Equal("Valid", recent.Name);
+            Assert.Equal(validRoot, recent.Path);
+            var persisted = Assert.Single(recentStore.Projects);
+            Assert.Equal(validRoot, persisted.Path);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void SavingWithoutAProjectReportsThatNoProjectIsOpen()
     {
         var viewModel = new MainViewModel();
@@ -39,7 +122,7 @@ public class MainViewModelTests
         var root = Path.Combine(Path.GetTempPath(), $"visualized-project-{Guid.NewGuid():N}");
         try
         {
-            var viewModel = new MainViewModel(new InMemorySettingsStore());
+            var viewModel = TestMainViewModelFactory.Create(new InMemorySettingsStore());
             viewModel.CreateProject(root, "Demo");
 
             Assert.Equal("Demo", viewModel.ProjectName);
@@ -63,7 +146,7 @@ public class MainViewModelTests
             Assert.Equal("尚未打开脚本", viewModel.EditorState);
             Assert.Contains("def main():", File.ReadAllText(Path.Combine(root, "scripts", "main.py")));
 
-            var reopened = new MainViewModel(new InMemorySettingsStore());
+            var reopened = TestMainViewModelFactory.Create(new InMemorySettingsStore());
             reopened.OpenProject(root);
 
             Assert.Equal(string.Empty, reopened.PythonCode);
@@ -89,7 +172,7 @@ public class MainViewModelTests
             File.WriteAllText(Path.Combine(root, "scripts", "user", "notes.json"), "{}");
             Directory.CreateDirectory(Path.Combine(root, "assets", "images"));
             File.WriteAllText(Path.Combine(root, "assets", "images", "hero.png"), "image");
-            var viewModel = new MainViewModel(new InMemorySettingsStore());
+            var viewModel = TestMainViewModelFactory.Create(new InMemorySettingsStore());
             viewModel.OpenProject(root);
 
             Assert.Equal("helpers", Assert.Single(viewModel.UserScripts).DisplayName);
@@ -117,7 +200,7 @@ public class MainViewModelTests
         var second = Path.Combine(Path.GetTempPath(), $"visualized-project-{Guid.NewGuid():N}");
         try
         {
-            var viewModel = new MainViewModel(new InMemorySettingsStore());
+            var viewModel = TestMainViewModelFactory.Create(new InMemorySettingsStore());
             viewModel.CreateProject(first);
             var originalMainScript = File.ReadAllText(Path.Combine(first, "scripts", "main.py"));
             viewModel.PythonCode = "print('first')";
@@ -238,4 +321,5 @@ public class MainViewModelTests
 
         public void Save(AppSettings settings) => Settings = settings;
     }
+
 }
