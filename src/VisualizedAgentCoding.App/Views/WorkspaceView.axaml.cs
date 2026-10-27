@@ -13,6 +13,10 @@ namespace happy_agent_coding.Views;
 public partial class WorkspaceView : UserControl
 {
     private bool applyingLayout;
+    private StageObjectItem? draggingSprite;
+    private Point dragOffset;
+    private Point pressPoint;
+    private bool stageDragMoved;
 
     public WorkspaceView()
     {
@@ -21,6 +25,7 @@ public partial class WorkspaceView : UserControl
         Loaded += OnLoaded;
         SizeChanged += OnSizeChanged;
         Sidebar.SizeChanged += OnSidebarSizeChanged;
+        StagePreviewHost.SizeChanged += OnStagePreviewHostSizeChanged;
         HorizontalSplitter.PointerReleased += OnSplitterPointerReleased;
         VerticalSplitter.PointerReleased += OnSplitterPointerReleased;
     }
@@ -46,18 +51,30 @@ public partial class WorkspaceView : UserControl
     {
         UpdateSidebarMode();
         UpdateResponsiveColumnWidths();
-        UpdateStageToolbarWidth();
-    }
-
-    private void OnStageCanvasSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        UpdateStageToolbarWidth();
     }
 
     private void OnSidebarSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         UpdateResponsiveColumnWidths();
+    }
+
+    private void OnStagePreviewHostSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
         UpdateStageToolbarWidth();
+    }
+
+    /// <summary>Matches the toolbar width to the stage's on-screen width after the 480x360 canvas is uniformly scaled.</summary>
+    private void UpdateStageToolbarWidth()
+    {
+        const double stageDesignWidth = 480;
+        const double stageDesignHeight = 360;
+
+        var host = StagePreviewHost.Bounds;
+        if (host.Width <= 0 || host.Height <= 0)
+            return;
+
+        var scale = Math.Min(host.Width / stageDesignWidth, host.Height / stageDesignHeight);
+        StageToolbar.Width = stageDesignWidth * scale;
     }
 
     private void UpdateResponsiveColumnWidths()
@@ -81,13 +98,6 @@ public partial class WorkspaceView : UserControl
 
         if (Math.Abs(WorkspaceGrid.ColumnDefinitions[1].ActualWidth - auxiliaryWidth) > 0.5)
             WorkspaceGrid.ColumnDefinitions[1].Width = new GridLength(auxiliaryWidth, GridUnitType.Pixel);
-    }
-
-    private void UpdateStageToolbarWidth()
-    {
-        var canvasWidth = StageCanvasViewbox.Bounds.Width;
-        if (canvasWidth > 0)
-            StageToolbar.Width = canvasWidth;
     }
 
     private void ApplySavedLayout(MainViewModel viewModel)
@@ -144,6 +154,102 @@ public partial class WorkspaceView : UserControl
         menu.ShowAt(source, true);
 
         e.Handled = true;
+    }
+
+    private void OnStageCanvasPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (IsWithinStageSprite(e.Source as Visual))
+            return;
+        if (DataContext is not MainViewModel viewModel)
+            return;
+
+        if (viewModel.CurrentBackdrop is { } backdrop)
+            viewModel.SelectStageObjectCommand.Execute(backdrop);
+        else
+            viewModel.ClearStageSelection();
+    }
+
+    private void OnStageSpritePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Control { Tag: StageObjectItem item })
+            return;
+        if (DataContext is not MainViewModel viewModel)
+            return;
+
+        viewModel.SelectStageObjectCommand.Execute(item);
+        var canvasPos = e.GetPosition(StageCanvas);
+        draggingSprite = item;
+        dragOffset = new Point(canvasPos.X - item.CanvasLeft, canvasPos.Y - item.CanvasTop);
+        pressPoint = canvasPos;
+        stageDragMoved = false;
+        e.Pointer.Capture(StageCanvas);
+        e.Handled = true;
+    }
+
+    private void OnStageCanvasPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (draggingSprite is null)
+            return;
+        if (!e.GetCurrentPoint(StageCanvas).Properties.IsLeftButtonPressed)
+            return;
+
+        var canvasPos = e.GetPosition(StageCanvas);
+        if (!stageDragMoved && Distance(canvasPos, pressPoint) < 4)
+            return;
+
+        stageDragMoved = true;
+        draggingSprite.SetPositionFromCanvasTopLeft(
+            canvasPos.X - dragOffset.X,
+            canvasPos.Y - dragOffset.Y);
+        e.Handled = true;
+    }
+
+    private void OnStageCanvasPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        EndStageDrag();
+    }
+
+    private void OnStageCanvasPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        EndStageDrag();
+    }
+
+    private void EndStageDrag()
+    {
+        draggingSprite = null;
+        stageDragMoved = false;
+    }
+
+    private static double Distance(Point a, Point b)
+    {
+        var dx = a.X - b.X;
+        var dy = a.Y - b.Y;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
+
+    private static bool IsWithinStageSprite(Visual? hit)
+    {
+        for (var current = hit; current is not null; current = current.GetVisualParent())
+        {
+            if (current is Control { Name: "StageCanvas" })
+                return false;
+            if (current is Control { Classes: var classes } && classes.Contains("stage-sprite"))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Opens the clicked indexed script in the editor. Bound in code so nested items
+    /// do not have to walk the visual tree for the workspace view model.</summary>
+    private void OnScriptItemClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ProjectScriptItem item })
+            return;
+        if (DataContext is not MainViewModel viewModel)
+            return;
+
+        viewModel.OpenScriptFromExplorerCommand.Execute(item);
     }
 
     /// <summary>True when the hit control lives inside a script row rather than the category header.</summary>

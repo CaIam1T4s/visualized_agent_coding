@@ -93,6 +93,111 @@ public class ScriptCreationTests
     }
 
     [Fact]
+    public void OpeningAScriptLoadsItsContentsAndMarksTheRow()
+    {
+        var root = NewTempDirectory();
+        try
+        {
+            var viewModel = OpenProject(root);
+            CreateScript(viewModel, ProjectScriptKind.User, "helpers");
+            var item = Assert.Single(CategoryFor(viewModel, ProjectScriptKind.User).Scripts);
+
+            viewModel.OpenScriptFromExplorerCommand.Execute(item);
+
+            Assert.Equal(File.ReadAllText(Path.Combine(root, "scripts", "user", "helpers.py")), viewModel.PythonCode);
+            Assert.Equal("helpers.py", viewModel.FileName);
+            Assert.Equal(item.Id, viewModel.OpenScript?.Id);
+            Assert.True(viewModel.IsEditorVisible);
+            Assert.True(Assert.Single(CategoryFor(viewModel, ProjectScriptKind.User).Scripts).IsOpen);
+            Assert.DoesNotContain("main.py", viewModel.UserScripts.Select(script => script.RelativePath));
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void SwitchingScriptsSavesThePreviousBuffer()
+    {
+        var root = NewTempDirectory();
+        try
+        {
+            var viewModel = OpenProject(root);
+            CreateScript(viewModel, ProjectScriptKind.User, "helpers");
+            CreateScript(viewModel, ProjectScriptKind.Object, "hero");
+            var helpers = Assert.Single(CategoryFor(viewModel, ProjectScriptKind.User).Scripts);
+            var hero = Assert.Single(CategoryFor(viewModel, ProjectScriptKind.Object).Scripts);
+
+            viewModel.OpenScriptFromExplorerCommand.Execute(helpers);
+            viewModel.PythonCode = "print('helpers')\n";
+            viewModel.OpenScriptFromExplorerCommand.Execute(hero);
+
+            Assert.Equal("print('helpers')\n", File.ReadAllText(Path.Combine(root, "scripts", "user", "helpers.py")));
+            Assert.Contains("ElementBase", viewModel.PythonCode);
+            Assert.Equal("hero.py", viewModel.FileName);
+            Assert.False(Assert.Single(CategoryFor(viewModel, ProjectScriptKind.User).Scripts).IsOpen);
+            Assert.True(Assert.Single(CategoryFor(viewModel, ProjectScriptKind.Object).Scripts).IsOpen);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void SavingWritesTheOpenScriptAndLeavesTheEntryScriptAlone()
+    {
+        var root = NewTempDirectory();
+        try
+        {
+            var viewModel = OpenProject(root);
+            CreateScript(viewModel, ProjectScriptKind.User, "helpers");
+            var originalMain = File.ReadAllText(Path.Combine(root, "scripts", "main.py"));
+            viewModel.OpenScriptFromExplorerCommand.Execute(
+                Assert.Single(CategoryFor(viewModel, ProjectScriptKind.User).Scripts));
+            viewModel.PythonCode = "print('saved helpers')\n";
+
+            viewModel.SaveCommand.Execute(null);
+
+            Assert.Equal("已保存", viewModel.EditorState);
+            Assert.Equal("print('saved helpers')\n", File.ReadAllText(Path.Combine(root, "scripts", "user", "helpers.py")));
+            Assert.Equal(originalMain, File.ReadAllText(Path.Combine(root, "scripts", "main.py")));
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void ClosingTheProjectClearsTheOpenScript()
+    {
+        var root = NewTempDirectory();
+        try
+        {
+            var viewModel = OpenProject(root);
+            CreateScript(viewModel, ProjectScriptKind.User, "helpers");
+            viewModel.OpenScriptFromExplorerCommand.Execute(
+                Assert.Single(CategoryFor(viewModel, ProjectScriptKind.User).Scripts));
+
+            viewModel.CloseProject();
+
+            Assert.Equal(string.Empty, viewModel.PythonCode);
+            Assert.Equal(string.Empty, viewModel.FileName);
+            Assert.Null(viewModel.OpenScript);
+            Assert.False(viewModel.IsEditorVisible);
+            Assert.False(viewModel.ShowStageCanvas);
+            Assert.True(viewModel.ShowOpenProjectPrompt);
+            Assert.Equal("尚未打开项目", viewModel.EditorEmptyPromptTitle);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
     public void RefusedNamesKeepTheEditorOpenAndSurfaceTheReason()
     {
         var root = NewTempDirectory();
@@ -162,7 +267,7 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void ObjectManagerModeIsAPlaceholderThatDoesNotDisturbScripts()
+    public void SwitchingExplorerModeLeavesIndexedScriptsIntact()
     {
         var root = NewTempDirectory();
         try
@@ -177,11 +282,249 @@ public class ScriptCreationTests
             Assert.False(viewModel.IsResourceFilterMode);
             Assert.True(viewModel.IsObjectManagerMode);
             Assert.Single(CategoryFor(viewModel, ProjectScriptKind.User).Scripts);
+            Assert.Empty(viewModel.StageSprites);
+            Assert.Empty(viewModel.StageBackdrops);
 
             viewModel.ResourceExplorerModeIndex = 0;
 
             Assert.True(viewModel.IsResourceFilterMode);
             Assert.Single(CategoryFor(viewModel, ProjectScriptKind.User).Scripts);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void ObjectAndBackdropScriptsAppearInTheObjectManager()
+    {
+        var root = NewTempDirectory();
+        try
+        {
+            var viewModel = OpenProject(root);
+            CreateScript(viewModel, ProjectScriptKind.User, "helpers");
+            CreateScript(viewModel, ProjectScriptKind.Object, "hero");
+            CreateScript(viewModel, ProjectScriptKind.Backdrop, "forest");
+
+            var sprite = Assert.Single(viewModel.StageSprites);
+            var backdrop = Assert.Single(viewModel.StageBackdrops);
+            Assert.Equal("hero", sprite.DisplayName);
+            Assert.Equal("forest", backdrop.DisplayName);
+            Assert.NotEqual(sprite.ObjectId, backdrop.ObjectId);
+            Assert.Equal(100, sprite.Size);
+            Assert.Equal(90, sprite.Direction);
+            Assert.True(sprite.IsVisible);
+            Assert.Null(viewModel.SelectedSprite);
+            Assert.Null(viewModel.SelectedBackdrop);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void SelectingAStageObjectOpensItsScriptAndShowsProperties()
+    {
+        var root = NewTempDirectory();
+        try
+        {
+            var viewModel = OpenProject(root);
+            CreateScript(viewModel, ProjectScriptKind.Object, "hero");
+            CreateScript(viewModel, ProjectScriptKind.Backdrop, "forest");
+            var sprite = Assert.Single(viewModel.StageSprites);
+
+            viewModel.SelectStageObjectCommand.Execute(sprite);
+
+            Assert.Equal("hero.py", viewModel.FileName);
+            Assert.True(viewModel.IsEditorVisible);
+            Assert.True(Assert.Single(viewModel.StageSprites).IsSelected);
+            Assert.Same(viewModel.StageSprites[0], viewModel.SelectedSprite);
+            Assert.Null(viewModel.SelectedBackdrop);
+            Assert.Equal(0, viewModel.ObjectManagerTabIndex);
+            Assert.Contains("ElementBase", viewModel.PythonCode);
+
+            viewModel.SelectStageObjectCommand.Execute(Assert.Single(viewModel.StageBackdrops));
+
+            Assert.Equal("forest.py", viewModel.FileName);
+            Assert.False(Assert.Single(viewModel.StageSprites).IsSelected);
+            Assert.True(Assert.Single(viewModel.StageBackdrops).IsSelected);
+            Assert.Null(viewModel.SelectedSprite);
+            Assert.Same(viewModel.StageBackdrops[0], viewModel.SelectedBackdrop);
+            Assert.Equal(1, viewModel.ObjectManagerTabIndex);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void OpeningAUserScriptClearsTheStageObjectSelection()
+    {
+        var root = NewTempDirectory();
+        try
+        {
+            var viewModel = OpenProject(root);
+            CreateScript(viewModel, ProjectScriptKind.User, "helpers");
+            CreateScript(viewModel, ProjectScriptKind.Object, "hero");
+            viewModel.SelectStageObjectCommand.Execute(Assert.Single(viewModel.StageSprites));
+
+            viewModel.OpenScriptFromExplorerCommand.Execute(
+                Assert.Single(CategoryFor(viewModel, ProjectScriptKind.User).Scripts));
+
+            Assert.False(Assert.Single(viewModel.StageSprites).IsSelected);
+            Assert.Null(viewModel.SelectedSprite);
+            Assert.Equal("helpers.py", viewModel.FileName);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void AddingASpriteFromTheObjectManagerCreatesAndSelectsIt()
+    {
+        var root = NewTempDirectory();
+        try
+        {
+            var viewModel = OpenProject(root);
+
+            viewModel.AddSpriteCommand.Execute(null);
+            viewModel.AddSpriteCommand.Execute(null);
+            viewModel.AddBackdropCommand.Execute(null);
+
+            Assert.Equal(2, viewModel.StageSprites.Count);
+            Assert.Single(viewModel.StageBackdrops);
+            Assert.Equal("sprite", viewModel.StageSprites[0].DisplayName);
+            Assert.Equal("sprite2", viewModel.StageSprites[1].DisplayName);
+            Assert.Equal("backdrop", Assert.Single(viewModel.StageBackdrops).DisplayName);
+            Assert.Equal("backdrop.py", viewModel.FileName);
+            Assert.True(Assert.Single(viewModel.StageBackdrops).IsSelected);
+            Assert.Equal(1, viewModel.ObjectManagerTabIndex);
+            Assert.True(File.Exists(Path.Combine(root, "scripts", "objects", "sprite.py")));
+            Assert.True(File.Exists(Path.Combine(root, "scripts", "backdrops", "backdrop.py")));
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void ClosingTheProjectClearsStageObjects()
+    {
+        var root = NewTempDirectory();
+        try
+        {
+            var viewModel = OpenProject(root);
+            CreateScript(viewModel, ProjectScriptKind.Object, "hero");
+            viewModel.SelectStageObjectCommand.Execute(Assert.Single(viewModel.StageSprites));
+            viewModel.StageSprites[0].X = 40;
+
+            viewModel.CloseProject();
+
+            Assert.Empty(viewModel.StageSprites);
+            Assert.Empty(viewModel.StageBackdrops);
+            Assert.Null(viewModel.SelectedSprite);
+            Assert.Null(viewModel.SelectedBackdrop);
+            Assert.Null(viewModel.CurrentBackdrop);
+            Assert.False(viewModel.IsEditorVisible);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void StageSpritesExposeCanvasGeometryForThePreview()
+    {
+        var root = NewTempDirectory();
+        try
+        {
+            var viewModel = OpenProject(root);
+            CreateScript(viewModel, ProjectScriptKind.Object, "hero");
+            var sprite = Assert.Single(viewModel.StageSprites);
+
+            Assert.Equal(48, sprite.SpriteWidth);
+            Assert.Equal(216, sprite.CanvasLeft);
+            Assert.Equal(156, sprite.CanvasTop);
+            Assert.Equal(0, sprite.Rotation);
+            Assert.Equal(1, sprite.StageOpacity);
+
+            sprite.X = 40;
+            sprite.Y = -20;
+            sprite.Size = 200;
+            sprite.Direction = 180;
+            sprite.IsVisible = false;
+
+            Assert.Equal(96, sprite.SpriteWidth);
+            Assert.Equal(232, sprite.CanvasLeft);
+            Assert.Equal(152, sprite.CanvasTop);
+            Assert.Equal(90, sprite.Rotation);
+            Assert.Equal(0.4, sprite.StageOpacity);
+
+            sprite.SetPositionFromCanvasTopLeft(232, 152);
+            Assert.Equal(40, sprite.X);
+            Assert.Equal(-20, sprite.Y);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void CurrentBackdropFollowsSelectionThenFallsBackToTheFirstItem()
+    {
+        var root = NewTempDirectory();
+        try
+        {
+            var viewModel = OpenProject(root);
+            CreateScript(viewModel, ProjectScriptKind.Backdrop, "forest");
+            CreateScript(viewModel, ProjectScriptKind.Backdrop, "night");
+
+            Assert.Same(viewModel.StageBackdrops[0], viewModel.CurrentBackdrop);
+
+            viewModel.SelectStageObjectCommand.Execute(viewModel.StageBackdrops[1]);
+            Assert.Same(viewModel.StageBackdrops[1], viewModel.CurrentBackdrop);
+            Assert.Equal("night.py", viewModel.FileName);
+
+            viewModel.ClearStageSelection();
+            Assert.Null(viewModel.SelectedBackdrop);
+            Assert.Same(viewModel.StageBackdrops[0], viewModel.CurrentBackdrop);
+            Assert.Equal("night.py", viewModel.FileName);
+            Assert.True(viewModel.IsEditorVisible);
+
+            viewModel.SelectStageObjectCommand.Execute(viewModel.CurrentBackdrop);
+            Assert.Same(viewModel.StageBackdrops[0], viewModel.SelectedBackdrop);
+            Assert.Equal("forest.py", viewModel.FileName);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void ClearingStageSelectionDoesNotCloseTheOpenScript()
+    {
+        var root = NewTempDirectory();
+        try
+        {
+            var viewModel = OpenProject(root);
+            CreateScript(viewModel, ProjectScriptKind.Object, "hero");
+            viewModel.SelectStageObjectCommand.Execute(Assert.Single(viewModel.StageSprites));
+
+            viewModel.ClearStageSelection();
+
+            Assert.False(Assert.Single(viewModel.StageSprites).IsSelected);
+            Assert.Null(viewModel.SelectedSprite);
+            Assert.Equal("hero.py", viewModel.FileName);
+            Assert.True(viewModel.IsEditorVisible);
         }
         finally
         {

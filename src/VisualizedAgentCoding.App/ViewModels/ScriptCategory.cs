@@ -7,7 +7,12 @@ using VisualizedAgentCoding.Domain.Projects;
 namespace happy_agent_coding.ViewModels;
 
 /// <summary>A script shown in the resource filter: stable id plus the name and path to display.</summary>
-public sealed record ProjectScriptItem(string Id, string DisplayName, string RelativePath, ProjectScriptKind Kind);
+public sealed record ProjectScriptItem(
+    string Id,
+    string DisplayName,
+    string RelativePath,
+    ProjectScriptKind Kind,
+    bool IsOpen = false);
 
 /// <summary>One script family (user/object/backdrop) with its own inline creation state.</summary>
 public partial class ScriptCategory : ObservableObject

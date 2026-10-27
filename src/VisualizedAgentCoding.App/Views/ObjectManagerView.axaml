@@ -1,0 +1,168 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:happy_agent_coding.ViewModels"
+             xmlns:views="using:happy_agent_coding.Views"
+             x:Class="happy_agent_coding.Views.ObjectManagerView"
+             x:DataType="vm:MainViewModel">
+    <UserControl.Resources>
+        <DataTemplate x:Key="StageObjectTile" x:DataType="vm:StageObjectItem">
+            <Button Classes="object-tile"
+                    Classes.selected="{Binding IsSelected}"
+                    Tag="{Binding}"
+                    Click="OnStageObjectClick"
+                    ToolTip.Tip="{Binding DisplayName}"
+                    AutomationProperties.Name="{Binding DisplayName}">
+                <StackPanel Spacing="4" HorizontalAlignment="Center">
+                    <Border Classes="object-tile-thumb"
+                            Width="48"
+                            Height="48"
+                            HorizontalAlignment="Center">
+                        <TextBlock Text="{Binding Initial}"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="{Binding DisplayName}"
+                               FontSize="11"
+                               TextAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               MaxWidth="72" />
+                </StackPanel>
+            </Button>
+        </DataTemplate>
+        <DataTemplate x:Key="StageObjectProperties" x:DataType="vm:StageObjectItem">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Hidden">
+                <StackPanel Spacing="10">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding KindLabel}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBox Text="{Binding DisplayName}"
+                                 IsReadOnly="True" />
+                    </StackPanel>
+                    <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                        <TextBlock Text="X"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Column="2"
+                                   Text="Y"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBox Grid.Row="1"
+                                 Text="{Binding X}"
+                                 Margin="0,4,0,8" />
+                        <TextBox Grid.Row="1"
+                                 Grid.Column="2"
+                                 Text="{Binding Y}"
+                                 Margin="0,4,0,8" />
+                        <TextBlock Grid.Row="2"
+                                   Text="大小"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Grid.Row="2"
+                                   Grid.Column="2"
+                                   Text="方向"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBox Grid.Row="3"
+                                 Text="{Binding Size}"
+                                 Margin="0,4,0,0" />
+                        <TextBox Grid.Row="3"
+                                 Grid.Column="2"
+                                 Text="{Binding Direction}"
+                                 Margin="0,4,0,0" />
+                    </Grid>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="显示"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Classes="object-visibility"
+                                    Classes.selected="{Binding IsVisible}"
+                                    Command="{Binding ShowObjectCommand}"
+                                    ToolTip.Tip="显示"
+                                    AutomationProperties.Name="显示">
+                                <TextBlock Classes="explorer-glyph" Text="&#xE890;" FontSize="14" />
+                            </Button>
+                            <Button Classes="object-visibility"
+                                    Classes.selected="{Binding IsHidden}"
+                                    Command="{Binding HideObjectCommand}"
+                                    ToolTip.Tip="隐藏"
+                                    AutomationProperties.Name="隐藏">
+                                <TextBlock Classes="explorer-glyph" Text="&#xED1A;" FontSize="14" />
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </DataTemplate>
+    </UserControl.Resources>
+    <TabControl Classes="object-manager-tabs"
+                SelectedIndex="{Binding ObjectManagerTabIndex}">
+        <TabItem Header="角色">
+            <Grid ColumnDefinitions="*,12,180" Margin="0,8,0,0">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Hidden">
+                    <views:ObjectTileWrapHost ItemsSource="{Binding StageSprites}"
+                                              ItemTemplate="{StaticResource StageObjectTile}"
+                                              HorizontalAlignment="Stretch">
+                        <views:ObjectTileWrapHost.TrailingContent>
+                            <Button Classes="object-add"
+                                    Command="{Binding AddSpriteCommand}"
+                                    IsEnabled="{Binding HasOpenProject}"
+                                    ToolTip.Tip="添加角色"
+                                    AutomationProperties.Name="添加角色">
+                                <StackPanel Spacing="2" HorizontalAlignment="Center">
+                                    <TextBlock Classes="explorer-glyph"
+                                               Text="&#xE710;"
+                                               FontSize="16"
+                                               HorizontalAlignment="Center" />
+                                    <TextBlock Text="添加"
+                                               FontSize="11"
+                                               HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </views:ObjectTileWrapHost.TrailingContent>
+                    </views:ObjectTileWrapHost>
+                </ScrollViewer>
+                <ContentControl Grid.Column="2"
+                                Width="180"
+                                MinWidth="180"
+                                MaxWidth="180"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Stretch"
+                                Content="{Binding SelectedSprite}"
+                                ContentTemplate="{StaticResource StageObjectProperties}" />
+            </Grid>
+        </TabItem>
+        <TabItem Header="背景">
+            <ScrollViewer Margin="0,8,0,0"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Hidden">
+                <views:ObjectTileWrapHost ItemsSource="{Binding StageBackdrops}"
+                                          ItemTemplate="{StaticResource StageObjectTile}"
+                                          HorizontalAlignment="Stretch">
+                    <views:ObjectTileWrapHost.TrailingContent>
+                        <Button Classes="object-add"
+                                Command="{Binding AddBackdropCommand}"
+                                IsEnabled="{Binding HasOpenProject}"
+                                ToolTip.Tip="添加背景"
+                                AutomationProperties.Name="添加背景">
+                            <StackPanel Spacing="2" HorizontalAlignment="Center">
+                                <TextBlock Classes="explorer-glyph"
+                                           Text="&#xE710;"
+                                           FontSize="16"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="添加"
+                                           FontSize="11"
+                                           HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </views:ObjectTileWrapHost.TrailingContent>
+                </views:ObjectTileWrapHost>
+            </ScrollViewer>
+        </TabItem>
+    </TabControl>
+</UserControl>

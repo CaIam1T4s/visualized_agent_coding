@@ -8,64 +8,95 @@
              x:DataType="vm:MainViewModel">
     <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
             Padding="0,8,8,8">
-        <Border Classes="editor-surface"
-                Background="{DynamicResource LayerFillColorBrush}"
-                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                ClipToBounds="True">
-            <Border.Styles>
-                <Style Selector="avaloniaEditEditing|LineNumberMargin">
-                    <Setter Property="Margin" Value="0,0,6,0" />
-                </Style>
-                <Style Selector="avaloniaEditRendering|TextView">
-                    <Setter Property="Margin" Value="6,0,0,0" />
-                </Style>
-            </Border.Styles>
-            <Grid RowDefinitions="Auto,*,Auto">
-                <Grid Grid.Row="0"
-                      ColumnDefinitions="Auto,*"
-                      Margin="12,11,12,8">
-                    <ComboBox Classes="editor-mode-selector"
-                              HorizontalAlignment="Left"
-                              SelectedIndex="{Binding EditorModeIndex}"
-                              Width="110"
-                              Height="32"
-                              VerticalContentAlignment="Center">
-                        <ComboBoxItem Content="Python" />
-                        <ComboBoxItem Content="图形化" />
-                    </ComboBox>
-                    <TextBlock Grid.Column="1"
-                               Text="{Binding FileName}"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+        <Panel>
+            <Border Classes="editor-surface"
+                    Background="{DynamicResource LayerFillColorBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    ClipToBounds="True"
+                    IsVisible="{Binding IsEditorVisible, Converter={x:Static BoolConverters.Not}}">
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="12"
+                            MaxWidth="360">
+                    <TextBlock Text="{Binding EditorEmptyPromptTitle}"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               TextAlignment="Center"
                                HorizontalAlignment="Center"
-                               VerticalAlignment="Center" />
-                </Grid>
-                <avaloniaEdit:TextEditor x:Name="EditorTextBox"
-                                         Grid.Row="1"
-                                         ShowLineNumbers="True"
-                                         HorizontalScrollBarVisibility="Auto"
-                                         VerticalScrollBarVisibility="Auto"
-                                         FontFamily="Consolas"
-                                         FontSize="14"
-                                         Padding="12"
-                                         Background="{DynamicResource LayerFillColorBrush}"
-                                         Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                <Border Grid.Row="2"
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                        BorderThickness="0,1,0,0"
-                        Padding="12,8">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="{Binding EditorState}"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   FontSize="12" />
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock Text="{Binding EditorEmptyPromptMessage}"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"
+                               HorizontalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <Button Classes="command-button primary"
+                            Content="打开项目管理"
+                            HorizontalAlignment="Center"
+                            IsVisible="{Binding ShowOpenProjectPrompt}"
+                            Command="{Binding OpenProjectManagerCommand}" />
+                </StackPanel>
+            </Border>
+            <Border Classes="editor-surface"
+                    Background="{DynamicResource LayerFillColorBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    ClipToBounds="True"
+                    IsVisible="{Binding IsEditorVisible}">
+                <Border.Styles>
+                    <Style Selector="avaloniaEditEditing|LineNumberMargin">
+                        <Setter Property="Margin" Value="0,0,6,0" />
+                    </Style>
+                    <Style Selector="avaloniaEditRendering|TextView">
+                        <Setter Property="Margin" Value="6,0,0,0" />
+                    </Style>
+                </Border.Styles>
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <Grid Grid.Row="0"
+                          ColumnDefinitions="Auto,*"
+                          Margin="12,11,12,8">
+                        <ComboBox Classes="editor-mode-selector"
+                                  HorizontalAlignment="Left"
+                                  SelectedIndex="{Binding EditorModeIndex}"
+                                  Width="110"
+                                  Height="32"
+                                  VerticalContentAlignment="Center">
+                            <ComboBoxItem Content="Python" />
+                            <ComboBoxItem Content="图形化" />
+                        </ComboBox>
                         <TextBlock Grid.Column="1"
-                                   Text="Python · UTF-8"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                   FontSize="12" />
+                                   Text="{Binding FileName}"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
                     </Grid>
-                </Border>
-            </Grid>
-        </Border>
+                    <avaloniaEdit:TextEditor x:Name="EditorTextBox"
+                                             Grid.Row="1"
+                                             ShowLineNumbers="True"
+                                             HorizontalScrollBarVisibility="Auto"
+                                             VerticalScrollBarVisibility="Auto"
+                                             FontFamily="Consolas"
+                                             FontSize="14"
+                                             Padding="12"
+                                             Background="{DynamicResource LayerFillColorBrush}"
+                                             Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <Border Grid.Row="2"
+                            Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="0,1,0,0"
+                            Padding="12,8">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding EditorState}"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       FontSize="12" />
+                            <TextBlock Grid.Column="1"
+                                       Text="Python · UTF-8"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                       FontSize="12" />
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Panel>
     </Border>
 </UserControl>

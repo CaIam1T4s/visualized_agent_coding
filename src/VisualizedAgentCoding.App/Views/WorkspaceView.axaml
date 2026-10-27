@@ -22,9 +22,8 @@
                     CornerRadius="8"
                     Padding="12">
                 <Grid RowDefinitions="Auto,*">
-                    <Grid x:Name="StageToolbar"
+                    <Grid x:Name="StageToolbar" HorizontalAlignment="Center"
                           ColumnDefinitions="Auto,*"
-                          HorizontalAlignment="Center"
                           Margin="0,0,0,8">
                         <Button Classes="command-button primary stage-run-button"
                                 Command="{Binding RunCommand}"
@@ -50,25 +49,109 @@
                             <ComboBoxItem Content="舞台" />
                         </ComboBox>
                     </Grid>
-                    <Viewbox x:Name="StageCanvasViewbox"
-                             Grid.Row="1"
-                             Stretch="Uniform"
-                             HorizontalAlignment="Center"
-                             VerticalAlignment="Center"
-                             MinWidth="360"
-                             MinHeight="270"
-                             SizeChanged="OnStageCanvasSizeChanged">
-                        <Border Width="480"
-                                Height="360"
-                                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    <Panel x:Name="StagePreviewHost"
+                           Grid.Row="1">
+                        <Border x:Name="StageFrame"
+                                Background="Transparent"
                                 CornerRadius="8"
+                                MinWidth="360"
+                                MinHeight="270"
                                 ClipToBounds="True">
-                            <TextBlock Text="舞台画布"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <Panel x:Name="StageCanvasHost">
+                                <Border IsVisible="{Binding ShowStageCanvas, Converter={x:Static BoolConverters.Not}}"
+                                        Background="Transparent">
+                                    <TextBlock Text="{Binding EditorEmptyPromptMessage}"
+                                               MaxWidth="320"
+                                               TextAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </Border>
+                                <Viewbox x:Name="StageCanvasViewbox"
+                                         Stretch="Uniform"
+                                         IsVisible="{Binding ShowStageCanvas}">
+                                    <Border Width="480"
+                                            Height="360"
+                                            Background="{DynamicResource LayerFillColorDefaultBrush}"
+                                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            ClipToBounds="True">
+                                        <Grid><Canvas x:Name="StageCanvas"
+                                                Width="480"
+                                                Height="360"
+                                                Background="Transparent"
+                                                PointerPressed="OnStageCanvasPointerPressed"
+                                                PointerMoved="OnStageCanvasPointerMoved"
+                                                PointerReleased="OnStageCanvasPointerReleased"
+                                                PointerCaptureLost="OnStageCanvasPointerCaptureLost">
+                                            <ContentControl Width="480"
+                                                            Height="360"
+                                                            Content="{Binding CurrentBackdrop}"
+                                                            IsHitTestVisible="False">
+                                                <ContentControl.ContentTemplate>
+                                                    <DataTemplate x:DataType="vm:StageObjectItem">
+                                                        <Border Classes="stage-backdrop"
+                                                                Width="480"
+                                                                Height="360">
+                                                            <TextBlock Text="{Binding DisplayName}"
+                                                                       FontSize="28"
+                                                                       FontWeight="SemiBold"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ContentControl.ContentTemplate>
+                                            </ContentControl>
+                                            <ItemsControl Width="480"
+                                                           Height="360"
+                                                           ItemsSource="{Binding StageSprites}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <Canvas Width="480" Height="360" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemContainerTheme>
+                                                    <ControlTheme TargetType="ContentPresenter" x:DataType="vm:StageObjectItem">
+                                                        <Setter Property="Canvas.Left" Value="{Binding CanvasLeft}" />
+                                                        <Setter Property="Canvas.Top" Value="{Binding CanvasTop}" />
+                                                    </ControlTheme>
+                                                </ItemsControl.ItemContainerTheme>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:StageObjectItem">
+                                                        <Border Classes="stage-sprite"
+                                                                Classes.selected="{Binding IsSelected}"
+                                                                Width="{Binding SpriteWidth}"
+                                                                Height="{Binding SpriteHeight}"
+                                                                Opacity="{Binding StageOpacity}"
+                                                                Tag="{Binding}"
+                                                                Cursor="SizeAll"
+                                                                PointerPressed="OnStageSpritePointerPressed"
+                                                                ToolTip.Tip="{Binding DisplayName}"
+                                                                AutomationProperties.Name="{Binding DisplayName}">
+                                                            <Border.RenderTransformOrigin>
+                                                                <RelativePoint>0.5,0.5</RelativePoint>
+                                                            </Border.RenderTransformOrigin>
+                                                            <Border.RenderTransform>
+                                                                <RotateTransform Angle="{Binding Rotation}" />
+                                                            </Border.RenderTransform>
+                                                            <TextBlock Text="{Binding Initial}"
+                                                                       FontSize="18"
+                                                                       FontWeight="SemiBold"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center" />
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Canvas><Border IsHitTestVisible="False" CornerRadius="8" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" /></Grid>
+                                    </Border>
+                                </Viewbox>
+                            </Panel>
                         </Border>
-                    </Viewbox>
+                    </Panel>
                 </Grid>
             </Border>
             <GridSplitter x:Name="HorizontalSplitter"
@@ -102,9 +185,10 @@
                              PlaceholderText="按名称或路径筛选脚本"
                              IsVisible="{Binding IsResourceFilterMode}"
                              Margin="0,8,0,8" />
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Hidden">
-                        <Panel>
-                            <StackPanel Spacing="8" IsVisible="{Binding IsResourceFilterMode}">
+                    <Panel Grid.Row="2">
+                        <ScrollViewer VerticalScrollBarVisibility="Hidden"
+                                      IsVisible="{Binding IsResourceFilterMode}">
+                            <StackPanel Spacing="8">
                                 <ItemsControl ItemsSource="{Binding ScriptCategories}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:ScriptCategory">
@@ -170,11 +254,16 @@
                                                         <ItemsControl ItemsSource="{Binding Scripts}">
                                                             <ItemsControl.ItemTemplate>
                                                                 <DataTemplate x:DataType="vm:ProjectScriptItem">
-                                                                    <Border Classes="explorer-item"
-                                                                            ToolTip.Tip="{Binding RelativePath}">
+                                                                    <Button Classes="explorer-item"
+                                                                            Classes.open="{Binding IsOpen}"
+                                                                            ToolTip.Tip="{Binding RelativePath}"
+                                                                            HorizontalAlignment="Stretch"
+                                                                            HorizontalContentAlignment="Left"
+                                                                            Tag="{Binding}"
+                                                                            Click="OnScriptItemClick">
                                                                         <TextBlock Text="{Binding DisplayName}"
                                                                                    Margin="8,5" />
-                                                                    </Border>
+                                                                    </Button>
                                                                 </DataTemplate>
                                                             </ItemsControl.ItemTemplate>
                                                         </ItemsControl>
@@ -185,19 +274,9 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </StackPanel>
-                            <StackPanel Spacing="6" IsVisible="{Binding IsObjectManagerMode}">
-                                <TextBlock Text="对象管理器"
-                                          FontWeight="SemiBold"
-                                          Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                <TextBlock Text="尚未实现"
-                                          Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                <TextBlock Text="后续在此列出舞台中的角色与背景，并显示所选对象的属性。"
-                                          TextWrapping="Wrap"
-                                          FontSize="11"
-                                          Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                            </StackPanel>
-                        </Panel>
-                    </ScrollViewer>
+                        </ScrollViewer>
+                        <views:ObjectManagerView IsVisible="{Binding IsObjectManagerMode}" />
+                    </Panel>
                     <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
                         <TextBlock Text="{Binding ProjectResourceMessage}"
                                    FontSize="11"

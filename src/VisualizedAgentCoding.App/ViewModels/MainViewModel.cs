@@ -22,6 +22,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly ISettingsStore settingsStore;
     private readonly IProjectSession projectSession;
     private ProjectWorkspace? activeProject;
+    private string? openScriptId;
     private Dictionary<ProjectScriptKind, bool>? expansionBeforeSearch;
     private readonly ScriptCategory userScripts;
     private readonly ScriptCategory objectScripts;
@@ -31,6 +32,12 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Script families shown in the resource filter, each with its own inline creation editor.</summary>
     public ObservableCollection<ScriptCategory> ScriptCategories { get; } = [];
+
+    /// <summary>Indexed object scripts shown as sprites in the object manager.</summary>
+    public ObservableCollection<StageObjectItem> StageSprites { get; } = [];
+
+    /// <summary>Indexed backdrop scripts shown in the object manager.</summary>
+    public ObservableCollection<StageObjectItem> StageBackdrops { get; } = [];
 
     public ObservableCollection<ProjectScriptItem> UserScripts => userScripts.Scripts;
     public ObservableCollection<ProjectScriptItem> ObjectScripts => objectScripts.Scripts;
@@ -80,7 +87,6 @@ public partial class MainViewModel : ViewModelBase
         selectedThemeIndex = Math.Clamp(settings.ThemeIndex, 0, 2);
         topPanelRatio = LayoutSettingValues.ClampTopPanelRatio(settings.TopPanelRatio);
         auxiliaryWidth = LayoutSettingValues.ClampAuxiliaryWidth(settings.AuxiliaryWidth);
-        PythonCode = "def main():\n    print(\"Hello, world!\")\n\n\nif __name__ == \"__main__\":\n    main()";
         ApplyTheme(selectedThemeIndex);
     }
 
@@ -130,13 +136,45 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private string resourceSearchQuery = string.Empty;
 
-    /// <summary>0 = resource filter, 1 = object manager (placeholder).</summary>
+    /// <summary>0 = resource filter, 1 = object manager.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsResourceFilterMode))]
     [NotifyPropertyChangedFor(nameof(IsObjectManagerMode))]
     private int resourceExplorerModeIndex;
 
-    public string FileName => activeProject is null ? "main.py" : Path.GetFileName(activeProject.MainScriptPath);
+    /// <summary>0 = sprites, 1 = backdrops.</summary>
+    [ObservableProperty]
+    private int objectManagerTabIndex;
+
+    [ObservableProperty]
+    private StageObjectItem? selectedSprite;
+
+    [ObservableProperty]
+    private StageObjectItem? selectedBackdrop;
+
+    /// <summary>Backdrop drawn on the stage: the selected one, otherwise the first listed.</summary>
+    public StageObjectItem? CurrentBackdrop => SelectedBackdrop ?? StageBackdrops.FirstOrDefault();
+
+    partial void OnSelectedBackdropChanged(StageObjectItem? value) =>
+        OnPropertyChanged(nameof(CurrentBackdrop));
+
+    public string FileName =>
+        OpenScript is { } script ? Path.GetFileName(script.Path) : string.Empty;
+
+    /// <summary>The editor is shown only while an indexed script is open.</summary>
+    public bool IsEditorVisible => OpenScript is not null;
+
+    public bool ShowOpenProjectPrompt => !HasOpenProject;
+
+    public string EditorEmptyPromptTitle => HasOpenProject ? "尚未打开脚本" : "尚未打开项目";
+
+    public string EditorEmptyPromptMessage => HasOpenProject
+        ? "在资源管理器中打开一个脚本，或选择舞台上的对象。"
+        : "打开或新建一个项目后，即可在此编辑脚本。";
+
+    /// <summary>The indexed script currently shown in the editor, or null when none is open.</summary>
+    public ProjectScriptEntry? OpenScript =>
+        activeProject is null ? null : activeProject.FindScript(openScriptId);
 
     public string? ProjectName => activeProject?.Name;
 
@@ -146,7 +184,10 @@ public partial class MainViewModel : ViewModelBase
 
     public bool HasOpenProject => activeProject is not null;
 
-    /// <summary>True while the resource explorer lists scripts (the object manager is a placeholder).</summary>
+    /// <summary>The 480×360 preview is shown only while a project is open.</summary>
+    public bool ShowStageCanvas => HasOpenProject;
+
+    /// <summary>True while the resource explorer lists scripts instead of stage objects.</summary>
     public bool IsResourceFilterMode => ResourceExplorerModeIndex == 0;
 
     public bool IsObjectManagerMode => ResourceExplorerModeIndex == 1;
@@ -161,14 +202,22 @@ public partial class MainViewModel : ViewModelBase
     {
         SaveActiveProject();
         activeProject = null;
+        openScriptId = null;
         PythonCode = string.Empty;
         ResetExplorerState();
+        ObjectManagerTabIndex = 0;
         RefreshProjectResources();
         OnPropertyChanged(nameof(FileName));
+        OnPropertyChanged(nameof(OpenScript));
         OnPropertyChanged(nameof(ProjectName));
         OnPropertyChanged(nameof(ProjectDisplayName));
         OnPropertyChanged(nameof(ProjectRootPath));
         OnPropertyChanged(nameof(HasOpenProject));
+        OnPropertyChanged(nameof(ShowStageCanvas));
+        OnPropertyChanged(nameof(IsEditorVisible));
+        OnPropertyChanged(nameof(ShowOpenProjectPrompt));
+        OnPropertyChanged(nameof(EditorEmptyPromptTitle));
+        OnPropertyChanged(nameof(EditorEmptyPromptMessage));
         OnPropertyChanged(nameof(CanCreateScript));
         ProjectStatus = "未打开项目";
     }
@@ -199,17 +248,25 @@ public partial class MainViewModel : ViewModelBase
     {
         SaveActiveProject();
         activeProject = project;
+        openScriptId = null;
         ClearProjectError();
         AddRecentProject(project);
-        PythonCode = projectSession.LoadMainScript(project);
+        PythonCode = string.Empty;
         ResetExplorerState();
         CollapseCategories();
+        ObjectManagerTabIndex = 0;
         RefreshProjectResources();
         OnPropertyChanged(nameof(FileName));
+        OnPropertyChanged(nameof(OpenScript));
         OnPropertyChanged(nameof(ProjectName));
         OnPropertyChanged(nameof(ProjectDisplayName));
         OnPropertyChanged(nameof(ProjectRootPath));
         OnPropertyChanged(nameof(HasOpenProject));
+        OnPropertyChanged(nameof(ShowStageCanvas));
+        OnPropertyChanged(nameof(IsEditorVisible));
+        OnPropertyChanged(nameof(ShowOpenProjectPrompt));
+        OnPropertyChanged(nameof(EditorEmptyPromptTitle));
+        OnPropertyChanged(nameof(EditorEmptyPromptMessage));
         OnPropertyChanged(nameof(CanCreateScript));
         ProjectStatus = project.Name;
         IsProjectManagerOpen = false;
@@ -217,8 +274,10 @@ public partial class MainViewModel : ViewModelBase
 
     private void SaveActiveProject()
     {
-        if (activeProject is not null)
-            projectSession.SaveMainScript(activeProject, PythonCode);
+        if (activeProject is null || OpenScript is not { } script)
+            return;
+
+        projectSession.SaveScript(activeProject, script, PythonCode);
     }
 
     /// <summary>Clears the search box so a closed project does not keep a stale filter.</summary>
@@ -245,6 +304,7 @@ public partial class MainViewModel : ViewModelBase
         if (activeProject is null)
         {
             CollapseCategories();
+            RefreshStageObjects();
             ProjectResourceMessage = string.Empty;
             OnPropertyChanged(nameof(ProjectResourceMessage));
             ProjectResourceStatus = "打开项目后显示脚本";
@@ -260,13 +320,14 @@ public partial class MainViewModel : ViewModelBase
                 continue;
 
             CategoryFor(script.Kind).Scripts.Add(
-                new ProjectScriptItem(script.Id, displayName, script.Path, script.Kind));
+                new ProjectScriptItem(script.Id, displayName, script.Path, script.Kind, script.Id == openScriptId));
         }
 
         foreach (var category in ScriptCategories)
             SortScripts(category);
 
         UpdateCategoryExpansion(query);
+        RefreshStageObjects();
 
         var count = ScriptCategories.Sum(category => category.Scripts.Count);
         ProjectResourceStatus = count == 0
@@ -339,6 +400,171 @@ public partial class MainViewModel : ViewModelBase
         ProjectScriptKind.Backdrop => backdropScripts,
         _ => userScripts,
     };
+
+    /// <summary>Saves the current buffer then loads the chosen indexed script into the editor.</summary>
+    [RelayCommand]
+    private void OpenScriptFromExplorer(ProjectScriptItem? item)
+    {
+        if (item is null || activeProject is null)
+            return;
+
+        var script = activeProject.FindScript(item.Id);
+        if (script is null)
+        {
+            ReportResourceMessage("脚本不在当前项目索引中。");
+            return;
+        }
+
+        if (string.Equals(openScriptId, script.Id, StringComparison.Ordinal))
+            return;
+
+        try
+        {
+            SaveActiveProject();
+            PythonCode = projectSession.LoadScript(activeProject, script);
+            openScriptId = script.Id;
+            EditorState = "就绪";
+            OnPropertyChanged(nameof(FileName));
+            OnPropertyChanged(nameof(OpenScript));
+            OnPropertyChanged(nameof(IsEditorVisible));
+            OnPropertyChanged(nameof(ShowOpenProjectPrompt));
+            OnPropertyChanged(nameof(EditorEmptyPromptTitle));
+            OnPropertyChanged(nameof(EditorEmptyPromptMessage));
+            RefreshProjectResources();
+            ApplyStageSelection(openScriptId);
+        }
+        catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException)
+        {
+            ReportResourceMessage(ex.Message);
+        }
+    }
+
+    /// <summary>Selects a stage object, opens its script, and shows that object's properties.</summary>
+    [RelayCommand]
+    private void SelectStageObject(StageObjectItem? item)
+    {
+        if (item is null)
+            return;
+
+        OpenScriptFromExplorer(item.ToScriptItem());
+        ApplyStageSelection(item.ScriptId);
+        ObjectManagerTabIndex = item.Kind == ProjectScriptKind.Backdrop ? 1 : 0;
+    }
+
+    /// <summary>
+    /// Clears sprite/backdrop selection without closing the script currently in the editor.
+    /// </summary>
+    public void ClearStageSelection() => ApplyStageSelection(null);
+
+    [RelayCommand]
+    private void AddSprite() => AddStageObject(ProjectScriptKind.Object);
+
+    [RelayCommand]
+    private void AddBackdrop() => AddStageObject(ProjectScriptKind.Backdrop);
+
+    private void AddStageObject(ProjectScriptKind kind)
+    {
+        if (activeProject is null)
+            return;
+
+        var category = CategoryFor(kind);
+        var name = NextAvailableScriptName(kind);
+        category.NewScriptName = name;
+        CreateScript(category);
+        if (category.HasError)
+            return;
+
+        var created = ObjectsFor(kind)
+            .FirstOrDefault(item => string.Equals(item.DisplayName, name, StringComparison.OrdinalIgnoreCase));
+        if (created is not null)
+            SelectStageObject(created);
+    }
+
+    private string NextAvailableScriptName(ProjectScriptKind kind)
+    {
+        var prefix = kind == ProjectScriptKind.Backdrop ? "backdrop" : "sprite";
+        var used = new HashSet<string>(
+            activeProject!.Manifest.Scripts
+                .Where(script => script.Kind == kind)
+                .Select(script => Path.GetFileNameWithoutExtension(script.Path)),
+            StringComparer.OrdinalIgnoreCase);
+
+        if (!used.Contains(prefix))
+            return prefix;
+
+        for (var index = 2; index < 10_000; index++)
+        {
+            var candidate = $"{prefix}{index}";
+            if (!used.Contains(candidate))
+                return candidate;
+        }
+
+        return $"{prefix}-{Guid.NewGuid():N}"[..16];
+    }
+
+    /// <summary>
+    /// Rebuilds sprite and backdrop tiles from the project index, keeping session-only
+    /// transform values for objects that still exist.
+    /// </summary>
+    private void RefreshStageObjects()
+    {
+        SelectedSprite = SyncStageObjects(StageSprites, ProjectScriptKind.Object);
+        SelectedBackdrop = SyncStageObjects(StageBackdrops, ProjectScriptKind.Backdrop);
+        OnPropertyChanged(nameof(CurrentBackdrop));
+    }
+
+    private StageObjectItem? SyncStageObjects(
+        ObservableCollection<StageObjectItem> collection,
+        ProjectScriptKind kind)
+    {
+        if (activeProject is null)
+        {
+            collection.Clear();
+            return null;
+        }
+
+        var existing = collection
+            .Where(item => !string.IsNullOrWhiteSpace(item.ObjectId))
+            .ToDictionary(item => item.ObjectId, StringComparer.Ordinal);
+        var scripts = activeProject.Manifest.Scripts
+            .Where(script => script.Kind == kind && !string.IsNullOrWhiteSpace(script.ObjectId))
+            .OrderBy(script => Path.GetFileNameWithoutExtension(script.Path), StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        collection.Clear();
+        StageObjectItem? selected = null;
+        foreach (var script in scripts)
+        {
+            var displayName = Path.GetFileNameWithoutExtension(script.Path);
+            var isSelected = string.Equals(script.Id, openScriptId, StringComparison.Ordinal);
+            if (!existing.TryGetValue(script.ObjectId!, out var item))
+            {
+                item = new StageObjectItem(script.Id, script.ObjectId!, kind, displayName, script.Path);
+            }
+
+            item.SyncFromScript(script.Id, displayName, script.Path, isSelected);
+            collection.Add(item);
+            if (isSelected)
+                selected = item;
+        }
+
+        return selected;
+    }
+
+    private void ApplyStageSelection(string? scriptId)
+    {
+        foreach (var sprite in StageSprites)
+            sprite.IsSelected = string.Equals(sprite.ScriptId, scriptId, StringComparison.Ordinal);
+        foreach (var backdrop in StageBackdrops)
+            backdrop.IsSelected = string.Equals(backdrop.ScriptId, scriptId, StringComparison.Ordinal);
+
+        SelectedSprite = StageSprites.FirstOrDefault(item => item.IsSelected);
+        SelectedBackdrop = StageBackdrops.FirstOrDefault(item => item.IsSelected);
+        OnPropertyChanged(nameof(CurrentBackdrop));
+    }
+
+    private ObservableCollection<StageObjectItem> ObjectsFor(ProjectScriptKind kind) =>
+        kind == ProjectScriptKind.Backdrop ? StageBackdrops : StageSprites;
 
     /// <summary>Creates the script named in a category's inline editor and refreshes the project files.</summary>
     private void CreateScript(ScriptCategory category)
@@ -471,16 +697,24 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void Save()
     {
+        if (activeProject is null)
+        {
+            EditorState = "尚未打开项目";
+            return;
+        }
+
+        if (OpenScript is null)
+        {
+            EditorState = "尚未打开脚本";
+            return;
+        }
+
         try
         {
             SaveActiveProject();
-            EditorState = activeProject is null ? "尚未打开项目" : "已保存";
+            EditorState = "已保存";
         }
-        catch (IOException)
-        {
-            EditorState = "保存失败";
-        }
-        catch (UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectFormatException)
         {
             EditorState = "保存失败";
         }

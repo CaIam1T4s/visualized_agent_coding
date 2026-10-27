@@ -19,6 +19,10 @@ public interface IProjectSession
 
     void SaveMainScript(ProjectWorkspace project, string content);
 
+    string LoadScript(ProjectWorkspace project, ProjectScriptEntry script);
+
+    void SaveScript(ProjectWorkspace project, ProjectScriptEntry script, string content);
+
     ProjectScriptCreation CreateScript(ProjectWorkspace project, ProjectScriptKind kind, string scriptName);
 
     ProjectWorkspace RegisterEventHandler(ProjectWorkspace project, string scriptId, EventHandlerRegistration registration);
@@ -53,6 +57,12 @@ public sealed class ProjectSession : IProjectSession
 
     public void SaveMainScript(ProjectWorkspace project, string content) =>
         projectService.SaveMainScript(project, content);
+
+    public string LoadScript(ProjectWorkspace project, ProjectScriptEntry script) =>
+        projectService.LoadScript(project, script);
+
+    public void SaveScript(ProjectWorkspace project, ProjectScriptEntry script, string content) =>
+        projectService.SaveScript(project, script, content);
 
     public ProjectScriptCreation CreateScript(ProjectWorkspace project, ProjectScriptKind kind, string scriptName) =>
         projectService.CreateScript(project, kind, scriptName);

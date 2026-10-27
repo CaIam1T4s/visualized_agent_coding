@@ -113,6 +113,13 @@ public sealed class ProjectService
         return store.ReadScript(project.RootPath, script.Path);
     }
 
+    public void SaveScript(ProjectWorkspace project, ProjectScriptEntry script, string content)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(script);
+        store.WriteScript(project.RootPath, script.Path, content);
+    }
+
     /// <summary>Creates a script file and registers it in the project index with a stable id.</summary>
     /// <exception cref="ProjectOperationException">The name collides with an indexed script.</exception>
     public ProjectScriptCreation CreateScript(

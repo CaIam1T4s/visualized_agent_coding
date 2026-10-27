@@ -8,13 +8,19 @@ namespace VisualizedAgentCoding.App.Tests;
 public class MainViewModelTests
 {
     [Fact]
-    public void StartsWithPythonDocumentAndLineNumbers()
+    public void StartsWithoutAProjectOrEditorDocument()
     {
         var viewModel = new MainViewModel();
 
-        Assert.Contains("def main():", viewModel.PythonCode);
-        Assert.Equal("1\r\n2\r\n3\r\n4\r\n5\r\n6", viewModel.LineNumbers);
-        Assert.Equal("main.py", viewModel.FileName);
+        Assert.Equal(string.Empty, viewModel.PythonCode);
+        Assert.Equal("1", viewModel.LineNumbers);
+        Assert.Equal(string.Empty, viewModel.FileName);
+        Assert.False(viewModel.HasOpenProject);
+        Assert.False(viewModel.IsEditorVisible);
+        Assert.True(viewModel.ShowOpenProjectPrompt);
+        Assert.Equal("尚未打开项目", viewModel.EditorEmptyPromptTitle);
+        Assert.Equal("打开或新建一个项目后，即可在此编辑脚本。", viewModel.EditorEmptyPromptMessage);
+        Assert.False(viewModel.ShowStageCanvas);
     }
 
     [Fact]
@@ -28,7 +34,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void ProjectCreationAndOpeningRoundTripMainScript()
+    public void OpeningAProjectLeavesTheEditorEmptyAndDoesNotExposeTheEntryScript()
     {
         var root = Path.Combine(Path.GetTempPath(), $"visualized-project-{Guid.NewGuid():N}");
         try
@@ -39,13 +45,29 @@ public class MainViewModelTests
             Assert.Equal("Demo", viewModel.ProjectName);
             Assert.True(Directory.Exists(Path.Combine(root, "scripts", "user")));
             Assert.Contains("def main():", File.ReadAllText(Path.Combine(root, "scripts", "main.py")));
+            Assert.Equal(string.Empty, viewModel.PythonCode);
+            Assert.Equal(string.Empty, viewModel.FileName);
+            Assert.Null(viewModel.OpenScript);
+            Assert.False(viewModel.IsEditorVisible);
+            Assert.True(viewModel.ShowStageCanvas);
+            Assert.False(viewModel.ShowOpenProjectPrompt);
+            Assert.Equal("尚未打开脚本", viewModel.EditorEmptyPromptTitle);
+            Assert.Contains("资源管理器", viewModel.EditorEmptyPromptMessage);
+            Assert.Empty(viewModel.UserScripts);
+            Assert.Empty(viewModel.ObjectScripts);
+            Assert.Empty(viewModel.BackdropScripts);
 
             viewModel.PythonCode = "print('saved')";
             viewModel.SaveCommand.Execute(null);
+
+            Assert.Equal("尚未打开脚本", viewModel.EditorState);
+            Assert.Contains("def main():", File.ReadAllText(Path.Combine(root, "scripts", "main.py")));
+
             var reopened = new MainViewModel(new InMemorySettingsStore());
             reopened.OpenProject(root);
 
-            Assert.Equal("print('saved')", reopened.PythonCode);
+            Assert.Equal(string.Empty, reopened.PythonCode);
+            Assert.Null(reopened.OpenScript);
         }
         finally
         {
@@ -89,7 +111,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void SwitchingProjectsSavesThePreviousMainScript()
+    public void SwitchingProjectsClearsTheEditorWithoutWritingTheEntryScript()
     {
         var first = Path.Combine(Path.GetTempPath(), $"visualized-project-{Guid.NewGuid():N}");
         var second = Path.Combine(Path.GetTempPath(), $"visualized-project-{Guid.NewGuid():N}");
@@ -97,10 +119,12 @@ public class MainViewModelTests
         {
             var viewModel = new MainViewModel(new InMemorySettingsStore());
             viewModel.CreateProject(first);
+            var originalMainScript = File.ReadAllText(Path.Combine(first, "scripts", "main.py"));
             viewModel.PythonCode = "print('first')";
             viewModel.CreateProject(second);
 
-            Assert.Equal("print('first')", File.ReadAllText(Path.Combine(first, "scripts", "main.py")));
+            Assert.Equal(originalMainScript, File.ReadAllText(Path.Combine(first, "scripts", "main.py")));
+            Assert.Equal(string.Empty, viewModel.PythonCode);
             Assert.Equal(Path.GetFullPath(second), viewModel.ProjectRootPath);
 
             viewModel.CloseProject();
