@@ -130,7 +130,7 @@ public partial class WorkspaceView : UserControl
 
     /// <summary>
     /// Shows the category menu only on empty space. Right-clicking a script row keeps the row's
-    /// own context (which has no menu) so the row is never acted on by accident.
+    /// own context (with its own menu) so the row is never acted on by accident.
     /// </summary>
     private void OnCategoryContextRequested(object? sender, ContextRequestedEventArgs e)
     {
@@ -154,6 +154,36 @@ public partial class WorkspaceView : UserControl
         menu.ShowAt(source, true);
 
         e.Handled = true;
+    }
+
+    private void OnScriptContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is Control { DataContext: ProjectScriptItem item } source && DataContext is MainViewModel viewModel)
+        {
+            ScriptActionMenu.Show(source, viewModel, item);
+            e.Handled = true;
+        }
+    }
+
+    private void OnRenameAttached(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (sender is not TextBox textBox) return;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (textBox.DataContext is ScriptRenameState state &&
+                DataContext is MainViewModel vm && ReferenceEquals(vm.ScriptRename, state) && textBox.IsEffectivelyVisible)
+            {
+                textBox.Focus();
+                textBox.SelectAll();
+            }
+        });
+    }
+
+    private void OnRenameLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is TextBox { DataContext: ScriptRenameState state } &&
+            DataContext is MainViewModel vm && ReferenceEquals(vm.ScriptRename, state))
+            state.CancelCommand.Execute(null);
     }
 
     private void OnStageCanvasPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -257,7 +287,7 @@ public partial class WorkspaceView : UserControl
     {
         for (var current = hit; current is not null && current != categoryRoot; current = current.GetVisualParent())
         {
-            if (current is Control { Classes: var classes } && classes.Contains("explorer-item"))
+            if (current is Control { Classes: var classes } && (classes.Contains("explorer-item") || classes.Contains("script-row")))
                 return true;
         }
 

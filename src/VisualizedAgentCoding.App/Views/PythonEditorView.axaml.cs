@@ -1,4 +1,5 @@
 using System;
+using VisualizedAgentCoding.Application.Python;
 using System.ComponentModel;
 using System.Xml;
 using Avalonia.Controls;
@@ -57,6 +58,17 @@ public partial class PythonEditorView : UserControl
     {
         if (!updatingFromViewModel && viewModel is not null)
             viewModel.PythonCode = EditorTextBox.Text;
+    }
+
+    private void OnDiagnosticClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: PythonDiagnostic diagnostic } || EditorTextBox.Document is not { } document)
+            return;
+        var line = document.GetLineByNumber(Math.Clamp(diagnostic.Line, 1, document.LineCount));
+        var column = Math.Clamp(diagnostic.Column, 1, line.Length + 1);
+        EditorTextBox.Focus();
+        EditorTextBox.CaretOffset = line.Offset + column - 1;
+        EditorTextBox.ScrollTo(line.LineNumber, column);
     }
 
     private void UpdateEditorText(string text)

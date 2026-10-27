@@ -1,0 +1,35 @@
+using Avalonia.Controls;
+using happy_agent_coding.ViewModels;
+using VisualizedAgentCoding.Domain.Projects;
+
+namespace happy_agent_coding.Views;
+
+internal static class ScriptActionMenu
+{
+    public static void Show(Control source, MainViewModel viewModel, ProjectScriptItem item)
+    {
+        var menu = new MenuFlyout();
+        var rename = new MenuItem
+        {
+            Header = "重命名",
+            IsEnabled = item.Kind == ProjectScriptKind.User,
+            Command = viewModel.StartRenameScriptCommand,
+            CommandParameter = item,
+        };
+        if (item.Kind != ProjectScriptKind.User)
+            ToolTip.SetTip(rename, "角色和背景暂不支持重命名，需先支持类名与引用同步。");
+        menu.Items.Add(rename);
+        menu.Items.Add(new MenuItem
+        {
+            Header = item.Kind switch
+            {
+                ProjectScriptKind.Object => "删除角色及脚本…",
+                ProjectScriptKind.Backdrop => "删除背景及脚本…",
+                _ => "删除…",
+            },
+            Command = viewModel.RequestDeleteScriptCommand,
+            CommandParameter = item,
+        });
+        menu.ShowAt(source, true);
+    }
+}

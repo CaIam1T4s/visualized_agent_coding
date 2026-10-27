@@ -11,6 +11,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using happy_agent_coding.Services;
 using VisualizedAgentCoding.Application.Projects;
+using VisualizedAgentCoding.Application.Ports;
+using VisualizedAgentCoding.Infrastructure.Python;
 using VisualizedAgentCoding.Domain.Projects;
 using VisualizedAgentCoding.Infrastructure.Projects;
 
@@ -59,7 +61,7 @@ public partial class MainViewModel : ViewModelBase
     }
 
     public MainViewModel()
-        : this(new JsonSettingsStore(), new JsonRecentProjectsStore(), new ProjectSession())
+        : this(new JsonSettingsStore(), new JsonRecentProjectsStore(), new ProjectSession(), new PythonProcessBridge())
     {
     }
 
@@ -76,7 +78,8 @@ public partial class MainViewModel : ViewModelBase
     public MainViewModel(
         ISettingsStore settingsStore,
         IRecentProjectsStore recentProjectsStore,
-        IProjectSession projectSession)
+        IProjectSession projectSession,
+        IPythonBridge? pythonBridge = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(recentProjectsStore);
@@ -100,6 +103,7 @@ public partial class MainViewModel : ViewModelBase
         topPanelRatio = LayoutSettingValues.ClampTopPanelRatio(settings.TopPanelRatio);
         auxiliaryWidth = LayoutSettingValues.ClampAuxiliaryWidth(settings.AuxiliaryWidth);
         ApplyTheme(selectedThemeIndex);
+        InitializePythonDiagnostics(pythonBridge);
     }
 
     [ObservableProperty]
@@ -295,6 +299,8 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Clears the search box so a closed project does not keep a stale filter.</summary>
     private void ResetExplorerState()
     {
+        ResetScriptActions();
+        SchedulePythonAnalysis();
         ResourceSearchQuery = string.Empty;
         ProjectResourceMessage = string.Empty;
         OnPropertyChanged(nameof(ProjectResourceMessage));
@@ -332,7 +338,8 @@ public partial class MainViewModel : ViewModelBase
                 continue;
 
             CategoryFor(script.Kind).Scripts.Add(
-                new ProjectScriptItem(script.Id, displayName, script.Path, script.Kind, script.Id == openScriptId));
+                new ProjectScriptItem(script.Id, displayName, script.Path, script.Kind, script.Id == openScriptId,
+                    ScriptRename?.ScriptId == script.Id ? ScriptRename : null));
         }
 
         foreach (var category in ScriptCategories)
@@ -444,6 +451,7 @@ public partial class MainViewModel : ViewModelBase
             OnPropertyChanged(nameof(EditorEmptyPromptMessage));
             RefreshProjectResources();
             ApplyStageSelection(openScriptId);
+            SchedulePythonAnalysis();
         }
         catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException)
         {

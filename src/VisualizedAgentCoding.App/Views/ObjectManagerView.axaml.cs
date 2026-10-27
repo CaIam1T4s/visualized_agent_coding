@@ -10,6 +10,15 @@ public partial class ObjectManagerView : UserControl
         InitializeComponent();
     }
 
+    private void OnStageObjectContextRequested(object? sender, Avalonia.Input.ContextRequestedEventArgs e)
+    {
+        if (sender is Control { DataContext: StageObjectItem item } source && DataContext is MainViewModel viewModel)
+        {
+            ScriptActionMenu.Show(source, viewModel, item.ToScriptItem());
+            e.Handled = true;
+        }
+    }
+
     private void OnStageObjectClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (sender is not Button { Tag: StageObjectItem item })

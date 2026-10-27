@@ -254,7 +254,10 @@
                                                         <ItemsControl ItemsSource="{Binding Scripts}">
                                                             <ItemsControl.ItemTemplate>
                                                                 <DataTemplate x:DataType="vm:ProjectScriptItem">
+                                                                    <StackPanel Classes="script-row">
                                                                     <Button Classes="explorer-item"
+                                                                            ContextRequested="OnScriptContextRequested"
+                                                                            IsVisible="{Binding IsRenaming, Converter={x:Static BoolConverters.Not}}"
                                                                             Classes.open="{Binding IsOpen}"
                                                                             ToolTip.Tip="{Binding RelativePath}"
                                                                             HorizontalAlignment="Stretch"
@@ -264,6 +267,27 @@
                                                                         <TextBlock Text="{Binding DisplayName}"
                                                                                    Margin="8,5" />
                                                                     </Button>
+                                                                        <ContentControl Content="{Binding RenameState}" IsVisible="{Binding IsRenaming}">
+                                                                            <ContentControl.ContentTemplate>
+                                                                                <DataTemplate x:DataType="vm:ScriptRenameState">
+                                                                                    <StackPanel Spacing="4">
+                                                                                        <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                                                 AutomationProperties.Name="重命名脚本"
+                                                                                                 AttachedToVisualTree="OnRenameAttached"
+                                                                                                 LostFocus="OnRenameLostFocus">
+                                                                                            <TextBox.KeyBindings>
+                                                                                                <KeyBinding Gesture="Enter" Command="{Binding ConfirmCommand}" />
+                                                                                                <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
+                                                                                            </TextBox.KeyBindings>
+                                                                                        </TextBox>
+                                                                                        <TextBlock Text="{Binding Error}" IsVisible="{Binding HasError}"
+                                                                                                   TextWrapping="Wrap" FontSize="11"
+                                                                                                   Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                                                                                    </StackPanel>
+                                                                                </DataTemplate>
+                                                                            </ContentControl.ContentTemplate>
+                                                                        </ContentControl>
+                                                                    </StackPanel>
                                                                 </DataTemplate>
                                                             </ItemsControl.ItemTemplate>
                                                         </ItemsControl>

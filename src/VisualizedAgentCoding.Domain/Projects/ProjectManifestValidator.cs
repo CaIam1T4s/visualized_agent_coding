@@ -40,6 +40,16 @@ public static class ProjectManifestValidator
 
         ValidateScripts(manifest, scriptExists);
         ValidateEventHandlers(manifest);
+        foreach (var path in manifest.PendingScriptDeletions ?? throw new ProjectFormatException("Missing pending script deletion list."))
+        {
+            var normalized = NormalizePath(path);
+            if (string.IsNullOrWhiteSpace(normalized) || Path.IsPathRooted(path) || ProjectLayout.KindOfScript(normalized) is null
+                || !normalized.EndsWith(".py", StringComparison.OrdinalIgnoreCase)
+                || normalized.Split('/').Any(part => part is ".." or "." or "")
+                || normalized.Contains(':')
+                || manifest.Scripts.Any(script => string.Equals(NormalizePath(script.Path), normalized, StringComparison.OrdinalIgnoreCase)))
+                throw new ProjectFormatException($"Invalid pending script deletion: {path}");
+        }
     }
 
     /// <summary>Returns scripts present in script directories but absent from the index.</summary>
@@ -53,6 +63,7 @@ public static class ProjectManifestValidator
         var declared = manifest.Scripts
             .Select(script => NormalizePath(script.Path))
             .Append(NormalizePath(manifest.MainScript))
+            .Concat(manifest.PendingScriptDeletions.Select(NormalizePath))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         return scriptFilesOnDisk

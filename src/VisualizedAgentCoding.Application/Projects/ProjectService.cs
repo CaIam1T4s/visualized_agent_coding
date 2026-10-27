@@ -63,6 +63,7 @@ public sealed class ProjectService : IProjectValidityChecker
         var manifest = ProjectManifestMigration.Upgrade(stored);
         ProjectManifestValidator.Validate(manifest, path => store.ScriptExists(root, path));
         store.EnsureLayout(root);
+        manifest = RetryPendingDeletions(root, manifest);
 
         var adopted = AdoptUndeclaredScripts(root, manifest) ?? manifest;
         ProjectManifestValidator.Validate(adopted, path => store.ScriptExists(root, path));
@@ -134,6 +135,7 @@ public sealed class ProjectService : IProjectValidityChecker
         var newPath = $"{ProjectLayout.UserScriptDirectory}/{fileName}.py";
         if (string.Equals(newPath, script.Path, StringComparison.OrdinalIgnoreCase))
             return project;
+        project = WithPersistedPendingDeletions(project);
         if (store.ScriptExists(project.RootPath, newPath) || HasPath(project.Manifest, newPath))
             throw new ProjectOperationException($"脚本已存在：{newPath}");
 
@@ -142,22 +144,28 @@ public sealed class ProjectService : IProjectValidityChecker
         var manifest = project.Manifest with
         {
             Scripts = project.Manifest.Scripts.Select(item => item.Id == scriptId ? renamed : item).ToList(),
+            PendingScriptDeletions = [.. project.Manifest.PendingScriptDeletions, script.Path],
         };
 
-        // Write the new file first so a failed manifest write can be undone by deleting only the new file.
-        store.WriteScript(project.RootPath, newPath, content);
+        // Record cleanup intent before creating an unindexed file. A failed commit or
+        // rollback must never cause Open to adopt this file as a new script.
+        store.WriteManifest(project.RootPath, project.Manifest with
+        {
+            PendingScriptDeletions = [.. project.Manifest.PendingScriptDeletions, newPath],
+        });
         try
         {
+            store.WriteScript(project.RootPath, newPath, content);
             ProjectManifestValidator.Validate(manifest, path => store.ScriptExists(project.RootPath, path));
             store.WriteManifest(project.RootPath, manifest);
         }
         catch
         {
-            store.DeleteScript(project.RootPath, newPath);
+            TryDeleteScript(project.RootPath, newPath);
             throw;
         }
 
-        store.DeleteScript(project.RootPath, script.Path);
+        TryDeleteScript(project.RootPath, script.Path);
         return project.WithManifest(manifest);
     }
 
@@ -167,15 +175,17 @@ public sealed class ProjectService : IProjectValidityChecker
     {
         ArgumentNullException.ThrowIfNull(project);
         var script = ResolveIndexedScript(project, scriptId);
+        project = WithPersistedPendingDeletions(project);
         var manifest = project.Manifest with
         {
             Scripts = project.Manifest.Scripts.Where(item => item.Id != scriptId).ToList(),
             EventHandlers = project.Manifest.EventHandlers.Where(handler => handler.ScriptId != scriptId).ToList(),
+            PendingScriptDeletions = [.. project.Manifest.PendingScriptDeletions, script.Path],
         };
 
         ProjectManifestValidator.Validate(manifest, path => store.ScriptExists(project.RootPath, path));
         store.WriteManifest(project.RootPath, manifest);
-        store.DeleteScript(project.RootPath, script.Path);
+        TryDeleteScript(project.RootPath, script.Path);
         return project.WithManifest(manifest);
     }
 
@@ -202,6 +212,7 @@ public sealed class ProjectService : IProjectValidityChecker
     {
         ArgumentNullException.ThrowIfNull(project);
 
+        project = WithPersistedPendingDeletions(project);
         var fileName = SanitizeScriptName(scriptName);
         if (fileName is null)
             throw new ProjectOperationException("脚本名只能包含字母、数字、下划线和连字符。");
@@ -333,6 +344,7 @@ public sealed class ProjectService : IProjectValidityChecker
 
     private ProjectWorkspace PersistHandlers(ProjectWorkspace project, ProjectManifest manifest)
     {
+        manifest = manifest with { PendingScriptDeletions = WithPersistedPendingDeletions(project).Manifest.PendingScriptDeletions };
         ProjectManifestValidator.Validate(manifest, path => store.ScriptExists(project.RootPath, path));
         store.WriteManifest(project.RootPath, manifest);
         return project.WithManifest(manifest);
@@ -373,9 +385,46 @@ public sealed class ProjectService : IProjectValidityChecker
         return manifest with { Scripts = scripts };
     }
 
+    // Callers can still hold the old workspace after a failed rename.
+    private ProjectWorkspace WithPersistedPendingDeletions(ProjectWorkspace project) =>
+        project.WithManifest(project.Manifest with
+        {
+            PendingScriptDeletions = project.Manifest.PendingScriptDeletions
+                .Concat(store.ReadManifest(project.RootPath).PendingScriptDeletions)
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+        });
+
+    private ProjectManifest RetryPendingDeletions(string root, ProjectManifest manifest)
+    {
+        var remaining = manifest.PendingScriptDeletions.Where(path => !TryDeleteScript(root, path)).ToList();
+        return remaining.Count == manifest.PendingScriptDeletions.Count
+            ? manifest : manifest with { PendingScriptDeletions = remaining };
+    }
+
+    /// <summary>True if a deferred cleanup file still exists on disk.</summary>
+    public bool HasPendingScriptCleanup(ProjectWorkspace project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        return project.Manifest.PendingScriptDeletions.Any(path => store.ScriptExists(project.RootPath, path));
+    }
+
+    private bool TryDeleteScript(string root, string path)
+    {
+        try
+        {
+            store.DeleteScript(root, path);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The persisted manifest retains cleanup intent until a later Open succeeds.
+            return false;
+        }
+    }
+
     private static bool HasPath(ProjectManifest manifest, string relativePath) =>
-        manifest.Scripts.Any(script => string.Equals(
-            ProjectManifestValidator.NormalizePath(script.Path),
+        manifest.Scripts.Select(script => script.Path).Concat(manifest.PendingScriptDeletions).Any(path => string.Equals(
+            ProjectManifestValidator.NormalizePath(path),
             relativePath,
             StringComparison.OrdinalIgnoreCase));
 

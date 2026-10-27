@@ -10,6 +10,7 @@
                     Classes.selected="{Binding IsSelected}"
                     Tag="{Binding}"
                     Click="OnStageObjectClick"
+                    ContextRequested="OnStageObjectContextRequested"
                     ToolTip.Tip="{Binding DisplayName}"
                     AutomationProperties.Name="{Binding DisplayName}">
                 <StackPanel Spacing="4" HorizontalAlignment="Center">

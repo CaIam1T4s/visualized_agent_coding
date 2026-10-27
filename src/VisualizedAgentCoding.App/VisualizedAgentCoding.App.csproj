@@ -9,6 +9,13 @@
   <ItemGroup>
     <Folder Include="Models\" />
     <AvaloniaResource Include="Assets\**" />
+    <Content Include="..\..\tools\python-helper\*.py" Exclude="..\..\tools\python-helper\test_*.py"
+             Link="python-helper\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\tools\python-helper\vendor\**\*"
+             Exclude="..\..\tools\python-helper\vendor\**\__pycache__\**;..\..\tools\python-helper\vendor\**\*.pyc"
+             Link="python-helper\vendor\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

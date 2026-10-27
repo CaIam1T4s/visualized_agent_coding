@@ -4,6 +4,7 @@ import sys
 
 import ast_service
 from protocol import (
+    ERR_INTERNAL,
     ERR_INVALID_PARAMS,
     ERR_INVALID_REQUEST,
     ERR_METHOD_NOT_FOUND,
@@ -24,7 +25,7 @@ CAPABILITIES = ['parse']
 
 def handle_hello(params, state):
     requested = params.get('protocolVersions')
-    if not isinstance(requested, list) or not all(isinstance(v, int) for v in requested):
+    if not isinstance(requested, list) or not all(type(v) is int for v in requested):
         raise ProtocolError(ERR_INVALID_PARAMS, 'protocolVersions must be an integer list')
     common = [v for v in requested if v in SUPPORTED_VERSIONS]
     if not common:
@@ -43,7 +44,7 @@ def handle_parse(params, state):
     uri = params.get('uri')
     version = params.get('version')
     source = params.get('source')
-    if not isinstance(uri, str) or not isinstance(version, int) or not isinstance(source, str):
+    if not isinstance(uri, str) or (type(version) is not int or version < 0) or not isinstance(source, str):
         raise ProtocolError(ERR_INVALID_PARAMS, 'expected uri:string, version:int, source:string')
     result = ast_service.parse(source)
     return {
@@ -57,7 +58,9 @@ def handle_parse(params, state):
 def dispatch(message, state):
     message_id = message.get('id')
     method = message.get('method')
-    params = message.get('params') or {}
+    if message.get('jsonrpc') != '2.0' or not isinstance(message_id, str):
+        return fail(message_id, ERR_INVALID_REQUEST, 'expected JSON-RPC 2.0 and a string id'), False
+    params = message.get('params', {})
     if not isinstance(params, dict):
         return fail(message_id, ERR_INVALID_PARAMS, 'params must be an object'), False
     try:
@@ -70,6 +73,10 @@ def dispatch(message, state):
         raise ProtocolError(ERR_METHOD_NOT_FOUND, f'unknown method: {method}')
     except ProtocolError as err:
         return fail(message_id, err.code, err.message), False
+    except Exception as err:
+        # Parsing untrusted source must not terminate the protocol loop.
+        print(f'helper request failed: {type(err).__name__}', file=sys.stderr)
+        return fail(message_id, ERR_INTERNAL, 'internal parser error'), False
 
 
 def write(stream, message):

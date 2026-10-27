@@ -7,6 +7,8 @@ namespace happy_agent_coding.Views;
 
 public partial class MainWindow : Window
 {
+    private bool closingForCleanup;
+    private bool cleanupCompleted;
     public MainWindow()
     {
         InitializeComponent();
@@ -29,9 +31,17 @@ public partial class MainWindow : Window
         TitleBarView.UpdateWindowState(WindowState);
     }
 
-    private void OnClosing(object? sender, WindowClosingEventArgs e)
+    private async void OnClosing(object? sender, WindowClosingEventArgs e)
     {
+        if (cleanupCompleted) return;
+        e.Cancel = true;
+        if (closingForCleanup) return;
+        closingForCleanup = true;
         WorkspaceViewHost.SaveCurrentLayout();
+        if (DataContext is happy_agent_coding.ViewModels.MainViewModel viewModel)
+            await viewModel.DisposeAsync();
+        cleanupCompleted = true;
+        Avalonia.Threading.Dispatcher.UIThread.Post(Close);
     }
 
     private void OnResizeGripPointerPressed(object? sender, PointerPressedEventArgs e)

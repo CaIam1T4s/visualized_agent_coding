@@ -1,0 +1,34 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:happy_agent_coding.ViewModels"
+             x:Class="happy_agent_coding.Views.ScriptDeleteView"
+             x:DataType="vm:MainViewModel"
+             KeyboardNavigation.TabNavigation="Cycle">
+    <UserControl.KeyBindings>
+        <KeyBinding Gesture="Escape" Command="{Binding CancelDeleteScriptCommand}" />
+    </UserControl.KeyBindings>
+    <Border Background="#99000000">
+        <Border MaxWidth="460" Margin="24" Padding="24" CornerRadius="8"
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+            <StackPanel Spacing="16">
+                <TextBlock Text="确认删除" FontSize="20" FontWeight="SemiBold" />
+                <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding DeleteConfirmationTitle}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding DeleteConfirmationPath}" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+                <TextBlock Text="{Binding DeleteConfirmationMessage}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding DeleteError}" TextWrapping="Wrap"
+                           Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button x:Name="CancelButton" Classes="command-button secondary" Content="取消"
+                            Command="{Binding CancelDeleteScriptCommand}" />
+                    <Button Classes="command-button primary" Content="删除"
+                            Command="{Binding ConfirmDeleteScriptCommand}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Border>
+</UserControl>

@@ -98,7 +98,7 @@ class HelperProtocolTests(unittest.TestCase):
         self.assertEqual(responses[0]['error']['code'], ERR_NOT_HELLO)
 
     def test_hello_rejects_non_integer_versions(self):
-        for versions in ['1', [1, 'x'], None]:
+        for versions in ['1', [1, 'x'], [True], None]:
             with self.subTest(versions=versions):
                 _, responses = run_helper(hello(versions))
                 self.assertEqual(responses[0]['error']['code'], ERR_INVALID_PARAMS)
@@ -110,6 +110,8 @@ class HelperProtocolTests(unittest.TestCase):
     def test_parse_rejects_invalid_params(self):
         bad_cases = [
             {'version': '1'},
+            {'version': True},
+            {'version': -1},
             {'source': None},
             {'uri': 3},
         ]
@@ -135,6 +137,74 @@ class HelperProtocolTests(unittest.TestCase):
         _, responses = run_helper(HELLO, parse_request('2', source=source))
         cls = responses[1]['result']['symbols']['classes'][0]
         self.assertEqual(cls['range']['endColumn'], 14)
+
+    def test_empty_non_object_params_are_rejected(self):
+        for value in [None, [], False, 0]:
+            with self.subTest(value=value):
+                message = json.dumps({'jsonrpc': '2.0', 'id': '1', 'method': 'helper.hello', 'params': value})
+                _, responses = run_helper(message)
+                self.assertEqual(responses[0]['error']['code'], ERR_INVALID_PARAMS)
+
+    def test_jsonrpc_version_and_string_id_are_required(self):
+        for fields in [{'jsonrpc': '1.0'}, {'id': 7}]:
+            with self.subTest(fields=fields):
+                message = {'jsonrpc': '2.0', 'id': '1', 'method': 'helper.hello', 'params': {'protocolVersions': [1]}}
+                message.update(fields)
+                _, responses = run_helper(json.dumps(message))
+                self.assertEqual(responses[0]['error']['code'], ERR_INVALID_REQUEST)
+
+    def test_syntax_error_column_is_utf16_after_supplementary_character(self):
+        source = 'x = "😀"; y ='
+        _, responses = run_helper(HELLO, parse_request('2', source=source))
+        diagnostic = responses[1]['result']['diagnostics'][0]
+        self.assertEqual(diagnostic['column'], len(source.encode('utf-16-le')) // 2 + 1)
+
+    def test_parse_does_not_execute_imports_or_statements(self):
+        source = 'import this_module_does_not_exist\nraise RuntimeError("never execute")'
+        _, responses = run_helper(HELLO, parse_request('2', source=source))
+        self.assertEqual(responses[1]['result']['diagnostics'], [])
+
+
+class MultiErrorTests(unittest.TestCase):
+    def diagnostics(self, source):
+        _, responses = run_helper(HELLO, parse_request('2', source=source))
+        result = responses[1]['result']
+        self.assertIsNone(result['symbols'])
+        return result['diagnostics']
+
+    def test_two_broken_functions_are_reported_in_source_order(self):
+        errors = self.diagnostics('def first(:\n    pass\ndef second(:\n    pass\n')
+        self.assertEqual([error['line'] for error in errors], [1, 3])
+
+    def test_independent_errors_in_same_function(self):
+        errors = self.diagnostics('def f():\n    x =\n    y =\n')
+        self.assertEqual([error['line'] for error in errors], [2, 3])
+
+    def test_recovery_columns_remain_utf16(self):
+        source = 'x = "\U0001f600"; y =\nz = "\U0001f600"; w =\n'
+        errors = self.diagnostics(source)
+        self.assertEqual([error['line'] for error in errors], [1, 2])
+        for error, line in zip(errors, source.splitlines()):
+            self.assertEqual(error['column'], len(line.encode('utf-16-le')) // 2 + 1)
+
+    def test_valid_modern_syntax_does_not_add_spurious_errors(self):
+        for source, error_line in [
+            ('x =\nmatch x:\n    case 1: pass\n', 1),
+            ('match x:\n    case 1: pass\nx =\n', 3),
+        ]:
+            with self.subTest(source=source):
+                errors = self.diagnostics(source)
+                self.assertEqual([error['line'] for error in errors], [error_line])
+
+    def test_unterminated_string_preserves_native_error(self):
+        errors = self.diagnostics('x = """unfinished\n')
+        self.assertEqual(len(errors), 1)
+        self.assertIn('unterminated', errors[0]['message'])
+
+    def test_valid_modern_file_uses_native_parser(self):
+        source = 'match 1:\n    case 1: pass\n'
+        _, responses = run_helper(HELLO, parse_request('2', source=source))
+        self.assertEqual(responses[1]['result']['diagnostics'], [])
 
 
 if __name__ == '__main__':

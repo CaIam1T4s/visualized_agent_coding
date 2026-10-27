@@ -23,5 +23,8 @@ public sealed record ProjectManifest
 
     public List<ProjectScriptEntry> Scripts { get; init; } = [];
 
+    /// <summary>Unindexed files awaiting deletion; never adopt these as external scripts.</summary>
+    public List<string> PendingScriptDeletions { get; init; } = [];
+
     public List<ProjectEventHandler> EventHandlers { get; init; } = [];
 }

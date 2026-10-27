@@ -1,4 +1,15 @@
 import ast
+import io
+from pathlib import Path
+import sys
+import tokenize
+
+# Bundled, pinned pure-Python dependency; no pip or network access at runtime.
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'vendor'))
+import parso
+
+_GRAMMAR = parso.load_grammar()
+
 
 
 def utf16_column(line, byte_offset):
@@ -23,6 +34,55 @@ def _span(node, lines):
     }
 
 
+def _native_valid_blocks(source):
+    # Suppress recovery-parser complaints about newer syntax CPython accepts,
+    # such as match/case, when an unrelated statement in the file is broken.
+    # This only suppresses false positives; it never manufactures diagnostics.
+    lines = source.splitlines(keepends=True)
+    starts = {1}
+    ignored = {tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE,
+               tokenize.INDENT, tokenize.DEDENT, tokenize.ENDMARKER, tokenize.ENCODING}
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(source).readline):
+            if token.start[1] == 0 and token.type not in ignored:
+                starts.add(token.start[0])
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        pass
+    starts = sorted(starts | {len(lines) + 1})
+    valid = set()
+    for start, end in zip(starts, starts[1:]):
+        try:
+            ast.parse(''.join(lines[start - 1:end - 1]))
+        except (SyntaxError, ValueError):
+            continue
+        valid.update(range(start, end))
+    return valid
+
+
+def _recover_diagnostics(source, lines, first):
+    diagnostics = [first]
+    valid_lines = _native_valid_blocks(source)
+    module = _GRAMMAR.parse(source, error_recovery=True, cache=False, diff_cache=False)
+    seen = {(first['line'], first['column'])}
+    for issue in _GRAMMAR.iter_errors(module):
+        line, char_column = issue.start_pos
+        if line == first['line'] or line in valid_lines:
+            continue
+        text = _line_text(lines, line)
+        column = len(text[:char_column].encode('utf-16-le')) // 2 + 1
+        if (line, column) in seen:
+            continue
+        seen.add((line, column))
+        message = issue.message
+        for prefix in ('SyntaxError: ', 'IndentationError: '):
+            if message.startswith(prefix):
+                message = message[len(prefix):]
+                break
+        diagnostics.append({'severity': 'error', 'message': message,
+                            'line': line, 'column': column})
+    return sorted(diagnostics, key=lambda diagnostic: (diagnostic['line'], diagnostic['column']))
+
+
 def parse(source):
     lines = source.splitlines()
     try:
@@ -32,10 +92,13 @@ def parse(source):
         text = _line_text(lines, lineno)
         chars = max((err.offset or 1) - 1, 0)
         column = len(text[:chars].encode('utf-16-le')) // 2 + 1
-        return {
-            'diagnostics': [{'severity': 'error', 'message': err.msg, 'line': lineno, 'column': column}],
-            'symbols': None,
-        }
+        first = {'severity': 'error', 'message': err.msg, 'line': lineno, 'column': column}
+        try:
+            diagnostics = _recover_diagnostics(source, lines, first)
+        except (SyntaxError, ValueError, NotImplementedError, RecursionError):
+            # Keep the native diagnostic even when recovery cannot handle a construct.
+            diagnostics = [first]
+        return {'diagnostics': diagnostics, 'symbols': None}
 
     symbols = {'classes': [], 'functions': [], 'imports': []}
     for node in tree.body:

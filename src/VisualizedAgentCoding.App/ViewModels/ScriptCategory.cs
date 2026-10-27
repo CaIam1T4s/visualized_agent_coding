@@ -12,7 +12,11 @@ public sealed record ProjectScriptItem(
     string DisplayName,
     string RelativePath,
     ProjectScriptKind Kind,
-    bool IsOpen = false);
+    bool IsOpen = false,
+    ScriptRenameState? RenameState = null)
+{
+    public bool IsRenaming => RenameState is not null;
+}
 
 /// <summary>One script family (user/object/backdrop) with its own inline creation state.</summary>
 public partial class ScriptCategory : ObservableObject
