@@ -5,7 +5,8 @@ import sys
 import tokenize
 
 # Bundled, pinned pure-Python dependency; no pip or network access at runtime.
-sys.path.insert(0, str(Path(__file__).resolve().parent / 'vendor'))
+from dependencies import configure_dependencies
+configure_dependencies()
 import parso
 
 _GRAMMAR = parso.load_grammar()

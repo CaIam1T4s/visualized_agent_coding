@@ -56,6 +56,7 @@ public partial class MainViewModel : IAsyncDisposable
 
     private void SchedulePythonAnalysis()
     {
+        if (!navigatingReference) ResetReferenceQuery();
         var version = ++pythonDocumentVersion;
         if (pythonDiagnostics is null) return;
         PythonParseRequest? document = null;
@@ -66,9 +67,11 @@ public partial class MainViewModel : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        ResetReferenceQuery();
         if (pythonDiagnostics is null) return;
         var previous = pythonDiagnostics;
         pythonDiagnostics = null;
         await previous.DisposeAsync();
+        await Task.WhenAll(referenceTasks);
     }
 }

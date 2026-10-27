@@ -24,6 +24,14 @@ public partial class PythonEditorView : UserControl
         DataContextChanged += OnDataContextChanged;
         Loaded += OnLoaded;
         EditorTextBox.TextChanged += OnEditorTextChanged;
+        EditorTextBox.KeyDown += (_, e) =>
+        {
+            if (e.Key == Avalonia.Input.Key.F12 && e.KeyModifiers == Avalonia.Input.KeyModifiers.Shift)
+            {
+                e.Handled = true;
+                OnFindReferencesClick(this, new Avalonia.Interactivity.RoutedEventArgs());
+            }
+        };
     }
 
     private void OnLoaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -69,6 +77,23 @@ public partial class PythonEditorView : UserControl
         EditorTextBox.Focus();
         EditorTextBox.CaretOffset = line.Offset + column - 1;
         EditorTextBox.ScrollTo(line.LineNumber, column);
+    }
+
+    private async void OnFindReferencesClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (viewModel is not null)
+            await viewModel.FindReferencesAtAsync(EditorTextBox.TextArea.Caret.Line, EditorTextBox.TextArea.Caret.Column);
+    }
+
+    private void OnReferenceClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: PythonReferenceItem reference } || viewModel is null || !viewModel.OpenReference(reference)) return;
+        var range = reference.Location.Range;
+        var line = EditorTextBox.Document.GetLineByNumber(Math.Clamp(range.Line, 1, EditorTextBox.Document.LineCount));
+        var column = Math.Clamp(range.Column, 1, line.Length + 1);
+        EditorTextBox.CaretOffset = line.Offset + column - 1;
+        EditorTextBox.ScrollTo(line.LineNumber, column);
+        EditorTextBox.Focus();
     }
 
     private void UpdateEditorText(string text)

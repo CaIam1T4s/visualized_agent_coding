@@ -58,10 +58,40 @@ public sealed class PythonProcessBridge : IPythonBridge
         }, cancellationToken);
     }
 
-    private async Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken caller)
+    public async Task<PythonReferencesResult> FindReferencesAsync(PythonReferencesRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Line < 1 || request.Column < 1 || request.Version < 0) throw new ArgumentOutOfRangeException(nameof(request));
+        using var snapshot = await PythonSourceSnapshot.CreateAsync(request, cancellationToken).ConfigureAwait(false);
+        var uri = snapshot.ToSnapshotUri(request.Uri);
+        var result = await ExecuteAsync(async token =>
+        {
+            await EnsureStartedAsync(token).ConfigureAwait(false);
+            if (!info!.Capabilities.Contains("findReferences")) throw new PythonBridgeException("Python Helper 不支持引用查询。");
+            var response = await SendAsync<PythonReferencesResult>("python.findReferences", new
+            {
+                projectRoot = snapshot.Root, uri, request.Version, request.Line, request.Column,
+            }, token).ConfigureAwait(false);
+            if (response.Uri != uri || response.Version != request.Version)
+                throw new PythonBridgeException("引用查询返回了不匹配的文档版本。");
+            foreach (var location in response.References)
+                if (location.Range.Line < 1 || location.Range.Column < 1 || location.Range.EndLine != location.Range.Line
+                    || location.Range.EndColumn <= location.Range.Column)
+                    throw new PythonBridgeException("引用查询返回了无效位置。");
+            return response;
+        }, cancellationToken, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        return result with
+        {
+            Uri = request.Uri,
+            References = result.References.Select(location => location with { Uri = snapshot.ToOriginalUri(location.Uri) }).ToArray(),
+            Issues = result.Issues.Select(issue => issue with { Uri = snapshot.ToOriginalUri(issue.Uri) }).ToArray(),
+        };
+    }
+
+    private async Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken caller, TimeSpan? timeout = null)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
-        using var deadline = new CancellationTokenSource(options.RequestTimeout);
+        using var deadline = new CancellationTokenSource(timeout ?? options.RequestTimeout);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(caller, deadline.Token, lifetime.Token);
         var acquired = false;
         try
@@ -74,7 +104,7 @@ public sealed class PythonProcessBridge : IPythonBridge
         catch (OperationCanceledException) when (deadline.IsCancellationRequested && !caller.IsCancellationRequested && !lifetime.IsCancellationRequested)
         {
             if (acquired) await ResetProcessAsync().ConfigureAwait(false);
-            throw new TimeoutException($"Python Helper 请求超时（{options.RequestTimeout.TotalSeconds:0.##} 秒）。");
+            throw new TimeoutException($"Python Helper 请求超时（{(timeout ?? options.RequestTimeout).TotalSeconds:0.##} 秒）。");
         }
         catch (Exception ex)
         {

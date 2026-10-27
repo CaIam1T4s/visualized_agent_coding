@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.Input;
 using happy_agent_coding.Services;
 using VisualizedAgentCoding.Application.Projects;
 using VisualizedAgentCoding.Application.Ports;
+using VisualizedAgentCoding.Application.Editor;
 using VisualizedAgentCoding.Infrastructure.Python;
 using VisualizedAgentCoding.Domain.Projects;
 using VisualizedAgentCoding.Infrastructure.Projects;
@@ -79,7 +80,8 @@ public partial class MainViewModel : ViewModelBase
         ISettingsStore settingsStore,
         IRecentProjectsStore recentProjectsStore,
         IProjectSession projectSession,
-        IPythonBridge? pythonBridge = null)
+        IPythonBridge? pythonBridge = null,
+        IAutoSavePolicyProvider? autoSavePolicies = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(recentProjectsStore);
@@ -104,6 +106,8 @@ public partial class MainViewModel : ViewModelBase
         auxiliaryWidth = LayoutSettingValues.ClampAuxiliaryWidth(settings.AuxiliaryWidth);
         ApplyTheme(selectedThemeIndex);
         InitializePythonDiagnostics(pythonBridge);
+        InitializeReferences(pythonBridge);
+        InitializeExitAutoSave(autoSavePolicies);
     }
 
     [ObservableProperty]
@@ -190,7 +194,7 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>The indexed script currently shown in the editor, or null when none is open.</summary>
     public ProjectScriptEntry? OpenScript =>
-        activeProject is null ? null : activeProject.FindScript(openScriptId);
+        ResolveProjectScript(openScriptId);
 
     public string? ProjectName => activeProject?.Name;
 
@@ -427,7 +431,7 @@ public partial class MainViewModel : ViewModelBase
         if (item is null || activeProject is null)
             return;
 
-        var script = activeProject.FindScript(item.Id);
+        var script = ResolveProjectScript(item.Id);
         if (script is null)
         {
             ReportResourceMessage("脚本不在当前项目索引中。");

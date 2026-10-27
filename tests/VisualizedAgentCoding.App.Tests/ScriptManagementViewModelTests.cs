@@ -228,6 +228,37 @@ public sealed class ScriptManagementViewModelTests : IDisposable
         Assert.Null(vm.ScriptRename);
     }
 
+    [Fact]
+    public async Task ExitAutoSavePersistsTheUnsavedEditorBuffer()
+    {
+        var item = Assert.Single(vm.UserScripts);
+        vm.OpenScriptFromExplorerCommand.Execute(item);
+        vm.PythonCode = "value = 999\n";
+        Assert.True(await vm.PrepareForExitAsync());
+        Assert.Equal(vm.PythonCode, File.ReadAllText(Path.Combine(root, item.RelativePath)));
+        Assert.Equal(item.Id, vm.OpenScript!.Id);
+    }
+
+    [Fact]
+    public async Task ExitAutoSaveFailureKeepsDocumentOpenAndSupportsRetry()
+    {
+        vm.OpenScriptFromExplorerCommand.Execute(Assert.Single(vm.UserScripts));
+        vm.PythonCode = "unsaved";
+        session.FailSave = true;
+        Assert.False(await vm.PrepareForExitAsync());
+        Assert.Equal("unsaved", vm.PythonCode);
+        Assert.NotNull(vm.OpenScript);
+        session.FailSave = false;
+        Assert.True(await vm.PrepareForExitAsync());
+    }
+
+    [Fact]
+    public async Task ExitWithNoOpenDocumentDoesNotSave()
+    {
+        session.FailSave = true;
+        Assert.True(await vm.PrepareForExitAsync());
+    }
+
     private void Delete(ProjectScriptItem item)
     {
         vm.RequestDeleteScriptCommand.Execute(item);

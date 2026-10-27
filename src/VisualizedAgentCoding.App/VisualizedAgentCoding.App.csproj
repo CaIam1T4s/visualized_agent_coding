@@ -12,11 +12,24 @@
     <Content Include="..\..\tools\python-helper\*.py" Exclude="..\..\tools\python-helper\test_*.py"
              Link="python-helper\%(Filename)%(Extension)"
              CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="..\..\tools\python-helper\vendor\**\*"
-             Exclude="..\..\tools\python-helper\vendor\**\__pycache__\**;..\..\tools\python-helper\vendor\**\*.pyc"
-             Link="python-helper\vendor\%(RecursiveDir)%(Filename)%(Extension)"
-             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+
   </ItemGroup>
+
+  <PropertyGroup>
+    <HelperPython Condition="'$(HelperPython)' == ''">python</HelperPython>
+    <HelperVendor>$(MSBuildProjectDirectory)/../../artifacts/python-helper/vendor</HelperVendor>
+  </PropertyGroup>
+  <Target Name="PreparePythonHelperDependencies" BeforeTargets="PrepareForBuild">
+    <Exec Command="&quot;$(HelperPython)&quot; &quot;$(MSBuildProjectDirectory)/../../tools/python-helper/scripts/prepare_dependencies.py&quot;" />
+    <ItemGroup>
+      <_HelperDependency Include="$(HelperVendor)/**/*" Exclude="$(HelperVendor)/**/__pycache__/**;$(HelperVendor)/**/*.pyc;$(HelperVendor)/.requirements.sha256" />
+      <Content Include="@(_HelperDependency)">
+        <Link>python-helper/vendor/%(_HelperDependency.RecursiveDir)%(_HelperDependency.Filename)%(_HelperDependency.Extension)</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </Content>
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.4" />

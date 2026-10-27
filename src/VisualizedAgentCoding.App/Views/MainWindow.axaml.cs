@@ -37,6 +37,12 @@ public partial class MainWindow : Window
         e.Cancel = true;
         if (closingForCleanup) return;
         closingForCleanup = true;
+        if (DataContext is happy_agent_coding.ViewModels.MainViewModel currentViewModel
+            && !await currentViewModel.PrepareForExitAsync())
+        {
+            closingForCleanup = false;
+            return;
+        }
         WorkspaceViewHost.SaveCurrentLayout();
         if (DataContext is happy_agent_coding.ViewModels.MainViewModel viewModel)
             await viewModel.DisposeAsync();

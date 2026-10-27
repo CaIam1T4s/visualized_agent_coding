@@ -128,6 +128,7 @@ public sealed class PythonDiagnosticsCoordinatorTests
             return completion.Task;
         }
         public async Task<Pending> Next() => await requests.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        public Task<PythonReferencesResult> FindReferencesAsync(PythonReferencesRequest request, CancellationToken token = default) => throw new NotSupportedException();
         public ValueTask DisposeAsync() { Disposed = true; return ValueTask.CompletedTask; }
     }
 }

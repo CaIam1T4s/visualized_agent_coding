@@ -4,7 +4,7 @@ import subprocess
 import sys
 import unittest
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAIN = os.path.join(HERE, 'main.py')
 NL = chr(10)
 MAX_MESSAGE_BYTES = 8 * 1024 * 1024

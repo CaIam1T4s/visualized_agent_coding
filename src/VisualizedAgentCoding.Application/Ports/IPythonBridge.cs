@@ -7,4 +7,5 @@ public interface IPythonBridge : IAsyncDisposable
 {
     Task<PythonHelperInfo> InitializeAsync(CancellationToken cancellationToken = default);
     Task<PythonParseResult> ParseAsync(PythonParseRequest request, CancellationToken cancellationToken = default);
+    Task<PythonReferencesResult> FindReferencesAsync(PythonReferencesRequest request, CancellationToken cancellationToken = default);
 }

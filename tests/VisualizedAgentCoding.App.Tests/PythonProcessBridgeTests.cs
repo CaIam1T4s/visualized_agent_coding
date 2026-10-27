@@ -18,7 +18,7 @@ public sealed class PythonProcessBridgeTests : IDisposable
     private PythonProcessBridge Fake(TimeSpan? timeout = null) => new(new PythonBridgeOptions
     {
         PythonExecutable = Python, HelperDirectory = temporary,
-        RequestTimeout = timeout ?? TimeSpan.FromSeconds(5),
+        RequestTimeout = timeout ?? TimeSpan.FromSeconds(15),
     });
     private static PythonProcessBridge Real(int[]? versions = null) => new(new PythonBridgeOptions
     {
@@ -205,6 +205,25 @@ public sealed class PythonProcessBridgeTests : IDisposable
         Assert.All(result.Diagnostics, error => Assert.True(error.Column > 0));
     }
 
+    [Fact]
+    public async Task CancellingReferenceQueryReapsProcessAndDeletesItsSourceSnapshot()
+    {
+        await using var bridge = Fake();
+        await bridge.InitializeAsync();
+        var uri = new Uri(Path.Combine(temporary, "unsaved.py")).AbsoluteUri;
+        var request = new PythonReferencesRequest(temporary, uri, 1, 1, 1,
+            new[] { new PythonSourceDocument(uri, 1, "hang") });
+        using var cancellation = new CancellationTokenSource();
+        var query = bridge.FindReferencesAsync(request, cancellation.Token);
+        await WaitForMarker();
+        var snapshot = File.ReadAllText(Path.Combine(temporary, "snapshot-root"));
+        Assert.True(Directory.Exists(snapshot));
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => query);
+        Assert.False(Directory.Exists(snapshot));
+        Assert.False(File.Exists(Path.Combine(temporary, "unsaved.py")));
+    }
+
     private async Task WaitForMarker()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
@@ -221,6 +240,9 @@ public sealed class PythonProcessBridgeTests : IDisposable
 
     private const string FakeHelper = """
 import json, os, sys, time
+from pathlib import Path
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 def emit(id, result):
     print(json.dumps({'jsonrpc': '2.0', 'id': id, 'result': result}), flush=True)
@@ -229,13 +251,21 @@ for line in sys.stdin:
     req = json.loads(line)
     id = req['id']
     if req['method'] == 'helper.hello':
-        emit(id, {'protocolVersion': 1, 'pythonVersion': str(os.getpid()), 'capabilities': ['parse']})
+        emit(id, {'protocolVersion': 1, 'pythonVersion': str(os.getpid()), 'capabilities': ['parse', 'findReferences']})
         continue
     if req['method'] == 'helper.shutdown':
         open('shutdown', 'w').close()
         emit(id, {})
         break
     p = req['params']
+    if req['method'] == 'python.findReferences':
+        Path('snapshot-root').write_text(p['projectRoot'], encoding='utf-8')
+        source = Path(url2pathname(urlparse(p['uri']).path)).read_text(encoding='utf-8')
+        if source == 'hang':
+            Path('started').touch()
+            time.sleep(20)
+        emit(id, {'uri': p['uri'], 'version': p['version'], 'references': [], 'issues': [], 'isIncomplete': False})
+        continue
     mode = p['source']
     if mode == 'crash':
         sys.stderr.write('injected crash')

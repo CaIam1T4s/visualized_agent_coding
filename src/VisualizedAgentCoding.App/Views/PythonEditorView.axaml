@@ -54,7 +54,7 @@
                 </Border.Styles>
                 <Grid RowDefinitions="Auto,*,Auto,Auto">
                     <Grid Grid.Row="0"
-                          ColumnDefinitions="Auto,*"
+                          ColumnDefinitions="Auto,*,Auto"
                           Margin="12,11,12,8">
                         <ComboBox Classes="editor-mode-selector"
                                   HorizontalAlignment="Left"
@@ -70,6 +70,9 @@
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center" />
+                        <Button Grid.Column="2" Content="查找引用" Height="32" MinHeight="32" Padding="12,0"
+                                Classes="command-button secondary" Click="OnFindReferencesClick"
+                                ToolTip.Tip="查找光标处符号的引用（Shift+F12），优先使用未保存内容" />
                     </Grid>
                     <avaloniaEdit:TextEditor x:Name="EditorTextBox"
                                              Grid.Row="1"
@@ -80,8 +83,15 @@
                                              FontSize="14"
                                              Padding="12"
                                              Background="{DynamicResource LayerFillColorBrush}"
-                                             Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                    <Expander Classes="diagnostics-list" Grid.Row="2" IsVisible="{Binding HasPythonDiagnostics}"
+                                             Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                        <avaloniaEdit:TextEditor.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="查找引用" InputGesture="Shift+F12" Click="OnFindReferencesClick" />
+                            </ContextMenu>
+                        </avaloniaEdit:TextEditor.ContextMenu>
+                    </avaloniaEdit:TextEditor>
+                    <StackPanel Grid.Row="2" Spacing="4">
+                    <Expander Classes="diagnostics-list" IsVisible="{Binding HasPythonDiagnostics}"
                               Header="{Binding PythonErrorListTitle}"
                               ExpandDirection="Up" IsExpanded="False" MinHeight="32" Padding="8,4"
                               HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
@@ -135,6 +145,29 @@
                         </ItemsControl>
                         </ScrollViewer>
                     </Expander>
+                    <Expander Header="{Binding ReferenceStatus}" IsVisible="{Binding HasReferenceQuery}"
+                              ExpandDirection="Up" IsExpanded="True" MinHeight="32" Padding="8,4"
+                              HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="12,4">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{Binding ReferenceIssues}" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <ScrollViewer MaxHeight="160" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden">
+                                <ItemsControl ItemsSource="{Binding PythonReferences}">
+                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="4" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:PythonReferenceItem">
+                                            <Button Tag="{Binding}" Click="OnReferenceClick" Height="32" MinHeight="32" Padding="12,0"
+                                                    Classes="command-button secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                    ToolTip.Tip="{Binding DisplayText}">
+                                                <TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis" />
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Expander>
+                    </StackPanel>
                     <Border Grid.Row="3"
                             Background="{DynamicResource ControlFillColorSecondaryBrush}"
                             BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"

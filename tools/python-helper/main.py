@@ -20,7 +20,7 @@ from protocol import (
     ok,
 )
 
-CAPABILITIES = ['parse']
+CAPABILITIES = ['parse', 'findReferences']
 
 
 def handle_hello(params, state):
@@ -68,6 +68,11 @@ def dispatch(message, state):
             return ok(message_id, handle_hello(params, state)), False
         if method == 'python.parse':
             return ok(message_id, handle_parse(params, state)), False
+        if method == 'python.findReferences':
+            if state['negotiated'] is None:
+                raise ProtocolError(ERR_NOT_HELLO, 'helper.hello must be called first')
+            import references_service
+            return ok(message_id, references_service.find_references(params)), False
         if method == 'helper.shutdown':
             return ok(message_id, {}), True
         raise ProtocolError(ERR_METHOD_NOT_FOUND, f'unknown method: {method}')
