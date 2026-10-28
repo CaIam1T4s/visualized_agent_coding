@@ -27,7 +27,7 @@ public sealed class ScriptMutationTests : IDisposable
     [Fact]
     public void RenamePreservesIdentityContentAndBindingsAcrossReopen()
     {
-        var updated = service.RenameScript(project, script.Id, " renamed.py ");
+        var updated = service.CommitScriptFileRename(project, script.Id, " renamed.py ");
         var renamed = Assert.Single(updated.Manifest.Scripts);
         Assert.Equal(script with { Path = "scripts/user/renamed.py" }, renamed);
         Assert.Equal("# 用户代码\nvalue = 42\n", service.LoadScript(updated, renamed));
@@ -44,7 +44,7 @@ public sealed class ScriptMutationTests : IDisposable
     [InlineData(".py")]
     public void InvalidRenameLeavesProjectUnchanged(string name)
     {
-        Assert.Throws<ProjectOperationException>(() => service.RenameScript(project, script.Id, name));
+        Assert.Throws<ProjectOperationException>(() => service.CommitScriptFileRename(project, script.Id, name));
         AssertOriginal();
     }
 
@@ -58,7 +58,7 @@ public sealed class ScriptMutationTests : IDisposable
             current = service.CreateScript(project, ProjectScriptKind.User, "taken").Project;
         else
             store.WriteScript(root, "scripts/user/taken.py", "external");
-        Assert.Throws<ProjectOperationException>(() => service.RenameScript(current, script.Id, "TAKEN"));
+        Assert.Throws<ProjectOperationException>(() => service.CommitScriptFileRename(current, script.Id, "TAKEN"));
         Assert.Equal("scripts/user/original.py", store.ReadManifest(root).Scripts[0].Path);
         Assert.True(store.ScriptExists(root, script.Path));
     }
@@ -66,7 +66,7 @@ public sealed class ScriptMutationTests : IDisposable
     [Fact]
     public void SameNameIsANoOp()
     {
-        Assert.Same(project, service.RenameScript(project, script.Id, "original.py"));
+        Assert.Same(project, service.CommitScriptFileRename(project, script.Id, "original.py"));
         Assert.Equal(0, store.ManifestWrites);
     }
 
@@ -76,7 +76,7 @@ public sealed class ScriptMutationTests : IDisposable
     public void ObjectAndBackdropRenameIsRefused(ProjectScriptKind kind)
     {
         var created = service.CreateScript(project, kind, "hero");
-        Assert.Throws<ProjectOperationException>(() => service.RenameScript(created.Project, created.Script.Id, "new"));
+        Assert.Throws<ProjectOperationException>(() => service.CommitScriptFileRename(created.Project, created.Script.Id, "new"));
         Assert.True(store.ScriptExists(root, created.Script.Path));
     }
 
@@ -150,7 +150,7 @@ public sealed class ScriptMutationTests : IDisposable
     {
         store.FailManifestWrite = 2;
         store.FailDeletePath = "scripts/user/renamed.py";
-        Assert.Throws<IOException>(() => service.RenameScript(project, script.Id, "renamed"));
+        Assert.Throws<IOException>(() => service.CommitScriptFileRename(project, script.Id, "renamed"));
         Assert.True(store.ScriptExists(root, "scripts/user/renamed.py"));
         AssertOriginal();
         store.FailDeletePath = null;
@@ -162,7 +162,7 @@ public sealed class ScriptMutationTests : IDisposable
     public void RenameCommitFailureRollsBackAndPreservesOriginalException()
     {
         store.FailManifestWrite = 2;
-        var error = Assert.Throws<IOException>(() => service.RenameScript(project, script.Id, "renamed"));
+        var error = Assert.Throws<IOException>(() => service.CommitScriptFileRename(project, script.Id, "renamed"));
         Assert.Equal("Injected manifest write failure", error.Message);
         Assert.False(store.ScriptExists(root, "scripts/user/renamed.py"));
         AssertOriginal();
@@ -173,7 +173,7 @@ public sealed class ScriptMutationTests : IDisposable
     {
         store.FailManifestWrite = 2;
         store.FailDeletePath = "scripts/user/renamed.py";
-        Assert.Throws<IOException>(() => service.RenameScript(project, script.Id, "renamed"));
+        Assert.Throws<IOException>(() => service.CommitScriptFileRename(project, script.Id, "renamed"));
         var created = service.CreateScript(project, ProjectScriptKind.User, "other");
         Assert.Contains("scripts/user/renamed.py", created.Project.Manifest.PendingScriptDeletions);
         Assert.Equal(2, service.Open(root).Manifest.Scripts.Count);
@@ -219,7 +219,7 @@ public sealed class ScriptMutationTests : IDisposable
     }
 
     private ProjectWorkspace Mutate(bool rename, string id) => rename
-        ? service.RenameScript(project, id, "renamed")
+        ? service.CommitScriptFileRename(project, id, "renamed")
         : service.DeleteScript(project, id);
 
     private void AssertOriginal()

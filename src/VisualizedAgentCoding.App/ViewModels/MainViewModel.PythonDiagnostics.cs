@@ -67,11 +67,17 @@ public partial class MainViewModel : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        renameCancellation?.Cancel();
+        deleteAnalysisCancellation?.Cancel();
         ResetReferenceQuery();
+        await Task.WhenAll(renameTasks);
+        renameCancellation?.Dispose();
+        await Task.WhenAll(deleteAnalysisTasks);
+        deleteAnalysisCancellation?.Dispose();
+        await Task.WhenAll(referenceTasks);
         if (pythonDiagnostics is null) return;
         var previous = pythonDiagnostics;
         pythonDiagnostics = null;
         await previous.DisposeAsync();
-        await Task.WhenAll(referenceTasks);
     }
 }

@@ -70,9 +70,16 @@
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center" />
-                        <Button Grid.Column="2" Content="查找引用" Height="32" MinHeight="32" Padding="12,0"
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                        <Button Content="重新加载" Height="32" MinHeight="32" Padding="12,0"
+                                Classes="command-button secondary" Click="OnReloadScriptClick"
+                                ToolTip.Tip="重新读取磁盘文件，丢弃编辑前会请求确认" />
+                        <Button Content="查找引用" Height="32" MinHeight="32" Padding="12,0"
                                 Classes="command-button secondary" Click="OnFindReferencesClick"
                                 ToolTip.Tip="查找光标处符号的引用（Shift+F12），优先使用未保存内容" />
+                        <Button Content="更多" Height="32" MinHeight="32" Padding="12,0"
+                                Classes="command-button secondary" Click="OnEditorMenuClick" />
+                        </StackPanel>
                     </Grid>
                     <avaloniaEdit:TextEditor x:Name="EditorTextBox"
                                              Grid.Row="1"
@@ -84,11 +91,6 @@
                                              Padding="12"
                                              Background="{DynamicResource LayerFillColorBrush}"
                                              Foreground="{DynamicResource TextFillColorPrimaryBrush}">
-                        <avaloniaEdit:TextEditor.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="查找引用" InputGesture="Shift+F12" Click="OnFindReferencesClick" />
-                            </ContextMenu>
-                        </avaloniaEdit:TextEditor.ContextMenu>
                     </avaloniaEdit:TextEditor>
                     <StackPanel Grid.Row="2" Spacing="4">
                     <Expander Classes="diagnostics-list" IsVisible="{Binding HasPythonDiagnostics}"
@@ -181,8 +183,8 @@
                                            MaxWidth="420" ToolTip.Tip="{Binding EditorOperationStatus}"
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" />
                             </Grid>
-                            <TextBlock Grid.Column="1"
-                                       Text="Python · UTF-8"
+                            <TextBlock Grid.Column="1" x:Name="ProtectionStatus"
+                                       Text="Python · UTF-8" MaxWidth="380" TextTrimming="CharacterEllipsis"
                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                        FontSize="12" />
                         </Grid>

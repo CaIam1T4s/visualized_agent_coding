@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -7,16 +8,16 @@ namespace happy_agent_coding.ViewModels;
 /// <summary>One inline rename session, retained across explorer refreshes.</summary>
 public partial class ScriptRenameState : ObservableObject
 {
-    public ScriptRenameState(string scriptId, string name, Action confirm, Action cancel)
+    public ScriptRenameState(string scriptId, string name, Func<Task> confirm, Action cancel)
     {
         ScriptId = scriptId;
         this.name = name;
-        ConfirmCommand = new RelayCommand(confirm);
+        ConfirmCommand = new AsyncRelayCommand(confirm);
         CancelCommand = new RelayCommand(cancel);
     }
 
     public string ScriptId { get; }
-    public IRelayCommand ConfirmCommand { get; }
+    public IAsyncRelayCommand ConfirmCommand { get; }
     public IRelayCommand CancelCommand { get; }
 
     [ObservableProperty]

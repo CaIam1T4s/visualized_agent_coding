@@ -20,7 +20,7 @@ from protocol import (
     ok,
 )
 
-CAPABILITIES = ['parse', 'findReferences']
+CAPABILITIES = ['parse', 'findReferences', 'findModuleDependencies', 'planModuleRename', 'inspectObjectScript']
 
 
 def handle_hello(params, state):
@@ -73,6 +73,21 @@ def dispatch(message, state):
                 raise ProtocolError(ERR_NOT_HELLO, 'helper.hello must be called first')
             import references_service
             return ok(message_id, references_service.find_references(params)), False
+        if method == 'python.findModuleDependencies':
+            if state['negotiated'] is None:
+                raise ProtocolError(ERR_NOT_HELLO, 'helper.hello must be called first')
+            from module_dependencies import find_module_dependencies
+            return ok(message_id, find_module_dependencies(params)), False
+        if method == 'python.planModuleRename':
+            if state['negotiated'] is None:
+                raise ProtocolError(ERR_NOT_HELLO, 'helper.hello must be called first')
+            from module_rename import plan_module_rename
+            return ok(message_id, plan_module_rename(params)), False
+        if method == 'python.inspectObjectScript':
+            if state['negotiated'] is None:
+                raise ProtocolError(ERR_NOT_HELLO, 'helper.hello must be called first')
+            from object_script_service import inspect_object_script
+            return ok(message_id, inspect_object_script(params)), False
         if method == 'helper.shutdown':
             return ok(message_id, {}), True
         raise ProtocolError(ERR_METHOD_NOT_FOUND, f'unknown method: {method}')

@@ -10,12 +10,7 @@ public partial class MainViewModel
 
     private void InitializeExitAutoSave(IAutoSavePolicyProvider? policies)
     {
-        exitAutoSave = new ExitAutoSaveService(policies ?? new DefaultAutoSavePolicyProvider(), token =>
-        {
-            token.ThrowIfCancellationRequested();
-            SaveActiveProject();
-            return Task.CompletedTask;
-        });
+        exitAutoSave = new ExitAutoSaveService(policies ?? new DefaultAutoSavePolicyProvider(), token => SaveActiveProjectAsync(token));
     }
 
     public async Task<bool> PrepareForExitAsync(CancellationToken token = default)

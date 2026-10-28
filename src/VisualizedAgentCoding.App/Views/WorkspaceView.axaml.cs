@@ -171,7 +171,7 @@ public partial class WorkspaceView : UserControl
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             if (textBox.DataContext is ScriptRenameState state &&
-                DataContext is MainViewModel vm && ReferenceEquals(vm.ScriptRename, state) && textBox.IsEffectivelyVisible)
+                DataContext is MainViewModel vm && !vm.IsRenamePreviewOpen && ReferenceEquals(vm.ScriptRename, state) && textBox.IsEffectivelyVisible)
             {
                 textBox.Focus();
                 textBox.SelectAll();
@@ -182,7 +182,7 @@ public partial class WorkspaceView : UserControl
     private void OnRenameLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (sender is TextBox { DataContext: ScriptRenameState state } &&
-            DataContext is MainViewModel vm && ReferenceEquals(vm.ScriptRename, state))
+            DataContext is MainViewModel vm && !vm.IsRenamePreviewOpen && ReferenceEquals(vm.ScriptRename, state))
             state.CancelCommand.Execute(null);
     }
 

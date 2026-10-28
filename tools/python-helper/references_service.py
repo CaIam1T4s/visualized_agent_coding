@@ -1,9 +1,6 @@
 """On-demand, read-only static reference queries over a client-owned source snapshot."""
 import ast
 from pathlib import Path
-import sys
-from urllib.parse import urlparse
-from urllib.request import url2pathname
 
 from dependencies import configure_dependencies
 configure_dependencies()
@@ -12,13 +9,7 @@ import parso.cache
 from jedi.api.environment import InterpreterEnvironment
 
 from protocol import ERR_INVALID_PARAMS, ProtocolError
-
-
-def _file_path(uri):
-    parsed = urlparse(uri)
-    if parsed.scheme != 'file' or parsed.netloc not in ('', 'localhost'):
-        raise ProtocolError(ERR_INVALID_PARAMS, 'expected a local file URI')
-    return Path(url2pathname(parsed.path)).resolve()
+from analysis_environment import create_project, file_path
 
 
 def _collect_references(script, line, column, root, project):
@@ -71,7 +62,7 @@ def find_references(params):
             or type(line) is not int or line < 1 or type(column) is not int or column < 1):
         raise ProtocolError(ERR_INVALID_PARAMS, 'expected projectRoot, uri, version and 1-based UTF-16 line/column')
     root = Path(root_value).resolve()
-    path = _file_path(uri)
+    path = file_path(uri)
     if not root.is_dir() or not path.is_relative_to(root) or path.suffix.lower() != '.py' or not path.is_file():
         raise ProtocolError(ERR_INVALID_PARAMS, 'target must be a Python file inside the snapshot')
     source = path.read_text(encoding='utf-8')
@@ -89,14 +80,7 @@ def find_references(params):
     # No user module is imported or executed, and no .jedi settings/cache is written.
     # Jedi requires Parso's in-memory node cache. Scope its disk cache to the
     # disposable snapshot, never to the real project or global user cache.
-    parso.cache.parser_cache.clear()
-    jedi.settings.fast_parser = True
-    jedi.settings.cache_directory = str(root / '.analysis-cache')
-    jedi.settings.auto_import_modules = []
-    jedi.settings.allow_unsafe_interpreter_executions = False
-    search_paths = [root, root / 'scripts', root / 'scripts/user', root / 'scripts/objects', root / 'scripts/backdrops']
-    project = jedi.Project(root, sys_path=[str(p) for p in search_paths],
-                           smart_sys_path=False, load_unsafe_extensions=False)
+    project = create_project(root)
     script = jedi.Script(code=source, path=path, project=project, environment=InterpreterEnvironment())
     references, truncated = _collect_references(script, line, character_column, root, project)
     locations, issues, seen = [], [], set()

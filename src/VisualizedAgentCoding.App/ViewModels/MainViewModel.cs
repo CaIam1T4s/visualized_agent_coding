@@ -4,6 +4,8 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Styling;
 using AvaloniaFluentUI.Styling;
@@ -81,7 +83,8 @@ public partial class MainViewModel : ViewModelBase
         IRecentProjectsStore recentProjectsStore,
         IProjectSession projectSession,
         IPythonBridge? pythonBridge = null,
-        IAutoSavePolicyProvider? autoSavePolicies = null)
+        IAutoSavePolicyProvider? autoSavePolicies = null,
+        IProjectStore? analysisStore = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(recentProjectsStore);
@@ -106,7 +109,7 @@ public partial class MainViewModel : ViewModelBase
         auxiliaryWidth = LayoutSettingValues.ClampAuxiliaryWidth(settings.AuxiliaryWidth);
         ApplyTheme(selectedThemeIndex);
         InitializePythonDiagnostics(pythonBridge);
-        InitializeReferences(pythonBridge);
+        InitializeReferences(pythonBridge, analysisStore ?? Composition.AnalysisComposition.CreateStore());
         InitializeExitAutoSave(autoSavePolicies);
     }
 
@@ -214,15 +217,18 @@ public partial class MainViewModel : ViewModelBase
 
     public bool CanCreateScript => activeProject is not null;
 
-    public void CreateProject(string rootPath, string? name = null) => ActivateProject(projectSession.Create(rootPath, name));
+    public Task CreateProject(string rootPath, string? name = null) => ActivateProject(projectSession.Create(rootPath, name));
 
-    public void OpenProject(string rootPath) => ActivateProject(projectSession.Open(rootPath));
+    public Task OpenProject(string rootPath) => ActivateProject(projectSession.Open(rootPath));
 
-    public void CloseProject()
+    public async Task CloseProject()
     {
-        SaveActiveProject();
+        var navigation = ++editorNavigationGeneration;
+        await SaveActiveProjectAsync();
+        if (navigation != editorNavigationGeneration) return;
         activeProject = null;
         openScriptId = null;
+        ResetLoadedScript();
         PythonCode = string.Empty;
         ResetExplorerState();
         ObjectManagerTabIndex = 0;
@@ -249,26 +255,33 @@ public partial class MainViewModel : ViewModelBase
     private void CloseProjectManager() => IsProjectManagerOpen = false;
 
     [RelayCommand]
-    private void CloseActiveProject() => CloseProject();
+    private async Task CloseActiveProject()
+    {
+        try { await CloseProject(); }
+        catch (Exception ex) { ReportResourceMessage(ex.Message); }
+    }
 
     [RelayCommand]
-    private void OpenRecentProject(string path)
+    private async Task OpenRecentProject(string path)
     {
         try
         {
-            OpenProject(path);
+            await OpenProject(path);
         }
-        catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException or JsonException)
+        catch (Exception ex)
         {
             ReportProjectError(ex.Message);
         }
     }
 
-    private void ActivateProject(ProjectWorkspace project)
+    private async Task ActivateProject(ProjectWorkspace project)
     {
-        SaveActiveProject();
+        var navigation = ++editorNavigationGeneration;
+        await SaveActiveProjectAsync();
+        if (navigation != editorNavigationGeneration) return;
         activeProject = project;
         openScriptId = null;
+        ResetLoadedScript();
         ClearProjectError();
         AddRecentProject(project);
         PythonCode = string.Empty;
@@ -290,14 +303,6 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanCreateScript));
         ProjectStatus = project.Name;
         IsProjectManagerOpen = false;
-    }
-
-    private void SaveActiveProject()
-    {
-        if (activeProject is null || OpenScript is not { } script)
-            return;
-
-        projectSession.SaveScript(activeProject, script, PythonCode);
     }
 
     /// <summary>Clears the search box so a closed project does not keep a stale filter.</summary>
@@ -426,7 +431,7 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Saves the current buffer then loads the chosen indexed script into the editor.</summary>
     [RelayCommand]
-    private void OpenScriptFromExplorer(ProjectScriptItem? item)
+    private async Task OpenScriptFromExplorer(ProjectScriptItem? item)
     {
         if (item is null || activeProject is null)
             return;
@@ -441,10 +446,14 @@ public partial class MainViewModel : ViewModelBase
         if (string.Equals(openScriptId, script.Id, StringComparison.Ordinal))
             return;
 
+        var navigation = ++editorNavigationGeneration;
         try
         {
-            SaveActiveProject();
-            PythonCode = projectSession.LoadScript(activeProject, script);
+            await SaveActiveProjectAsync();
+            if (navigation != editorNavigationGeneration) return;
+            var loaded = projectSession.LoadScript(activeProject, script);
+            RememberLoadedScript(script.Id, loaded);
+            PythonCode = loaded;
             openScriptId = script.Id;
             EditorState = "就绪";
             OnPropertyChanged(nameof(FileName));
@@ -457,7 +466,7 @@ public partial class MainViewModel : ViewModelBase
             ApplyStageSelection(openScriptId);
             SchedulePythonAnalysis();
         }
-        catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
             ReportResourceMessage(ex.Message);
         }
@@ -465,12 +474,13 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Selects a stage object, opens its script, and shows that object's properties.</summary>
     [RelayCommand]
-    private void SelectStageObject(StageObjectItem? item)
+    private async Task SelectStageObject(StageObjectItem? item)
     {
         if (item is null)
             return;
 
-        OpenScriptFromExplorer(item.ToScriptItem());
+        await OpenScriptFromExplorer(item.ToScriptItem());
+        if (openScriptId != item.ScriptId) return;
         ApplyStageSelection(item.ScriptId);
         ObjectManagerTabIndex = item.Kind == ProjectScriptKind.Backdrop ? 1 : 0;
     }
@@ -481,12 +491,12 @@ public partial class MainViewModel : ViewModelBase
     public void ClearStageSelection() => ApplyStageSelection(null);
 
     [RelayCommand]
-    private void AddSprite() => AddStageObject(ProjectScriptKind.Object);
+    private Task AddSprite() => AddStageObject(ProjectScriptKind.Object);
 
     [RelayCommand]
-    private void AddBackdrop() => AddStageObject(ProjectScriptKind.Backdrop);
+    private Task AddBackdrop() => AddStageObject(ProjectScriptKind.Backdrop);
 
-    private void AddStageObject(ProjectScriptKind kind)
+    private async Task AddStageObject(ProjectScriptKind kind)
     {
         if (activeProject is null)
             return;
@@ -501,7 +511,7 @@ public partial class MainViewModel : ViewModelBase
         var created = ObjectsFor(kind)
             .FirstOrDefault(item => string.Equals(item.DisplayName, name, StringComparison.OrdinalIgnoreCase));
         if (created is not null)
-            SelectStageObject(created);
+            await SelectStageObject(created);
     }
 
     private string NextAvailableScriptName(ProjectScriptKind kind)
@@ -720,7 +730,7 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void Save()
+    private async Task Save()
     {
         if (activeProject is null)
         {
@@ -736,12 +746,13 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
-            SaveActiveProject();
+            await SaveActiveProjectAsync(checkUnchangedDisk: true);
             EditorState = "已保存";
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectFormatException)
+        catch (Exception ex)
         {
-            EditorState = "保存失败";
+            EditorState = $"保存失败：{ex.Message}";
+            ReportResourceMessage(EditorState);
         }
     }
 

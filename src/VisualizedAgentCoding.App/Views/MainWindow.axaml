@@ -38,14 +38,16 @@
                 Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
             <Grid RowDefinitions="36,*" Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
                 <views:TitleBarView x:Name="TitleBarView" Grid.Row="0" />
-                <views:WorkspaceView x:Name="WorkspaceViewHost" Grid.Row="1" IsHitTestVisible="{Binding IsDeleteConfirmationOpen, Converter={x:Static BoolConverters.Not}}" />
+                <views:WorkspaceView x:Name="WorkspaceViewHost" Grid.Row="1" IsHitTestVisible="{Binding IsScriptActionDialogOpen, Converter={x:Static BoolConverters.Not}}" />
                 <views:SettingsView x:Name="SettingsViewHost"
                                     Grid.RowSpan="2"
                                     IsVisible="{Binding IsSettingsOpen}" />
                 <views:ProjectManagerView x:Name="ProjectManagerViewHost"
                                           Grid.RowSpan="2"
                                           IsVisible="{Binding IsProjectManagerOpen}" />
+                <views:ScriptRenameView Grid.RowSpan="2" IsVisible="{Binding IsRenamePreviewOpen}" />
                 <views:ScriptDeleteView Grid.RowSpan="2" IsVisible="{Binding IsDeleteConfirmationOpen}" />
+                <views:ScriptReloadView Grid.RowSpan="2" IsVisible="{Binding IsReloadConfirmationOpen}" />
             </Grid>
         </Border>
 

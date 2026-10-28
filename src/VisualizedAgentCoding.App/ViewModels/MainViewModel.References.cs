@@ -9,7 +9,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using VisualizedAgentCoding.Application.Ports;
 using VisualizedAgentCoding.Application.Python;
 using VisualizedAgentCoding.Domain.Projects;
-using VisualizedAgentCoding.Infrastructure.Projects;
+using VisualizedAgentCoding.Application.Projects;
+using VisualizedAgentCoding.Application.Editor.ObjectScripts;
 
 namespace happy_agent_coding.ViewModels;
 
@@ -35,9 +36,16 @@ public partial class MainViewModel
     [ObservableProperty]
     private string referenceIssues = string.Empty;
 
-    private void InitializeReferences(IPythonBridge? bridge)
+    private void InitializeReferences(IPythonBridge? bridge, IProjectStore store)
     {
-        if (bridge is not null) referenceService = new ProjectReferenceService(bridge, new JsonProjectStore());
+        if (bridge is not null)
+        {
+            referenceService = new ProjectReferenceService(bridge, store);
+            deletionImpactService = new ScriptDeletionImpactService(bridge, store);
+            scriptRenameService = new ScriptRenameService(bridge, store);
+            objectScriptDocumentService = new ObjectScriptDocumentService(bridge);
+            objectScriptSaveService = new ObjectScriptSaveService(objectScriptDocumentService, store);
+        }
     }
 
     public Task FindReferencesAtAsync(int line, int column)
@@ -94,7 +102,7 @@ public partial class MainViewModel
         }
     }
 
-    public bool OpenReference(PythonReferenceItem item)
+    public async Task<bool> OpenReference(PythonReferenceItem item)
     {
         if (activeProject is null) return false;
         var path = Path.GetFullPath(new Uri(item.Location.Uri).LocalPath);
@@ -110,7 +118,7 @@ public partial class MainViewModel
         navigatingReference = true;
         try
         {
-            OpenScriptFromExplorer(new(script.Id, Path.GetFileNameWithoutExtension(script.Path), script.Path, script.Kind));
+            await OpenScriptFromExplorer(new(script.Id, Path.GetFileNameWithoutExtension(script.Path), script.Path, script.Kind));
             return openScriptId == script.Id;
         }
         finally { navigatingReference = false; }

@@ -8,7 +8,7 @@
         <KeyBinding Gesture="Escape" Command="{Binding CancelDeleteScriptCommand}" />
     </UserControl.KeyBindings>
     <Border Background="#99000000">
-        <Border MaxWidth="460" Margin="24" Padding="24" CornerRadius="8"
+        <Border MaxWidth="620" Margin="24" Padding="24" CornerRadius="8"
                 HorizontalAlignment="Center" VerticalAlignment="Center"
                 Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
                 BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
@@ -20,12 +20,28 @@
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
                 <TextBlock Text="{Binding DeleteConfirmationMessage}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding DeleteReferenceStatus}" TextWrapping="Wrap" />
+                <ScrollViewer MaxHeight="160" HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding DeleteReferences}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PythonReferenceItem">
+                                <Button Content="{Binding DisplayText}" Margin="0,0,0,4"
+                                        Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).InspectDeleteReferenceCommand}"
+                                        CommandParameter="{Binding}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                <ScrollViewer MaxHeight="100" HorizontalScrollBarVisibility="Disabled">
+                    <TextBlock Text="{Binding DeleteReferenceIssues}" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </ScrollViewer>
                 <TextBlock Text="{Binding DeleteError}" TextWrapping="Wrap"
                            Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
                     <Button x:Name="CancelButton" Classes="command-button secondary" Content="取消"
                             Command="{Binding CancelDeleteScriptCommand}" />
-                    <Button Classes="command-button primary" Content="删除"
+                    <Button Classes="command-button primary" Content="{Binding DeleteButtonText}" IsEnabled="{Binding CanConfirmDelete}"
                             Command="{Binding ConfirmDeleteScriptCommand}" />
                 </StackPanel>
             </StackPanel>

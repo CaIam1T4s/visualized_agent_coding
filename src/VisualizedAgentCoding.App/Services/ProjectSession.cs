@@ -21,8 +21,6 @@ public interface IProjectSession : IProjectValidityChecker
 
     void SaveScript(ProjectWorkspace project, ProjectScriptEntry script, string content);
 
-    ProjectWorkspace RenameScript(ProjectWorkspace project, string scriptId, string newName);
-
     ProjectWorkspace DeleteScript(ProjectWorkspace project, string scriptId);
 
     bool HasPendingScriptCleanup(ProjectWorkspace project);
@@ -67,9 +65,6 @@ public sealed class ProjectSession : IProjectSession
 
     public void SaveScript(ProjectWorkspace project, ProjectScriptEntry script, string content) =>
         projectService.SaveScript(project, script, content);
-
-    public ProjectWorkspace RenameScript(ProjectWorkspace project, string scriptId, string newName) =>
-        projectService.RenameScript(project, scriptId, newName);
 
     public ProjectWorkspace DeleteScript(ProjectWorkspace project, string scriptId) =>
         projectService.DeleteScript(project, scriptId);

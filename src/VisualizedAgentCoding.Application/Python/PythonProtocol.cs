@@ -13,6 +13,7 @@ public sealed record PythonSymbols(PythonSymbol[] Classes, PythonSymbol[] Functi
 public sealed record PythonParseResult(string Uri, long Version, PythonDiagnostic[] Diagnostics, PythonSymbols? Symbols);
 public sealed record PythonSourceDocument(string Uri, long Version, string Source);
 public sealed record PythonReferencesRequest(string ProjectRoot, string Uri, long Version, int Line, int Column, PythonSourceDocument[] Documents);
+public sealed record PythonModuleDependenciesRequest(string ProjectRoot, string Uri, long Version, PythonSourceDocument[] Documents);
 public sealed record PythonReferenceLocation(string Uri, PythonSourceRange Range, bool IsDefinition, string Name);
 public sealed record PythonReferenceIssue(string Uri, string Message);
 public sealed record PythonReferencesResult(string Uri, long Version, PythonReferenceLocation[] References, PythonReferenceIssue[] Issues, bool IsIncomplete);
@@ -22,3 +23,7 @@ public sealed class PythonBridgeException(string message, Exception? inner = nul
 {
     public int? ErrorCode { get; } = errorCode;
 }
+
+public sealed record PythonModuleRenameRequest(string ProjectRoot, string Uri, long Version, string NewName, PythonSourceDocument[] Documents);
+public sealed record PythonSourceChange(string Uri, string Source);
+public sealed record PythonModuleRenameResult(string Uri, long Version, PythonSourceChange[] Changes, PythonReferenceIssue[] Issues, bool IsIncomplete);

@@ -10,16 +10,16 @@ internal sealed class PythonSourceSnapshot : IDisposable
     private readonly string originalRoot;
     private PythonSourceSnapshot(string originalRoot) => this.originalRoot = Path.GetFullPath(originalRoot);
 
-    public static async Task<PythonSourceSnapshot> CreateAsync(PythonReferencesRequest request, CancellationToken token)
+    public static async Task<PythonSourceSnapshot> CreateAsync(string projectRoot, string targetUri, PythonSourceDocument[] documents, CancellationToken token)
     {
-        var snapshot = new PythonSourceSnapshot(request.ProjectRoot);
+        var snapshot = new PythonSourceSnapshot(projectRoot);
         try
         {
-            if (request.Documents.Length > 2000) throw new PythonBridgeException("引用查询超过 2000 个文件的限制。");
+            if (documents.Length > 2000) throw new PythonBridgeException("引用查询超过 2000 个文件的限制。");
             long bytes = 0;
             var written = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             Directory.CreateDirectory(snapshot.Root);
-            foreach (var document in request.Documents)
+            foreach (var document in documents)
             {
                 token.ThrowIfCancellationRequested();
                 bytes += Encoding.UTF8.GetByteCount(document.Source);
@@ -29,7 +29,7 @@ internal sealed class PythonSourceSnapshot : IDisposable
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 await File.WriteAllTextAsync(target, document.Source, new UTF8Encoding(false), token).ConfigureAwait(false);
             }
-            if (!File.Exists(new Uri(snapshot.ToSnapshotUri(request.Uri)).LocalPath))
+            if (!File.Exists(new Uri(snapshot.ToSnapshotUri(targetUri)).LocalPath))
                 throw new PythonBridgeException("引用快照缺少目标文件。");
             return snapshot;
         }

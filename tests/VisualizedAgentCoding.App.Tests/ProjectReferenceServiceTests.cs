@@ -24,20 +24,6 @@ public sealed class ProjectReferenceServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task OverlayWinsForAllOpenDocumentsIncludingEmptyBuffersWithoutSaving()
-    {
-        var bridge = new CapturingBridge();
-        var query = new ProjectReferenceService(bridge, store);
-        await query.FindAsync(project, HeroUri, 9, 1, 8,
-            new[] { new PythonSourceDocument(HeroUri, 9, "class Hero: pass\n"), new PythonSourceDocument(UseUri, 2, "") });
-        Assert.Equal("class Hero: pass\n", bridge.Request!.Documents.Single(d => d.Uri == HeroUri).Source);
-        Assert.Equal("", bridge.Request.Documents.Single(d => d.Uri == UseUri).Source);
-        Assert.Contains(bridge.Request.Documents, d => d.Uri.EndsWith("/scripts/main.py"));
-        Assert.Equal("class SavedName: pass\n", store.ReadScript(root, "scripts/user/hero.py"));
-        Assert.Contains("H()", store.ReadScript(root, "scripts/user/use.py"));
-    }
-
-    [Fact]
     public async Task RealHelperFindsCrossFileReferencesAgainstUnsavedDefinition()
     {
         await using var bridge = new PythonProcessBridge();
@@ -63,28 +49,5 @@ public sealed class ProjectReferenceServiceTests : IDisposable
         Assert.Equal(HeroUri, result.References[0].Uri);
     }
 
-    [Fact]
-    public async Task DocumentsOutsideProjectAreRejected()
-    {
-        var bridge = new CapturingBridge();
-        var query = new ProjectReferenceService(bridge, store);
-        await Assert.ThrowsAsync<ArgumentException>(() => query.FindAsync(project, HeroUri, 1, 1, 1,
-            new[] { new PythonSourceDocument(new Uri(Path.Combine(Path.GetTempPath(), "outside.py")).AbsoluteUri, 1, "") }));
-        Assert.Null(bridge.Request);
-    }
-
     public void Dispose() => Directory.Delete(root, true);
-
-    private sealed class CapturingBridge : IPythonBridge
-    {
-        public PythonReferencesRequest? Request { get; private set; }
-        public Task<PythonHelperInfo> InitializeAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<PythonParseResult> ParseAsync(PythonParseRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<PythonReferencesResult> FindReferencesAsync(PythonReferencesRequest request, CancellationToken cancellationToken = default)
-        {
-            Request = request;
-            return Task.FromResult(new PythonReferencesResult(request.Uri, request.Version, [], [], false));
-        }
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
 }

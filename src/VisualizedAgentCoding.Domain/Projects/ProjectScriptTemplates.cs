@@ -15,10 +15,12 @@ public static class ProjectScriptTemplates
         $"\"\"\"{className}\"\"\"\n";
 
     private static string CreateObjectScript(string className) =>
+        "# vac:template-version=1\n" +
         $"from runtime.element_base import ElementBase\n\n\nclass {className}(ElementBase):\n" +
-        $"    \"\"\"User code for the {className} sprite.\"\"\"\n";
+        "    pass\n\n    # vac:user-code-begin\n    # vac:user-code-end\n";
 
     private static string CreateBackdropScript(string className) =>
+        "# vac:template-version=1\n" +
         $"from runtime.backdrop_base import BackdropBase\n\n\nclass {className}(BackdropBase):\n" +
-        $"    \"\"\"User code for the {className} backdrop.\"\"\"\n";
+        "    pass\n\n    # vac:user-code-begin\n    # vac:user-code-end\n";
 }

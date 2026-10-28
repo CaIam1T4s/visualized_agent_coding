@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using VisualizedAgentCoding.Application.Ports;
 using VisualizedAgentCoding.Application.Python;
+using VisualizedAgentCoding.Application.Editor.ObjectScripts;
 
 namespace VisualizedAgentCoding.Infrastructure.Python;
 
@@ -58,21 +59,70 @@ public sealed class PythonProcessBridge : IPythonBridge
         }, cancellationToken);
     }
 
-    public async Task<PythonReferencesResult> FindReferencesAsync(PythonReferencesRequest request, CancellationToken cancellationToken = default)
+    public Task<ObjectScriptInspectionResult> InspectObjectScriptAsync(ObjectScriptInspectionRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Line < 1 || request.Column < 1 || request.Version < 0) throw new ArgumentOutOfRangeException(nameof(request));
-        using var snapshot = await PythonSourceSnapshot.CreateAsync(request, cancellationToken).ConfigureAwait(false);
+        if (request.Version < 0) throw new ArgumentOutOfRangeException(nameof(request));
+        return ExecuteAsync(async token =>
+        {
+            await EnsureStartedAsync(token).ConfigureAwait(false);
+            if (!info!.Capabilities.Contains("inspectObjectScript")) throw new PythonBridgeException("Python Helper 不支持对象脚本区域识别。");
+            var result = await SendAsync<ObjectScriptInspectionResult>("python.inspectObjectScript", request, token).ConfigureAwait(false);
+            if (result.Uri != request.Uri || result.Version != request.Version)
+                throw new PythonBridgeException("对象脚本识别返回了不匹配的文档版本。");
+            return result;
+        }, cancellationToken);
+    }
+
+    public Task<PythonReferencesResult> FindReferencesAsync(PythonReferencesRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Line < 1 || request.Column < 1) throw new ArgumentOutOfRangeException(nameof(request));
+        return QueryReferencesAsync(request.ProjectRoot, request.Uri, request.Version, request.Documents,
+            "python.findReferences", "findReferences", cancellationToken, request.Line, request.Column);
+    }
+
+    public Task<PythonReferencesResult> FindModuleDependenciesAsync(PythonModuleDependenciesRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return QueryReferencesAsync(request.ProjectRoot, request.Uri, request.Version, request.Documents,
+            "python.findModuleDependencies", "findModuleDependencies", cancellationToken);
+    }
+
+    public async Task<PythonModuleRenameResult> PlanModuleRenameAsync(PythonModuleRenameRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request.Version < 0) throw new ArgumentOutOfRangeException(nameof(request));
+        using var snapshot = await PythonSourceSnapshot.CreateAsync(request.ProjectRoot, request.Uri, request.Documents, cancellationToken).ConfigureAwait(false);
         var uri = snapshot.ToSnapshotUri(request.Uri);
         var result = await ExecuteAsync(async token =>
         {
             await EnsureStartedAsync(token).ConfigureAwait(false);
-            if (!info!.Capabilities.Contains("findReferences")) throw new PythonBridgeException("Python Helper 不支持引用查询。");
-            var response = await SendAsync<PythonReferencesResult>("python.findReferences", new
-            {
-                projectRoot = snapshot.Root, uri, request.Version, request.Line, request.Column,
-            }, token).ConfigureAwait(false);
-            if (response.Uri != uri || response.Version != request.Version)
+            if (!info!.Capabilities.Contains("planModuleRename")) throw new PythonBridgeException("Python Helper 不支持重命名预览。");
+            var response = await SendAsync<PythonModuleRenameResult>("python.planModuleRename",
+                new { projectRoot = snapshot.Root, uri, request.Version, request.NewName }, token).ConfigureAwait(false);
+            if (response.Uri != uri || response.Version != request.Version) throw new PythonBridgeException("重命名结果版本不匹配。");
+            return response;
+        }, cancellationToken, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        return result with { Uri = request.Uri,
+            Changes = result.Changes.Select(change => change with { Uri = snapshot.ToOriginalUri(change.Uri) }).ToArray(),
+            Issues = result.Issues.Select(issue => issue with { Uri = snapshot.ToOriginalUri(issue.Uri) }).ToArray() };
+    }
+
+    private async Task<PythonReferencesResult> QueryReferencesAsync(string projectRoot, string originalUri, long version,
+        PythonSourceDocument[] documents, string method, string capability, CancellationToken cancellationToken,
+        int? line = null, int? column = null)
+    {
+        if (version < 0) throw new ArgumentOutOfRangeException(nameof(version));
+        using var snapshot = await PythonSourceSnapshot.CreateAsync(projectRoot, originalUri, documents, cancellationToken).ConfigureAwait(false);
+        var uri = snapshot.ToSnapshotUri(originalUri);
+        var result = await ExecuteAsync(async token =>
+        {
+            await EnsureStartedAsync(token).ConfigureAwait(false);
+            if (!info!.Capabilities.Contains(capability)) throw new PythonBridgeException("Python Helper 不支持引用查询。");
+            var parameters = new Dictionary<string, object> { ["projectRoot"] = snapshot.Root, ["uri"] = uri, ["version"] = version };
+            if (line.HasValue) { parameters["line"] = line.Value; parameters["column"] = column!.Value; }
+            var response = await SendAsync<PythonReferencesResult>(method, parameters, token).ConfigureAwait(false);
+            if (response.Uri != uri || response.Version != version)
                 throw new PythonBridgeException("引用查询返回了不匹配的文档版本。");
             foreach (var location in response.References)
                 if (location.Range.Line < 1 || location.Range.Column < 1 || location.Range.EndLine != location.Range.Line
@@ -82,7 +132,7 @@ public sealed class PythonProcessBridge : IPythonBridge
         }, cancellationToken, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
         return result with
         {
-            Uri = request.Uri,
+            Uri = originalUri,
             References = result.References.Select(location => location with { Uri = snapshot.ToOriginalUri(location.Uri) }).ToArray(),
             Issues = result.Issues.Select(issue => issue with { Uri = snapshot.ToOriginalUri(issue.Uri) }).ToArray(),
         };

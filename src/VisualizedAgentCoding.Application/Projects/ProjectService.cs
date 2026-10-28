@@ -121,23 +121,15 @@ public sealed class ProjectService : IProjectValidityChecker
         store.WriteScript(project.RootPath, script.Path, content);
     }
 
-    /// <summary>Renames a user script file and updates its index path. The stable id is kept.</summary>
+    /// <summary>Internal file/index commit primitive. Public callers must use ScriptRenameService to preserve references.</summary>
     /// <exception cref="ProjectOperationException">The script is the entry script, is not a user script, or the new name is unusable or taken.</exception>
-    public ProjectWorkspace RenameScript(ProjectWorkspace project, string scriptId, string newName)
+    internal ProjectWorkspace CommitScriptFileRename(ProjectWorkspace project, string scriptId, string newName)
     {
-        ArgumentNullException.ThrowIfNull(project);
-        var script = ResolveIndexedScript(project, scriptId);
-        if (script.Kind != ProjectScriptKind.User)
-            throw new ProjectOperationException("当前仅支持重命名用户脚本。");
-
-        var fileName = SanitizeScriptName(newName)
-            ?? throw new ProjectOperationException("脚本名只能包含字母、数字、下划线和连字符。");
-        var newPath = $"{ProjectLayout.UserScriptDirectory}/{fileName}.py";
-        if (string.Equals(newPath, script.Path, StringComparison.OrdinalIgnoreCase))
-            return project;
+        var target = ScriptRenameRules.ResolveFileTarget(project, scriptId, newName, store);
+        var script = target.Script;
+        var newPath = target.Path;
+        if (string.Equals(newPath, script.Path, StringComparison.OrdinalIgnoreCase)) return project;
         project = WithPersistedPendingDeletions(project);
-        if (store.ScriptExists(project.RootPath, newPath) || HasPath(project.Manifest, newPath))
-            throw new ProjectOperationException($"脚本已存在：{newPath}");
 
         var content = store.ReadScript(project.RootPath, script.Path);
         var renamed = script with { Path = newPath };

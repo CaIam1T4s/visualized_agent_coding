@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="VisualizedAgentCoding.App.Tests" />
     <ProjectReference Include="..\VisualizedAgentCoding.Domain\VisualizedAgentCoding.Domain.csproj" />
   </ItemGroup>
 </Project>

@@ -3,6 +3,9 @@ using happy_agent_coding.ViewModels;
 using VisualizedAgentCoding.Application.Projects;
 using VisualizedAgentCoding.Domain.Projects;
 using VisualizedAgentCoding.Infrastructure.Projects;
+using VisualizedAgentCoding.Infrastructure.Python;
+using VisualizedAgentCoding.Application.Ports;
+using VisualizedAgentCoding.Application.Python;
 
 namespace VisualizedAgentCoding.App.Tests;
 
@@ -24,8 +27,110 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     }
 
     [Fact]
-    public void RenameSavesUnsavedCodeAndKeepsTheSameDocumentOpen()
+    public async Task DeleteAnalysisBlocksConfirmationAndIgnoresCancelledResult()
     {
+        var bridge = new PendingReferenceBridge();
+        await using var model = new MainViewModel(new Settings(), new InMemoryRecentProjectsStore(), session, bridge);
+        await model.OpenProject(root);
+        var item = Assert.Single(model.UserScripts);
+        model.RequestDeleteScriptCommand.Execute(item);
+        await bridge.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(model.CanConfirmDelete);
+        model.ConfirmDeleteScriptCommand.Execute(null);
+        Assert.True(File.Exists(Path.Combine(root, item.RelativePath)));
+        model.CancelDeleteScriptCommand.Execute(null);
+        bridge.Complete.SetResult(new(bridge.Request!.Uri, bridge.Request.Version, [], [], false));
+        Assert.False(model.IsDeleteConfirmationOpen);
+        Assert.False(model.CanConfirmDelete);
+    }
+
+    [Fact]
+    public void UnavailableAnalysisShowsUnknownImpactAndRequiresExplicitDelete()
+    {
+        vm.RequestDeleteScriptCommand.Execute(Assert.Single(vm.UserScripts));
+        Assert.True(vm.CanConfirmDelete);
+        Assert.Contains("无法完成", vm.DeleteReferenceStatus);
+        Assert.Equal("仍然删除", vm.DeleteButtonText);
+        Assert.NotEmpty(vm.UserScripts);
+    }
+
+    private sealed class PendingReferenceBridge : IPythonBridge
+    {
+        public readonly TaskCompletionSource Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public readonly TaskCompletionSource<PythonReferencesResult> Complete = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public PythonModuleDependenciesRequest? Request;
+        public Task<PythonReferencesResult> FindReferencesAsync(PythonReferencesRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PythonReferencesResult> FindModuleDependenciesAsync(PythonModuleDependenciesRequest request, CancellationToken cancellationToken = default)
+        {
+            Request = request;
+            Started.SetResult();
+            return Complete.Task;
+        }
+        public Task<PythonHelperInfo> InitializeAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PythonParseResult> ParseAsync(PythonParseRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    [Fact]
+    public async Task RenamingAnotherScriptUpdatesOpenUnsavedImporter()
+    {
+        service.CreateScript(service.Open(root), ProjectScriptKind.User, "caller");
+        await using var model = CreateRenameModel();
+        var target = model.UserScripts.Single(item => item.DisplayName == "hero");
+        model.OpenScriptFromExplorerCommand.Execute(model.UserScripts.Single(item => item.DisplayName == "caller"));
+        model.PythonCode = "import hero\nhero.value\n";
+        model.StartRenameScriptCommand.Execute(target);
+        model.ScriptRename!.Name = "helpers";
+        await model.ScriptRename.ConfirmCommand.ExecuteAsync(null);
+        Assert.True(model.CanApplyRename);
+        Assert.Single(model.RenameChanges);
+        model.ApplyRenameCommand.Execute(null);
+        Assert.Equal("caller.py", model.FileName);
+        Assert.Equal("import helpers\nhelpers.value\n", model.PythonCode);
+        Assert.Equal(model.PythonCode, File.ReadAllText(Path.Combine(root, "scripts/user/caller.py")));
+    }
+
+    [Fact]
+    public async Task RenamePreviewCanBeCancelledWithoutSavingOrChangingFiles()
+    {
+        await using var model = CreateRenameModel();
+        var item = Assert.Single(model.UserScripts);
+        model.OpenScriptFromExplorerCommand.Execute(item);
+        model.PythonCode = "value = 42\n";
+        var disk = File.ReadAllText(Path.Combine(root, item.RelativePath));
+        model.StartRenameScriptCommand.Execute(item);
+        model.ScriptRename!.Name = "helpers";
+        await model.ScriptRename.ConfirmCommand.ExecuteAsync(null);
+        Assert.True(model.IsRenamePreviewOpen);
+        Assert.True(model.CanApplyRename);
+        Assert.Equal(disk, File.ReadAllText(Path.Combine(root, item.RelativePath)));
+        model.CancelRenameScriptCommand.Execute(null);
+        Assert.False(model.IsRenamePreviewOpen);
+        Assert.Equal("value = 42\n", model.PythonCode);
+        Assert.False(File.Exists(Path.Combine(root, "scripts/user/helpers.py")));
+    }
+
+    [Fact]
+    public async Task ChangedEditorBufferInvalidatesRenamePreview()
+    {
+        await using var model = CreateRenameModel();
+        var item = Assert.Single(model.UserScripts);
+        model.OpenScriptFromExplorerCommand.Execute(item);
+        model.StartRenameScriptCommand.Execute(item);
+        model.ScriptRename!.Name = "helpers";
+        await model.ScriptRename.ConfirmCommand.ExecuteAsync(null);
+        model.PythonCode = "newer = 42\n";
+        model.ApplyRenameCommand.Execute(null);
+        Assert.False(model.CanApplyRename);
+        Assert.NotNull(model.RenamePreviewError);
+        Assert.True(File.Exists(Path.Combine(root, item.RelativePath)));
+        Assert.Equal("newer = 42\n", model.PythonCode);
+    }
+
+    [Fact]
+    public async Task RenameSavesUnsavedCodeAndKeepsTheSameDocumentOpen()
+    {
+        await using var vm = CreateRenameModel();
         var item = Assert.Single(vm.UserScripts);
         vm.OpenScriptFromExplorerCommand.Execute(item);
         vm.PythonCode = "value = 123\n";
@@ -34,7 +139,8 @@ public sealed class ScriptManagementViewModelTests : IDisposable
         Assert.Equal("hero", rename.Name);
         Assert.Same(rename, Assert.Single(vm.UserScripts).RenameState);
         rename.Name = "helpers";
-        rename.ConfirmCommand.Execute(null);
+        await rename.ConfirmCommand.ExecuteAsync(null);
+        if (vm.CanApplyRename) vm.ApplyRenameCommand.Execute(null);
         Assert.Null(vm.ScriptRename);
         Assert.Equal(item.Id, vm.OpenScript!.Id);
         Assert.Equal("helpers.py", vm.FileName);
@@ -45,27 +151,33 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     }
 
     [Fact]
-    public void InvalidNameKeepsInlineEditorAndCanBeCorrected()
+    public async Task InvalidNameKeepsInlineEditorAndCanBeCorrected()
     {
+        await using var vm = CreateRenameModel();
         vm.StartRenameScriptCommand.Execute(Assert.Single(vm.UserScripts));
         var rename = vm.ScriptRename!;
         rename.Name = "bad name";
-        rename.ConfirmCommand.Execute(null);
+        await rename.ConfirmCommand.ExecuteAsync(null);
+        if (vm.CanApplyRename) vm.ApplyRenameCommand.Execute(null);
         Assert.Same(rename, vm.ScriptRename);
         Assert.True(rename.HasError);
+        vm.BackToRenameCommand.Execute(null);
         rename.Name = "valid";
-        rename.ConfirmCommand.Execute(null);
+        await rename.ConfirmCommand.ExecuteAsync(null);
+        if (vm.CanApplyRename) vm.ApplyRenameCommand.Execute(null);
         Assert.Null(vm.ScriptRename);
         Assert.Equal("valid", Assert.Single(vm.UserScripts).DisplayName);
     }
 
     [Fact]
-    public void RenamePreservesSearchAndMayRemoveTheItemFromResults()
+    public async Task RenamePreservesSearchAndMayRemoveTheItemFromResults()
     {
+        await using var vm = CreateRenameModel();
         vm.ResourceSearchQuery = "hero";
         vm.StartRenameScriptCommand.Execute(Assert.Single(vm.UserScripts));
         vm.ScriptRename!.Name = "helpers";
-        vm.ScriptRename.ConfirmCommand.Execute(null);
+        await vm.ScriptRename.ConfirmCommand.ExecuteAsync(null);
+        if (vm.CanApplyRename) vm.ApplyRenameCommand.Execute(null);
         Assert.Equal("hero", vm.ResourceSearchQuery);
         Assert.Empty(vm.UserScripts);
         Assert.Contains("helpers.py", vm.ProjectResourceMessage);
@@ -172,7 +284,7 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     }
 
     [Fact]
-    public void SaveFailureAbortsRenameAndPreservesBuffer()
+    public async Task UnavailableHelperAbortsRenameAndPreservesBuffer()
     {
         var item = Assert.Single(vm.UserScripts);
         vm.OpenScriptFromExplorerCommand.Execute(item);
@@ -180,7 +292,8 @@ public sealed class ScriptManagementViewModelTests : IDisposable
         session.FailSave = true;
         vm.StartRenameScriptCommand.Execute(item);
         vm.ScriptRename!.Name = "new_name";
-        vm.ScriptRename.ConfirmCommand.Execute(null);
+        await vm.ScriptRename.ConfirmCommand.ExecuteAsync(null);
+        if (vm.CanApplyRename) vm.ApplyRenameCommand.Execute(null);
         Assert.True(vm.ScriptRename.HasError);
         Assert.Equal("hero.py", vm.FileName);
         Assert.Equal("unsaved", vm.PythonCode);
@@ -259,6 +372,13 @@ public sealed class ScriptManagementViewModelTests : IDisposable
         Assert.True(await vm.PrepareForExitAsync());
     }
 
+    private MainViewModel CreateRenameModel()
+    {
+        var model = new MainViewModel(new Settings(), new InMemoryRecentProjectsStore(), session, new PythonProcessBridge());
+        model.OpenProject(root);
+        return model;
+    }
+
     private void Delete(ProjectScriptItem item)
     {
         vm.RequestDeleteScriptCommand.Execute(item);
@@ -291,7 +411,6 @@ public sealed class ScriptManagementViewModelTests : IDisposable
             inner.SaveScript(p, s, c);
         }
         public ProjectScriptCreation CreateScript(ProjectWorkspace p, ProjectScriptKind k, string n) => inner.CreateScript(p, k, n);
-        public ProjectWorkspace RenameScript(ProjectWorkspace p, string id, string n) => inner.RenameScript(p, id, n);
         public ProjectWorkspace DeleteScript(ProjectWorkspace p, string id)
         {
             if (FailDelete) throw new IOException("delete failed");

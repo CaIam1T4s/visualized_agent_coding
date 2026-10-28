@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:happy_agent_coding.ViewModels"
+             x:Class="happy_agent_coding.Views.ScriptReloadView" x:DataType="vm:MainViewModel"
+             KeyboardNavigation.TabNavigation="Cycle">
+    <UserControl.KeyBindings>
+        <KeyBinding Gesture="Escape" Command="{Binding CancelReloadScriptCommand}" />
+    </UserControl.KeyBindings>
+    <Border Background="#99000000">
+        <Border MaxWidth="500" Margin="24" Padding="24" CornerRadius="8"
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+            <StackPanel Spacing="16">
+                <TextBlock Text="重新加载脚本" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding FileName}" />
+                <TextBlock Text="将丢弃当前未保存的编辑内容，并重新读取磁盘文件。需要保留的代码请先复制。" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ReloadError}" TextWrapping="Wrap" Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button x:Name="CancelButton" Content="保留编辑" Classes="command-button secondary" Command="{Binding CancelReloadScriptCommand}" />
+                    <Button Content="丢弃编辑并重新加载" Classes="command-button primary" Command="{Binding ConfirmReloadScriptCommand}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Border>
+</UserControl>

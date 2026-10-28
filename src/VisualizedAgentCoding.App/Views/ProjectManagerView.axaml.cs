@@ -33,9 +33,9 @@ public partial class ProjectManagerView : UserControl
 
         try
         {
-            viewModel.CreateProject(path);
+            await viewModel.CreateProject(path);
         }
-        catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
             viewModel.ReportProjectError(ex.Message);
         }
@@ -66,9 +66,9 @@ public partial class ProjectManagerView : UserControl
 
         try
         {
-            viewModel.OpenProject(path);
+            await viewModel.OpenProject(path);
         }
-        catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        catch (Exception ex)
         {
             viewModel.ReportProjectError(ex.Message);
         }
