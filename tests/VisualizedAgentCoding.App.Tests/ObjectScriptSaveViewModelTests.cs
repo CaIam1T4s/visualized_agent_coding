@@ -18,6 +18,9 @@ public sealed class ObjectScriptSaveViewModelTests : IDisposable
         var projects = new ProjectService(new JsonProjectStore());
         var project = projects.CreateScript(projects.Create(root, "Demo"), ProjectScriptKind.Object, "hero").Project;
         projects.CreateScript(project, ProjectScriptKind.Backdrop, "forest");
+        foreach (var entry in projects.Open(root).Manifest.Scripts.Where(s => s.Kind != ProjectScriptKind.User))
+            File.WriteAllText(Path.Combine(root, entry.Path), ProjectScriptTemplates.Create(entry.Kind,
+                ProjectService.ToClassName(Path.GetFileNameWithoutExtension(entry.Path))));
     }
     private static string Insert(string source, string user) => source.Replace("    # vac:user-code-end", user + "    # vac:user-code-end");
     private string HeroPath => Path.Combine(root, "scripts/objects/hero.py");
@@ -27,6 +30,31 @@ public sealed class ObjectScriptSaveViewModelTests : IDisposable
         await vm.OpenProject(root);
         await vm.OpenScriptFromExplorerCommand.ExecuteAsync(Assert.Single(vm.ObjectScripts));
         return vm;
+    }
+
+    [Fact]
+    public async Task ProjectedEditSavesFullFileAndDiagnosticsUseViewCoordinates()
+    {
+        await using var vm = await OpenHero();
+        var original = vm.PythonCode;
+        var document = await vm.InspectEditorProtectionAsync(CancellationToken.None);
+        var projection = new ObjectScriptProjection(document!);
+        vm.SetEditorProjection(projection);
+        projection.Update("    value = 你好😀");
+        vm.PythonCode = projection.FullSource;
+        vm.PythonDiagnostics.Clear();
+        vm.PythonDiagnostics.Add(new("error", "example", projection.FirstFullLine, 13));
+        vm.PythonDiagnostics.Add(new("error", "wrapper", 1, 1));
+        Assert.Equal(1, vm.EditorDiagnostics.First().Line);
+        Assert.Equal(13, vm.EditorDiagnostics.First().Column);
+        Assert.Equal(0, vm.EditorDiagnostics.Last().Line);
+        await vm.SaveCommand.ExecuteAsync(null);
+        Assert.Equal("已保存", vm.EditorState);
+        Assert.Equal(Insert(original, "    value = 你好😀\n"), File.ReadAllText(HeroPath));
+        projection.Update("");
+        vm.PythonCode = projection.FullSource;
+        await vm.SaveCommand.ExecuteAsync(null);
+        Assert.Equal(original, File.ReadAllText(HeroPath));
     }
 
     [Fact]

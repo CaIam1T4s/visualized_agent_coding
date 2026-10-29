@@ -13,8 +13,10 @@ public enum ObjectScriptStatus
 
 /// <summary>FullSource is authoritative; UserSource is a read-only projection, not another buffer.</summary>
 public sealed record ObjectScriptDocument(string ScriptId, string Uri, long Version, string FullSource,
-    ObjectScriptStatus Status, int? TemplateVersion, SourceSpan? UserRegion, string[] Problems)
+    ObjectScriptStatus Status, int? TemplateVersion, SourceSpan? UserRegion, string[] Problems,
+    ObjectScriptRegion[]? Regions = null)
 {
+    public bool HasRegions => Status == ObjectScriptStatus.Recognized && Regions is { Length: > 0 };
     public bool HasUserRegion => Status == ObjectScriptStatus.Recognized && UserRegion is not null;
     public string? UserSource => HasUserRegion ? FullSource.Substring(UserRegion!.Offset, UserRegion.Length) : null;
 }

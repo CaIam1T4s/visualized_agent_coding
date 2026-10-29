@@ -34,7 +34,10 @@ public sealed class ObjectScriptDocumentService(IPythonBridge bridge)
             "unsupportedVersion" => ObjectScriptStatus.UnsupportedVersion,
             _ => throw new PythonBridgeException("未知对象脚本识别状态。"),
         };
-        return new(script.Id, uri, version, fullSource, status, result.TemplateVersion, result.UserRegion, result.Problems);
+        var regions = result.Regions;
+        if (status == ObjectScriptStatus.Recognized && result.TemplateVersion == 1)
+            regions = [new("user", "members", result.UserRegion!, 4)];
+        return new(script.Id, uri, version, fullSource, status, result.TemplateVersion, result.UserRegion, result.Problems, regions);
     }
 
     private static void ValidateResponse(string uri, long version, string source, ObjectScriptInspectionResult result)
@@ -43,14 +46,43 @@ public sealed class ObjectScriptDocumentService(IPythonBridge bridge)
             throw new PythonBridgeException("对象脚本识别返回了不匹配的文档版本。");
         if (result.Problems is null)
             throw new PythonBridgeException("对象脚本识别缺少问题列表。");
-        if (result.Status == "recognized" && (result.UserRegion is null || result.TemplateVersion != 1 || result.Problems.Length != 0))
+        if (result.Status == "recognized" && (result.TemplateVersion is not (1 or 2) || result.Problems.Length != 0
+            || (result.TemplateVersion == 1 ? result.UserRegion is null || result.Regions is not null
+                : result.UserRegion is not null || result.Regions is not { Length: >= 2 })))
             throw new PythonBridgeException("对象脚本识别返回了不一致的结构状态。");
-        if (result.Status != "recognized" && result.UserRegion is not null)
+        if (result.Status != "recognized" && (result.UserRegion is not null || result.Regions is not null))
             throw new PythonBridgeException("未确认结构的文档不能提供可编辑区域。");
         if (result.UserRegion is { } span && (span.Offset < 0 || span.Length < 0 || span.Offset > source.Length
             || span.Length > source.Length - span.Offset || SplitsSurrogate(source, span.Offset)
             || SplitsSurrogate(source, span.Offset + span.Length)))
             throw new PythonBridgeException("对象脚本识别返回了无效的 UTF-16 区间。");
+        if (result.Regions is { } regions)
+        {
+            try
+            {
+                if (regions.Any(r => r is null || r.Span is null)) throw new ArgumentException();
+                ObjectScriptRegionDefinition.Validate(regions.Select(r => new ObjectScriptRegionDefinition(r.Id, r.Kind, r.EventName)).ToArray());
+                var previousEnd = 0;
+                var previousStart = -1;
+                foreach (var region in regions)
+                {
+                    var range = region.Span;
+                    if (range.Offset < previousEnd || range.Offset <= previousStart || range.Length < 0 || range.Offset > source.Length
+                        || range.Length > source.Length - range.Offset || SplitsSurrogate(source, range.Offset)
+                        || SplitsSurrogate(source, range.Offset + range.Length)
+                        || region.Indentation != (region.Kind == "members" ? 4 : 8)
+                        || range.Offset == 0 || source[range.Offset - 1] != '\n'
+                        || (range.Length > 0 && source[range.Offset + range.Length - 1] != '\n'))
+                        throw new ArgumentException();
+                    previousEnd = range.Offset + range.Length;
+                    previousStart = range.Offset;
+                }
+            }
+            catch (ArgumentException exception)
+            {
+                throw new PythonBridgeException("对象脚本识别返回了无效的多区域元数据或范围。", exception);
+            }
+        }
     }
 
     private static bool SplitsSurrogate(string source, int offset) => offset > 0 && offset < source.Length

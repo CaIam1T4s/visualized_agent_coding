@@ -1,5 +1,8 @@
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
+using System.Collections.Generic;
+using VisualizedAgentCoding.Application.Python;
 using VisualizedAgentCoding.Application.Editor.ObjectScripts;
 using VisualizedAgentCoding.Domain.Projects;
 
@@ -9,7 +12,40 @@ public partial class MainViewModel
 {
     private ObjectScriptDocumentService? objectScriptDocumentService;
     public long EditorSourceRevision { get; private set; }
+    private IEditorProjection? editorProjection;
+    public void AddInitializeRegion()
+    {
+        if (editorProjection is not MultiRegionProjection multi || OpenScript is not { Kind: not ProjectScriptKind.User } script
+            || multi.Document.ScriptId != script.Id || multi.FullSource != PythonCode) return;
+        var updated = ObjectScriptFeatures.AddInitialize(multi.Document);
+        if (ReferenceEquals(updated, multi.Document)) return;
+        RestoreEditorStructure(new MultiRegionProjection(updated));
+        NotifyEditorSourceChanged();
+    }
+    /// <summary>Restore only editor-owned, trusted structural snapshots; disk baseline remains independent.</summary>
+    public void RestoreEditorStructure(IEditorProjection restored)
+    {
+        if (activeProject is not { } project || OpenScript is not { Kind: not ProjectScriptKind.User } script
+            || loadedScriptId != script.Id || restored.Document.ScriptId != script.Id
+            || restored.Document.Uri != new System.Uri(project.ToAbsolutePath(script.Path)).AbsoluteUri)
+            throw new System.InvalidOperationException("结构操作的脚本已改变，不能恢复到当前编辑器。");
+        hasStructuralEdit = true;
+        SetEditorProjection(restored);
+        PythonCode = restored.FullSource;
+    }
+    public IEnumerable<PythonDiagnostic> EditorDiagnostics => PythonDiagnostics.Select(d =>
+    {
+        if (editorProjection is null) return d;
+        return editorProjection.TryToViewPosition(d.Line, d.Column, out var line, out var column)
+            ? d with { Line = line, Column = column }
+            : d with { Line = 0, Message = "系统代码：" + d.Message };
+    }).ToArray();
 
+    public void SetEditorProjection(IEditorProjection? projection)
+    {
+        editorProjection = projection;
+        OnPropertyChanged(nameof(EditorDiagnostics));
+    }
     /// <summary>Inspect the opened snapshot, never reinterpret a partially edited user region.</summary>
     public async Task<ObjectScriptDocument?> InspectEditorProtectionAsync(CancellationToken token)
     {
@@ -17,6 +53,9 @@ public partial class MainViewModel
             || script.Kind == ProjectScriptKind.User || loadedScriptId != script.Id
             || loadedScriptSource is not { } source || objectScriptDocumentService is null) return null;
         var currentSource = PythonCode;
+        if (editorProjection is { } trusted && trusted.Document.ScriptId == script.Id
+            && trusted.Document.Uri == new System.Uri(project.ToAbsolutePath(script.Path)).AbsoluteUri
+            && trusted.FullSource == currentSource) return trusted.Document;
         var document = savedObjectDocument ?? await objectScriptDocumentService.InspectAsync(
             project, script.Id, pythonDocumentVersion, source, token);
         if (!document.HasUserRegion || document.FullSource == currentSource) return document;
@@ -27,7 +66,8 @@ public partial class MainViewModel
             || !currentSource.StartsWith(prefix, System.StringComparison.Ordinal)
             || !currentSource.EndsWith(suffix, System.StringComparison.Ordinal)) return null;
         return document with { FullSource = currentSource,
-            UserRegion = new(region.Offset, currentSource.Length - prefix.Length - suffix.Length) };
+            UserRegion = new(region.Offset, currentSource.Length - prefix.Length - suffix.Length),
+            Regions = document.Regions?.Select(r => r with { Span = new(region.Offset, currentSource.Length - prefix.Length - suffix.Length) }).ToArray() };
     }
 
     private void NotifyEditorSourceChanged()

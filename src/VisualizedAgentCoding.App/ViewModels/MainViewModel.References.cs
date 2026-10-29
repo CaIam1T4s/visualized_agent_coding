@@ -14,9 +14,9 @@ using VisualizedAgentCoding.Application.Editor.ObjectScripts;
 
 namespace happy_agent_coding.ViewModels;
 
-public sealed record PythonReferenceItem(PythonReferenceLocation Location, string RelativePath)
+public sealed record PythonReferenceItem(PythonReferenceLocation Location, string RelativePath, PythonSourceRange? ViewRange = null)
 {
-    public string DisplayText => $"{RelativePath}  第 {Location.Range.Line} 行，第 {Location.Range.Column} 列  {(Location.IsDefinition ? "定义" : "引用")}";
+    public string DisplayText => $"{RelativePath}  第 {(ViewRange ?? Location.Range).Line} 行，第 {(ViewRange ?? Location.Range).Column} 列  {(Location.IsDefinition ? "定义" : "引用")}";
 }
 
 public partial class MainViewModel
@@ -77,7 +77,22 @@ public partial class MainViewModel
         try
         {
             // No Save call: the overlay, including an empty buffer, replaces disk content.
-            var result = await Task.Run(() => referenceService.FindAsync(project, uri, version, line, column, new[] { overlay }, token), token);
+            var snapshot = await Task.Run(() => referenceService.Collect(project, new[] { overlay }, token), token);
+            var result = await referenceService.FindSnapshotAsync(project, uri, version, line, column, snapshot, token);
+            var projections = new Dictionary<string, IEditorProjection?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var targetUri in result.References.Select(r => r.Uri).Concat(result.Issues.Select(i => i.Uri)).Distinct())
+            {
+                if (targetUri == uri && editorProjection is not null) { projections[targetUri] = editorProjection; continue; }
+                var entry = project.Manifest.Scripts.FirstOrDefault(s => new Uri(project.ToAbsolutePath(s.Path)).AbsoluteUri == targetUri);
+                var text = snapshot.FirstOrDefault(d => d.Uri == targetUri)?.Source;
+                if (entry is { Kind: not ProjectScriptKind.User } && text is not null && objectScriptDocumentService is not null)
+                {
+                    var doc = await objectScriptDocumentService.InspectAsync(project, entry.Id, version, text, token);
+                    projections[targetUri] = doc.TemplateVersion == 2 && doc.HasRegions ? new MultiRegionProjection(doc)
+                        : doc.HasUserRegion ? new ObjectScriptProjection(doc) : null;
+                }
+                else projections[targetUri] = null;
+            }
             if (token.IsCancellationRequested) return;
             if (!ReferenceEquals(activeProject, project) || pythonDocumentVersion != version)
             {
@@ -85,10 +100,33 @@ public partial class MainViewModel
                 return;
             }
             foreach (var location in result.References)
-                PythonReferences.Add(new(location, Path.GetRelativePath(project.RootPath, new Uri(location.Uri).LocalPath)));
-            ReferenceStatus = $"找到 {result.References.Length} 处位置（含定义）";
-            ReferenceIssues = string.Join(Environment.NewLine, result.Issues.Select(issue =>
-                $"{Path.GetRelativePath(project.RootPath, new Uri(issue.Uri).LocalPath)}：{issue.Message}"));
+            {
+                var range = location.Range;
+                if (projections.GetValueOrDefault(location.Uri) is { } mapped)
+                {
+                    if (!mapped.TryToViewPosition(range.Line, range.Column, out var row, out var col)) continue;
+                    mapped.TryToViewPosition(range.EndLine, range.EndColumn, out var endRow, out var endCol);
+                    range = new(row, col, endRow, endCol);
+                }
+                PythonReferences.Add(new(location, Path.GetRelativePath(project.RootPath, new Uri(location.Uri).LocalPath), range));
+            }
+            ReferenceStatus = $"找到 {PythonReferences.Count} 处位置（含定义）";
+            var messages = new List<string>();
+            foreach (var issue in result.Issues)
+            {
+                // Runtime support files have no user-facing editor surface.
+                if (!project.Manifest.Scripts.Any(s => new Uri(project.ToAbsolutePath(s.Path)).AbsoluteUri == issue.Uri)
+                    && new Uri(project.MainScriptPath).AbsoluteUri != issue.Uri) continue;
+                var row = issue.Line;
+                if (row is not null && projections.GetValueOrDefault(issue.Uri) is { } mapped)
+                {
+                    if (!mapped.TryToViewPosition(row.Value, issue.Column ?? 1, out var visibleRow, out _)) continue;
+                    row = visibleRow;
+                }
+                messages.Add($"{Path.GetRelativePath(project.RootPath, new Uri(issue.Uri).LocalPath)}："
+                    + (row is null ? "" : $"第 {row} 行") + issue.Message);
+            }
+            ReferenceIssues = string.Join(Environment.NewLine, messages);
             if (result.IsIncomplete) ReferenceStatus += "，结果可能不完整";
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }

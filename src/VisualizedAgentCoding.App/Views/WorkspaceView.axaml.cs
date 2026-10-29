@@ -38,6 +38,11 @@ public partial class WorkspaceView : UserControl
         return icon;
     }
 
+    private void OnUpgradeWarningAttached(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (sender is ContentControl host) host.Content = CreateIcon(AntDesignIconKind.WarningOutlined);
+    }
+
     private void OnLoaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is MainViewModel viewModel)

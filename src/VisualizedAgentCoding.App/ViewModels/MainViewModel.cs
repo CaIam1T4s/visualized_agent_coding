@@ -348,7 +348,7 @@ public partial class MainViewModel : ViewModelBase
 
             CategoryFor(script.Kind).Scripts.Add(
                 new ProjectScriptItem(script.Id, displayName, script.Path, script.Kind, script.Id == openScriptId,
-                    ScriptRename?.ScriptId == script.Id ? ScriptRename : null));
+                    ScriptRename?.ScriptId == script.Id ? ScriptRename : null, ReadScriptTemplateVersion(script)));
         }
 
         foreach (var category in ScriptCategories)

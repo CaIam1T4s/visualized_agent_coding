@@ -215,7 +215,8 @@ public sealed class ProjectService : IProjectValidityChecker
 
         var scriptId = NewId("script");
         var stableObjectId = kind == ProjectScriptKind.User ? null : objectId ?? NewId("object");
-        var content = ProjectScriptTemplates.Create(kind, ToClassName(fileName));
+        var content = kind == ProjectScriptKind.User ? ProjectScriptTemplates.Create(kind, ToClassName(fileName))
+            : ProjectScriptTemplates.CreateMultiRegion(kind, ToClassName(fileName));
 
         store.WriteScript(project.RootPath, relativePath, content);
 

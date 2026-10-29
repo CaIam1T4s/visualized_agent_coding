@@ -21,6 +21,8 @@ public sealed class ObjectScriptSaveTests : IDisposable
         var created = projects.CreateScript(projects.Create(root, "Demo"), ProjectScriptKind.Object, "hero");
         project = created.Project;
         script = created.Script;
+        // Exercise existing v1 documents independently of the current creation default.
+        store.WriteScript(root, script.Path, ProjectScriptTemplates.Create(ProjectScriptKind.Object, "Hero"));
     }
 
     private string Read() => store.ReadScript(root, script.Path);
@@ -140,7 +142,7 @@ public sealed class ObjectScriptSaveTests : IDisposable
     [Fact]
     public async Task UnknownTemplateVersionRejectsMerge()
     {
-        var original = Read().Replace("version=1", "version=2");
+        var original = Read().Replace("version=1", "version=99");
         store.WriteScript(root, script.Path, original);
         await using var bridge = new PythonProcessBridge();
         await Assert.ThrowsAsync<ProjectOperationException>(() => Service(bridge)

@@ -264,8 +264,15 @@
                                                                             HorizontalContentAlignment="Left"
                                                                             Tag="{Binding}"
                                                                             Click="OnScriptItemClick">
-                                                                        <TextBlock Text="{Binding DisplayName}"
-                                                                                   Margin="8,5" />
+                                                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="8,5">
+                                                                            <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                                                                            <ContentControl Width="16" Height="16" VerticalAlignment="Center"
+                                                                                IsVisible="{Binding NeedsTemplateUpgrade}"
+                                                                                Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                                                                ToolTip.Tip="{Binding TemplateUpgradeHint}"
+                                                                                AutomationProperties.Name="旧版脚本，请升级模板"
+                                                                                AttachedToVisualTree="OnUpgradeWarningAttached" />
+                                                                        </StackPanel>
                                                                     </Button>
                                                                         <ContentControl Content="{Binding RenameState}" IsVisible="{Binding IsRenaming}">
                                                                             <ContentControl.ContentTemplate>

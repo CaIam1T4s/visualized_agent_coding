@@ -18,6 +18,21 @@ public sealed class ObjectScriptSaveService(ObjectScriptDocumentService document
             || document.Uri != new Uri(project.ToAbsolutePath(script.Path)).AbsoluteUri)
             document = await documents.InspectAsync(project, scriptId, version, originalSource, token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
+        if (document.TemplateVersion == 2 && document.HasRegions)
+        {
+            if (editedSource == originalSource)
+                return ObjectScriptRegionSaveService.Prepare(project, document, version, new Dictionary<string, string>());
+            var edited = await documents.InspectAsync(project, scriptId, version, editedSource, token).ConfigureAwait(false);
+            if (!edited.HasRegions || edited.TemplateVersion != 2 || edited.Regions!.Length != document.Regions!.Length
+                || edited.Regions.Where((r, i) => (r with { Span = document.Regions[i].Span }) != document.Regions[i]).Any())
+                throw new ProjectOperationException("多区域身份或系统结构已改变，未保存。");
+            var replacements = edited.Regions.ToDictionary(r => r.Id,
+                r => editedSource.Substring(r.Span.Offset, r.Span.Length));
+            var multiPlan = ObjectScriptRegionSaveService.Prepare(project, document, version, replacements);
+            if (multiPlan.MergedSource != editedSource)
+                throw new ProjectOperationException("多区域以外的系统源码已改变，未保存。");
+            return multiPlan;
+        }
         if (document.Status == ObjectScriptStatus.LegacyUnmarked)
             return new(project, scriptId, script.Path, version, originalSource, editedSource, null);
         if (document.Status == ObjectScriptStatus.InvalidStructure)
@@ -26,7 +41,7 @@ public sealed class ObjectScriptSaveService(ObjectScriptDocumentService document
             // explicit full-buffer repair only after the new wrapper is verified;
             // never rewrite or infer missing source on the user's behalf.
             var repaired = await documents.InspectAsync(project, scriptId, version, editedSource, token).ConfigureAwait(false);
-            if (repaired.HasUserRegion)
+            if (repaired.HasUserRegion || repaired.HasRegions)
                 return new(project, scriptId, script.Path, version, originalSource, editedSource, repaired);
         }
         if (!document.HasUserRegion)
@@ -60,7 +75,8 @@ public sealed class ObjectScriptSaveService(ObjectScriptDocumentService document
             throw new ProjectOperationException("结束标记必须保留在独立的一行，未保存。");
         var region = document.UserRegion!;
         var merged = document.FullSource[..region.Offset] + userSource + document.FullSource[(region.Offset + region.Length)..];
-        var updated = document with { Version = version, FullSource = merged, UserRegion = new(region.Offset, userSource.Length) };
+        var updated = document with { Version = version, FullSource = merged, UserRegion = new(region.Offset, userSource.Length),
+            Regions = document.Regions?.Select(r => r with { Span = new(region.Offset, userSource.Length) }).ToArray() };
         return new(project, scriptId, path, version, document.FullSource, merged, updated);
     }
 

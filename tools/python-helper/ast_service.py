@@ -79,6 +79,13 @@ def _recover_diagnostics(source, lines, first):
             if message.startswith(prefix):
                 message = message[len(prefix):]
                 break
+        # An unmatched opener makes recovery continue into trailing comments/EOF,
+        # including hidden region markers. That generic tail error is a cascade,
+        # not an independent error in the generated system wrapper. Keep recovery
+        # diagnostics on actual code lines so independent mistakes remain visible.
+        if ('was never closed' in first['message'] and message == 'invalid syntax'
+                and (not text.strip() or text.lstrip().startswith('#'))):
+            continue
         diagnostics.append({'severity': 'error', 'message': message,
                             'line': line, 'column': column})
     return sorted(diagnostics, key=lambda diagnostic: (diagnostic['line'], diagnostic['column']))

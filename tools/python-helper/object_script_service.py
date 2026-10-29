@@ -73,14 +73,20 @@ def inspect_object_script(params):
     versions = [token for token in directives if VERSION.fullmatch(token.string)]
     begins = [token for token in directives if token.string == BEGIN]
     ends = [token for token in directives if token.string == END]
-    if len(versions) != 1 or len(begins) != 1 or len(ends) != 1 or len(directives) != 3:
+    if len(versions) != 1:
         return result('invalidStructure', problem='版本及开始/结束标记必须各出现一次，不能重复、缺失或嵌套。')
     version_text = VERSION.fullmatch(versions[0].string).group(1)
     if len(version_text) > 9:
         return result('unsupportedVersion', problem='模板版本超出支持范围。')
     template = int(version_text)
+    if template == 2:
+        from object_script_v2 import inspect_v2
+        module, base = BASES[kind]
+        return inspect_v2(uri, version, source, name, module, base, directives, lines, starts)
     if template != 1:
         return result('unsupportedVersion', template, problem='不支持此对象脚本模板版本。')
+    if len(begins) != 1 or len(ends) != 1 or len(directives) != 3:
+        return result('invalidStructure', template, problem='区域标记必须成对且不能重复或嵌套。')
     begin, end = begins[0], ends[0]
     if versions[0].start != (1, 0) or begin.start >= end.start:
         return result('invalidStructure', template, problem='模板版本位置或区域标记顺序错误。')

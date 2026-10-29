@@ -13,9 +13,12 @@ public sealed record ProjectScriptItem(
     string RelativePath,
     ProjectScriptKind Kind,
     bool IsOpen = false,
-    ScriptRenameState? RenameState = null)
+    ScriptRenameState? RenameState = null,
+    int? TemplateVersion = null)
 {
     public bool IsRenaming => RenameState is not null;
+    public bool NeedsTemplateUpgrade => Kind != ProjectScriptKind.User && TemplateVersion is > 0 and < 2;
+    public string TemplateUpgradeHint => $"此脚本使用旧版模板（v{TemplateVersion}）。请打开脚本，在“更多”中选择“升级脚本模板…”进行升级。";
 }
 
 /// <summary>One script family (user/object/backdrop) with its own inline creation state.</summary>

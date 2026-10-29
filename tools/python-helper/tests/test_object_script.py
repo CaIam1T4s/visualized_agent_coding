@@ -75,7 +75,7 @@ class ObjectScriptTests(unittest.TestCase):
 
     def test_old_script_and_unsupported_version_are_not_migrated(self):
         self.assertEqual(self.inspect('class Hero: pass\n')['status'], 'legacyUnmarked')
-        for version in ('2', '9' * 10000):
+        for version in ('99', '9' * 10000):
             result = self.inspect(template().replace('version=1', 'version=' + version))
             self.assertEqual(result['status'], 'unsupportedVersion')
             self.assertIsNone(result['userRegion'])

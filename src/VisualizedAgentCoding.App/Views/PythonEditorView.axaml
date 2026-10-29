@@ -71,12 +71,6 @@
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center" />
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                        <Button Content="重新加载" Height="32" MinHeight="32" Padding="12,0"
-                                Classes="command-button secondary" Click="OnReloadScriptClick"
-                                ToolTip.Tip="重新读取磁盘文件，丢弃编辑前会请求确认" />
-                        <Button Content="查找引用" Height="32" MinHeight="32" Padding="12,0"
-                                Classes="command-button secondary" Click="OnFindReferencesClick"
-                                ToolTip.Tip="查找光标处符号的引用（Shift+F12），优先使用未保存内容" />
                         <Button Content="更多" Height="32" MinHeight="32" Padding="12,0"
                                 Classes="command-button secondary" Click="OnEditorMenuClick" />
                         </StackPanel>
@@ -93,7 +87,7 @@
                                              Foreground="{DynamicResource TextFillColorPrimaryBrush}">
                     </avaloniaEdit:TextEditor>
                     <StackPanel Grid.Row="2" Spacing="4">
-                    <Expander Classes="diagnostics-list" IsVisible="{Binding HasPythonDiagnostics}"
+                    <Expander x:Name="DiagnosticsExpander" Classes="diagnostics-list" IsVisible="{Binding HasPythonDiagnostics}"
                               Header="{Binding PythonErrorListTitle}"
                               ExpandDirection="Up" IsExpanded="False" MinHeight="32" Padding="8,4"
                               HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
@@ -104,6 +98,17 @@
                             <x:Double x:Key="ExpanderChevronButtonSize">16</x:Double>
                         </Expander.Resources>
                         <Expander.Styles>
+                            <Style Selector="Button.diagnostic-item:pointerover">
+                                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                            </Style>
+                            <Style Selector="Button.diagnostic-item:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                            </Style>
+                            <Style Selector="Button.diagnostic-item:pressed /template/ ContentPresenter#PART_ContentPresenter">
+                                <Setter Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
+                            </Style>
                             <Style Selector="Expander.diagnostics-list /template/ ToggleButton#ExpanderHeader">
                                 <Setter Property="Height" Value="32" />
                                 <Setter Property="MinHeight" Value="32" />
@@ -126,7 +131,7 @@
                         </Expander.Styles>
                         <ScrollViewer MaxHeight="200" HorizontalScrollBarVisibility="Disabled"
                                       VerticalScrollBarVisibility="Hidden">
-                        <ItemsControl ItemsSource="{Binding PythonDiagnostics}">
+                        <ItemsControl x:Name="DiagnosticItems" ItemsSource="{Binding EditorDiagnostics}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <StackPanel Spacing="4" />
@@ -137,7 +142,7 @@
                                     <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                                             Height="32" MinHeight="32" Padding="12,0" Margin="0"
                                             VerticalContentAlignment="Center" ToolTip.Tip="{Binding DisplayText}"
-                                            Classes="command-button secondary" Tag="{Binding}" Click="OnDiagnosticClick"
+                                            Classes="command-button secondary diagnostic-item" Tag="{Binding}" Click="OnDiagnosticClick"
                                             AutomationProperties.Name="{Binding DisplayText}">
                                         <TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis"
                                                    Foreground="{DynamicResource SystemFillColorCriticalBrush}" />

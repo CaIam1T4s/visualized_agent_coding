@@ -14,12 +14,17 @@ public partial class MainViewModel
     private string? loadedScriptId;
     private string? loadedScriptSource;
     private ObjectScriptDocument? savedObjectDocument;
+    private bool hasStructuralEdit;
 
-    private void RememberLoadedScript(string id, string source)
+    public event Action? EditorHistoryResetRequested;
+
+    private void RememberLoadedScript(string id, string source, bool resetHistory = true)
     {
         loadedScriptId = id;
         loadedScriptSource = source;
         savedObjectDocument = null;
+        hasStructuralEdit = false;
+        if (resetHistory) EditorHistoryResetRequested?.Invoke();
         NotifyEditorSourceChanged();
     }
 
@@ -28,6 +33,8 @@ public partial class MainViewModel
         loadedScriptId = null;
         loadedScriptSource = null;
         savedObjectDocument = null;
+        hasStructuralEdit = false;
+        EditorHistoryResetRequested?.Invoke();
         NotifyEditorSourceChanged();
     }
 
@@ -54,21 +61,29 @@ public partial class MainViewModel
                 if (projectSession.LoadScript(project, script) != loadedScriptSource)
                     throw new ProjectOperationException("磁盘脚本已被外部修改，未覆盖。当前编辑内容已保留。");
                 projectSession.SaveScript(project, script, source);
-                RememberLoadedScript(script.Id, source);
+                RememberLoadedScript(script.Id, source, resetHistory: false);
                 return;
             }
             if (objectScriptSaveService is null)
                 throw new ProjectOperationException("对象脚本保存服务不可用，当前编辑内容已保留。");
             var baseline = loadedScriptSource;
             var document = savedObjectDocument;
-            var plan = await Task.Run(() => objectScriptSaveService.PrepareFullBufferAsync(project, script.Id, version,
-                baseline, source, document, token), token);
+            var multi = editorProjection as MultiRegionProjection;
+            var plan = hasStructuralEdit && editorProjection is { } trusted && trusted.Document.ScriptId == script.Id && trusted.FullSource == source
+                ? new ObjectScriptSavePlan(project, script.Id, script.Path, version, baseline, source, trusted.Document with { Version = version })
+                : multi is not null && multi.Document.ScriptId == script.Id && multi.FullSource == source && multi.BaselineDocument.FullSource == baseline
+                    ? ObjectScriptRegionSaveService.Prepare(project, multi.BaselineDocument, version, multi.FullRegionSources())
+                : await Task.Run(() => objectScriptSaveService.PrepareFullBufferAsync(project, script.Id, version,
+                    baseline, source, document, token), token);
             token.ThrowIfCancellationRequested();
             if (!ReferenceEquals(activeProject, project) || openScriptId != script.Id || pythonDocumentVersion != version)
                 throw new ProjectOperationException("保存期间编辑内容已变化，请重试。当前缓冲区已保留。");
             objectScriptSaveService.Apply(plan, pythonDocumentVersion);
             loadedScriptSource = plan.MergedSource;
             savedObjectDocument = plan.Document;
+            hasStructuralEdit = false;
+            if (multi is not null && multi.FullSource == plan.MergedSource && plan.Document is { } saved)
+                multi.AcceptSavedDocument(saved);
         }
         finally { scriptSaveGate.Release(); }
     }

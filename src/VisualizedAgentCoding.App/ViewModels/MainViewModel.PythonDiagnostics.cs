@@ -45,6 +45,7 @@ public partial class MainViewModel : IAsyncDisposable
             OnPropertyChanged(nameof(PythonErrorCount));
             OnPropertyChanged(nameof(PythonErrorListTitle));
             OnPropertyChanged(nameof(PythonErrorSummary));
+            OnPropertyChanged(nameof(EditorDiagnostics));
         }, dispatch: action =>
         {
             if (Dispatcher.UIThread.CheckAccess()) action();
@@ -52,7 +53,11 @@ public partial class MainViewModel : IAsyncDisposable
         });
     }
 
-    partial void OnPythonCodeChanged(string value) => SchedulePythonAnalysis();
+    partial void OnPythonCodeChanged(string value)
+    {
+        UpdateOpenTemplateDecoration();
+        SchedulePythonAnalysis();
+    }
 
     private void SchedulePythonAnalysis()
     {

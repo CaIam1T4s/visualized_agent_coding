@@ -107,7 +107,8 @@ def find_references(params):
         try:
             ast.parse(file.read_text(encoding='utf-8'))
         except SyntaxError as error:
-            issues.append({'uri': file.as_uri(), 'message': f'第 {error.lineno} 行存在语法错误，引用可能不完整：{error.msg}'})
+            issues.append({'uri': file.as_uri(), 'line': error.lineno, 'column': error.offset or 1,
+                           'message': f'存在语法错误，引用可能不完整：{error.msg}'})
     if truncated:
         issues.append({'uri': uri, 'message': '引用路径超过本次查询限制，结果可能不完整。'})
     locations.sort(key=lambda item: (item['uri'], item['range']['line'], item['range']['column']))

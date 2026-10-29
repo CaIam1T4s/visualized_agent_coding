@@ -201,6 +201,14 @@ class MultiErrorTests(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn('unterminated', errors[0]['message'])
 
+    def test_unclosed_call_does_not_add_a_tail_error_on_hidden_markers(self):
+        source = ('class Hero:\n    pass\n    def _vac_on_start(self):\n'
+                  '        self.walk(\n        # vac:region-end start\n')
+        errors = self.diagnostics(source)
+        self.assertEqual(len(errors), 1, errors)
+        self.assertEqual(errors[0]['line'], 4)
+        self.assertIn('was never closed', errors[0]['message'])
+
     def test_valid_modern_file_uses_native_parser(self):
         source = 'match 1:\n    case 1: pass\n'
         _, responses = run_helper(HELLO, parse_request('2', source=source))

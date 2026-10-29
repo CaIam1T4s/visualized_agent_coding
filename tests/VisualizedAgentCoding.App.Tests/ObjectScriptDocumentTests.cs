@@ -13,12 +13,20 @@ public sealed class ObjectScriptDocumentTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), "object-doc-" + Guid.NewGuid().ToString("N"));
     private readonly ProjectService projects = new(new JsonProjectStore());
 
+    private ProjectScriptCreation CreateLegacy(ProjectWorkspace project, ProjectScriptKind kind, string name)
+    {
+        var created = projects.CreateScript(project, kind, name);
+        File.WriteAllText(created.Project.ToAbsolutePath(created.Script.Path), ProjectScriptTemplates.Create(kind,
+            ProjectService.ToClassName(Path.GetFileNameWithoutExtension(created.Script.Path))));
+        return created;
+    }
+
     [Theory]
     [InlineData(ProjectScriptKind.Object)]
     [InlineData(ProjectScriptKind.Backdrop)]
     public async Task NewTemplatesHaveEmptyUserRegionAndKeepCompleteValidSource(ProjectScriptKind kind)
     {
-        var created = projects.CreateScript(projects.Create(root, "Demo"), kind, "hero");
+        var created = CreateLegacy(projects.Create(root, "Demo"), kind, "hero");
         var source = projects.LoadScript(created.Project, created.Script);
         await using var bridge = new PythonProcessBridge();
         var document = await new ObjectScriptDocumentService(bridge).InspectAsync(created.Project, created.Script.Id, 7, source);
@@ -36,7 +44,7 @@ public sealed class ObjectScriptDocumentTests : IDisposable
     [Fact]
     public async Task UnsavedUnicodeCrLfBufferIsInspectedWithoutSavingOrNormalization()
     {
-        var created = projects.CreateScript(projects.Create(root, "Demo"), ProjectScriptKind.Object, "hero");
+        var created = CreateLegacy(projects.Create(root, "Demo"), ProjectScriptKind.Object, "hero");
         var original = projects.LoadScript(created.Project, created.Script);
         var user = "    text = \"你好😀\"\n    def act(self):\n        return self.text\n";
         var source = original.Replace("    # vac:user-code-end", user + "    # vac:user-code-end")
@@ -54,7 +62,7 @@ public sealed class ObjectScriptDocumentTests : IDisposable
     [Fact]
     public async Task UserSyntaxErrorsAreIndependentFromStructureAndNoCodeExecutes()
     {
-        var created = projects.CreateScript(projects.Create(root, "Demo"), ProjectScriptKind.Object, "hero");
+        var created = CreateLegacy(projects.Create(root, "Demo"), ProjectScriptKind.Object, "hero");
         var template = projects.LoadScript(created.Project, created.Script);
         var source = template.Replace("    # vac:user-code-end", "    value =\n    # vac:user-code-end");
         await using var bridge = new PythonProcessBridge();
@@ -72,13 +80,13 @@ public sealed class ObjectScriptDocumentTests : IDisposable
     [InlineData("version", ObjectScriptStatus.UnsupportedVersion)]
     public async Task UnrecognizedDocumentsPreserveSourceAndHaveNoEditableRegion(string mode, ObjectScriptStatus expected)
     {
-        var created = projects.CreateScript(projects.Create(root, "Demo"), ProjectScriptKind.Object, "hero");
+        var created = CreateLegacy(projects.Create(root, "Demo"), ProjectScriptKind.Object, "hero");
         var template = projects.LoadScript(created.Project, created.Script);
         var source = mode switch
         {
             "legacy" => "from runtime.element_base import ElementBase\nclass Hero(ElementBase):\n    pass\n",
             "broken" => template.Replace("class Hero(", "class Wrong("),
-            _ => template.Replace("version=1", "version=2"),
+            _ => template.Replace("version=1", "version=99"),
         };
         await using var bridge = new PythonProcessBridge();
         var document = await new ObjectScriptDocumentService(bridge).InspectAsync(created.Project, created.Script.Id, 1, source);
@@ -93,7 +101,7 @@ public sealed class ObjectScriptDocumentTests : IDisposable
     [Fact]
     public async Task UserScriptsAreNotInspectedAsObjectTemplates()
     {
-        var created = projects.CreateScript(projects.Create(root, "Demo"), ProjectScriptKind.User, "helper");
+        var created = CreateLegacy(projects.Create(root, "Demo"), ProjectScriptKind.User, "helper");
         var bridge = new StubBridge();
         await Assert.ThrowsAsync<ProjectOperationException>(() => new ObjectScriptDocumentService(bridge)
             .InspectAsync(created.Project, created.Script.Id, 1, ""));
@@ -108,16 +116,40 @@ public sealed class ObjectScriptDocumentTests : IDisposable
     [InlineData("unconfirmed")]
     public async Task InvalidHelperResponsesCannotCreateEditableDocuments(string mode)
     {
-        var created = projects.CreateScript(projects.Create(root, "Demo"), ProjectScriptKind.Object, "hero");
+        var created = CreateLegacy(projects.Create(root, "Demo"), ProjectScriptKind.Object, "hero");
         var bridge = new StubBridge { Mode = mode };
         await Assert.ThrowsAsync<PythonBridgeException>(() => new ObjectScriptDocumentService(bridge)
             .InspectAsync(created.Project, created.Script.Id, 1, "😀"));
     }
 
     [Fact]
+    public async Task MalformedMultiRegionResponsesCannotCreateEditableDocuments()
+    {
+        var created = CreateLegacy(projects.Create(root, "Demo"), ProjectScriptKind.Object, "hero");
+        var valid = new ObjectScriptRegion[] { new("members", "members", new(3, 0), 4), new("start", "start", new(5, 0), 8) };
+        var cases = new ObjectScriptRegion[][]
+        {
+            [valid[0] with { Span = new(3, 2) }, valid[1] with { Span = new(3, 0) }],
+            [valid[0] with { Span = new(1, 0) }, valid[1]],
+            [valid[0], valid[1] with { Id = "members" }],
+            [valid[0], valid[1] with { Kind = "unknown" }],
+            [valid[0], valid[1] with { Indentation = 4 }],
+            [valid[0], valid[1] with { Span = new(99, 0) }],
+            [valid[0], valid[1] with { EventName = "illegal" }],
+            [valid[0], null!],
+        };
+        foreach (var regions in cases)
+        {
+            var bridge = new StubBridge { Response = new("", 0, "recognized", 2, null, [], regions) };
+            await Assert.ThrowsAsync<PythonBridgeException>(() => new ObjectScriptDocumentService(bridge)
+                .InspectAsync(created.Project, created.Script.Id, 1, "😀\nx\ny\n"));
+        }
+    }
+
+    [Fact]
     public async Task CancelledInspectionDoesNotStartHelper()
     {
-        var created = projects.CreateScript(projects.Create(root, "Demo"), ProjectScriptKind.Object, "hero");
+        var created = CreateLegacy(projects.Create(root, "Demo"), ProjectScriptKind.Object, "hero");
         var bridge = new StubBridge();
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
@@ -130,9 +162,11 @@ public sealed class ObjectScriptDocumentTests : IDisposable
     {
         public string Mode = "unknown";
         public bool Called;
+        public ObjectScriptInspectionResult? Response;
         public Task<ObjectScriptInspectionResult> InspectObjectScriptAsync(ObjectScriptInspectionRequest request, CancellationToken cancellationToken = default)
         {
             Called = true;
+            if (Response is not null) return Task.FromResult(Response with { Uri = request.Uri, Version = request.Version });
             var span = Mode switch { "surrogate" => new SourceSpan(1, 0), "outOfBounds" => new SourceSpan(0, 99), _ => new SourceSpan(0, 0) };
             return Task.FromResult(new ObjectScriptInspectionResult(request.Uri, Mode == "stale" ? request.Version + 1 : request.Version,
                 Mode == "unknown" ? "unknown" : Mode == "unconfirmed" ? "invalidStructure" : "recognized", 1, span, []));
