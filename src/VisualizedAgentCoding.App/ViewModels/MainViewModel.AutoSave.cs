@@ -21,6 +21,7 @@ public partial class MainViewModel
             EditorState = $"自动保存失败，窗口已保留：{result.Error}";
             ReportResourceMessage(EditorState);
         }
+        if (result.CanClose) await StopPythonAsync();
         return result.CanClose;
     }
 }

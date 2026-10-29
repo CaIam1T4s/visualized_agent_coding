@@ -85,6 +85,7 @@ public partial class PythonEditorView
         {
             var restored = EditorProjection.Create(state.Document);
             if (restored is ObjectScriptProjection single && state.ViewSource is not null) single.Update(state.ViewSource);
+            userImportProjection = null;
             projection = restored;
             displayedFullSource = restored.FullSource;
             // Changing IsReadOnly reinstalls AvaloniaEdit's default provider for v1.

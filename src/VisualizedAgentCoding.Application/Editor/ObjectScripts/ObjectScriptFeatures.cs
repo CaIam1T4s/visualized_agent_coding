@@ -7,7 +7,7 @@ public static class ObjectScriptFeatures
 {
     public static ObjectScriptDocument AddInitialize(ObjectScriptDocument document)
     {
-        if (document.TemplateVersion != 2 || !document.HasRegions)
+        if (document.TemplateVersion is not (2 or 3) || !document.HasRegions)
             throw new ArgumentException("Confirmed v2 document required.");
         if (document.Regions!.Any(r => r.Kind == "initialize")) return document;
         var id = "initialize";

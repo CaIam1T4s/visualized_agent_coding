@@ -175,10 +175,17 @@ class MultiErrorTests(unittest.TestCase):
     def test_two_broken_functions_are_reported_in_source_order(self):
         errors = self.diagnostics('def first(:\n    pass\ndef second(:\n    pass\n')
         self.assertEqual([error['line'] for error in errors], [1, 3])
+        self.assertEqual([error['parser'] for error in errors], ['native', 'recovery'])
 
     def test_independent_errors_in_same_function(self):
         errors = self.diagnostics('def f():\n    x =\n    y =\n')
         self.assertEqual([error['line'] for error in errors], [2, 3])
+
+    def test_missing_body_recovery_keeps_the_actual_header_line(self):
+        errors = self.diagnostics('value =\ndef start():\n    if True:\n    # end\n')
+        self.assertEqual(len(errors), 2)
+        self.assertEqual(errors[1]['message'], 'expected an indented block')
+        self.assertEqual(errors[1]['relatedLine'], 3)
 
     def test_recovery_columns_remain_utf16(self):
         source = 'x = "\U0001f600"; y =\nz = "\U0001f600"; w =\n'

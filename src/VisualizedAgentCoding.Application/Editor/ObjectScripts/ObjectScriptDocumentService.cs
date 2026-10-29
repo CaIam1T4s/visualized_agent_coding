@@ -37,7 +37,7 @@ public sealed class ObjectScriptDocumentService(IPythonBridge bridge)
         var regions = result.Regions;
         if (status == ObjectScriptStatus.Recognized && result.TemplateVersion == 1)
             regions = [new("user", "members", result.UserRegion!, 4)];
-        return new(script.Id, uri, version, fullSource, status, result.TemplateVersion, result.UserRegion, result.Problems, regions);
+        return new(script.Id, uri, version, fullSource, status, result.TemplateVersion, result.UserRegion, result.Problems, regions, result.Imports);
     }
 
     private static void ValidateResponse(string uri, long version, string source, ObjectScriptInspectionResult result)
@@ -46,12 +46,19 @@ public sealed class ObjectScriptDocumentService(IPythonBridge bridge)
             throw new PythonBridgeException("对象脚本识别返回了不匹配的文档版本。");
         if (result.Problems is null)
             throw new PythonBridgeException("对象脚本识别缺少问题列表。");
-        if (result.Status == "recognized" && (result.TemplateVersion is not (1 or 2) || result.Problems.Length != 0
+        if (result.Status == "recognized" && (result.TemplateVersion is not (1 or 2 or 3) || result.Problems.Length != 0
             || (result.TemplateVersion == 1 ? result.UserRegion is null || result.Regions is not null
                 : result.UserRegion is not null || result.Regions is not { Length: >= 2 })))
             throw new PythonBridgeException("对象脚本识别返回了不一致的结构状态。");
         if (result.Status != "recognized" && (result.UserRegion is not null || result.Regions is not null))
             throw new PythonBridgeException("未确认结构的文档不能提供可编辑区域。");
+        if (result.Status == "recognized" && ((result.TemplateVersion == 3) != (result.Imports is not null)))
+            throw new PythonBridgeException("模板版本与导入区不一致。");
+        if (result.Imports is { } imports && (imports.Span.Offset < 0 || imports.Span.Length < 0
+            || imports.Span.Offset > source.Length || imports.Span.Length > source.Length - imports.Span.Offset
+            || imports.Entries is null || imports.Entries.Length > 128 || imports.Entries.Any(i => i is null)
+            || SplitsSurrogate(source, imports.Span.Offset) || SplitsSurrogate(source, imports.Span.Offset + imports.Span.Length)))
+            throw new PythonBridgeException("导入区范围或元数据无效。");
         if (result.UserRegion is { } span && (span.Offset < 0 || span.Length < 0 || span.Offset > source.Length
             || span.Length > source.Length - span.Offset || SplitsSurrogate(source, span.Offset)
             || SplitsSurrogate(source, span.Offset + span.Length)))

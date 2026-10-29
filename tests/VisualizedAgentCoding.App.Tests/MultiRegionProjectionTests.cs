@@ -252,7 +252,7 @@ public class MultiRegionProjectionTests : IDisposable
         var created = projects.CreateScript(projects.Create(root, "Demo"), ProjectScriptKind.Object, "hero");
         var source = projects.LoadScript(created.Project, created.Script).Replace("\n", newline);
         File.WriteAllText(created.Project.ToAbsolutePath(created.Script.Path), source);
-        Assert.StartsWith("# vac:template-version=2", source);
+        Assert.StartsWith("# vac:template-version=3", source);
         return (created.Project, created.Script, source);
     }
     private sealed class Settings : ISettingsStore

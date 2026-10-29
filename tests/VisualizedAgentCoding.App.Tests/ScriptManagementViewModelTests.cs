@@ -9,7 +9,7 @@ using VisualizedAgentCoding.Application.Python;
 
 namespace VisualizedAgentCoding.App.Tests;
 
-public sealed class ScriptManagementViewModelTests : IDisposable
+public sealed class ScriptManagementViewModelTests : IAsyncLifetime
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), $"script-ui-{Guid.NewGuid():N}");
     private readonly ProjectService service = new(new JsonProjectStore());
@@ -23,8 +23,9 @@ public sealed class ScriptManagementViewModelTests : IDisposable
             project = service.CreateScript(project, kind, "hero").Project;
         service.CreateScript(project, ProjectScriptKind.Backdrop, "night");
         vm = new MainViewModel(new Settings(), new InMemoryRecentProjectsStore(), session);
-        vm.OpenProject(root);
     }
+
+    public Task InitializeAsync() => vm.OpenProject(root);
 
     [Fact]
     public async Task DeleteAnalysisBlocksConfirmationAndIgnoresCancelledResult()
@@ -36,7 +37,7 @@ public sealed class ScriptManagementViewModelTests : IDisposable
         model.RequestDeleteScriptCommand.Execute(item);
         await bridge.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.False(model.CanConfirmDelete);
-        model.ConfirmDeleteScriptCommand.Execute(null);
+        await model.ConfirmDeleteScriptCommand.ExecuteAsync(null);
         Assert.True(File.Exists(Path.Combine(root, item.RelativePath)));
         model.CancelDeleteScriptCommand.Execute(null);
         bridge.Complete.SetResult(new(bridge.Request!.Uri, bridge.Request.Version, [], [], false));
@@ -75,9 +76,9 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     public async Task RenamingAnotherScriptUpdatesOpenUnsavedImporter()
     {
         service.CreateScript(service.Open(root), ProjectScriptKind.User, "caller");
-        await using var model = CreateRenameModel();
+        await using var model = await CreateRenameModelAsync();
         var target = model.UserScripts.Single(item => item.DisplayName == "hero");
-        model.OpenScriptFromExplorerCommand.Execute(model.UserScripts.Single(item => item.DisplayName == "caller"));
+        await model.OpenScriptFromExplorerCommand.ExecuteAsync(model.UserScripts.Single(item => item.DisplayName == "caller"));
         model.PythonCode = "import hero\nhero.value\n";
         model.StartRenameScriptCommand.Execute(target);
         model.ScriptRename!.Name = "helpers";
@@ -93,9 +94,9 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     [Fact]
     public async Task RenamePreviewCanBeCancelledWithoutSavingOrChangingFiles()
     {
-        await using var model = CreateRenameModel();
+        await using var model = await CreateRenameModelAsync();
         var item = Assert.Single(model.UserScripts);
-        model.OpenScriptFromExplorerCommand.Execute(item);
+        await model.OpenScriptFromExplorerCommand.ExecuteAsync(item);
         model.PythonCode = "value = 42\n";
         var disk = File.ReadAllText(Path.Combine(root, item.RelativePath));
         model.StartRenameScriptCommand.Execute(item);
@@ -113,9 +114,9 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     [Fact]
     public async Task ChangedEditorBufferInvalidatesRenamePreview()
     {
-        await using var model = CreateRenameModel();
+        await using var model = await CreateRenameModelAsync();
         var item = Assert.Single(model.UserScripts);
-        model.OpenScriptFromExplorerCommand.Execute(item);
+        await model.OpenScriptFromExplorerCommand.ExecuteAsync(item);
         model.StartRenameScriptCommand.Execute(item);
         model.ScriptRename!.Name = "helpers";
         await model.ScriptRename.ConfirmCommand.ExecuteAsync(null);
@@ -130,9 +131,9 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     [Fact]
     public async Task RenameSavesUnsavedCodeAndKeepsTheSameDocumentOpen()
     {
-        await using var vm = CreateRenameModel();
+        await using var vm = await CreateRenameModelAsync();
         var item = Assert.Single(vm.UserScripts);
-        vm.OpenScriptFromExplorerCommand.Execute(item);
+        await vm.OpenScriptFromExplorerCommand.ExecuteAsync(item);
         vm.PythonCode = "value = 123\n";
         vm.StartRenameScriptCommand.Execute(item);
         var rename = Assert.IsType<ScriptRenameState>(vm.ScriptRename);
@@ -153,7 +154,7 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     [Fact]
     public async Task InvalidNameKeepsInlineEditorAndCanBeCorrected()
     {
-        await using var vm = CreateRenameModel();
+        await using var vm = await CreateRenameModelAsync();
         vm.StartRenameScriptCommand.Execute(Assert.Single(vm.UserScripts));
         var rename = vm.ScriptRename!;
         rename.Name = "bad name";
@@ -172,7 +173,7 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     [Fact]
     public async Task RenamePreservesSearchAndMayRemoveTheItemFromResults()
     {
-        await using var vm = CreateRenameModel();
+        await using var vm = await CreateRenameModelAsync();
         vm.ResourceSearchQuery = "hero";
         vm.StartRenameScriptCommand.Execute(Assert.Single(vm.UserScripts));
         vm.ScriptRename!.Name = "helpers";
@@ -205,12 +206,12 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     }
 
     [Fact]
-    public void DeleteRequiresConfirmationAndCancelKeepsUnsavedBuffer()
+    public async Task DeleteRequiresConfirmationAndCancelKeepsUnsavedBuffer()
     {
         var item = Assert.Single(vm.UserScripts);
-        vm.OpenScriptFromExplorerCommand.Execute(item);
+        await vm.OpenScriptFromExplorerCommand.ExecuteAsync(item);
         vm.PythonCode = "unsaved";
-        vm.ConfirmDeleteScriptCommand.Execute(null);
+        await vm.ConfirmDeleteScriptCommand.ExecuteAsync(null);
         Assert.True(File.Exists(Path.Combine(root, item.RelativePath)));
         vm.RequestDeleteScriptCommand.Execute(item);
         Assert.True(vm.IsDeleteConfirmationOpen);
@@ -223,28 +224,28 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     }
 
     [Fact]
-    public void DeletingCurrentDocumentClearsEditorAndDoesNotRecreateItOnClose()
+    public async Task DeletingCurrentDocumentClearsEditorAndDoesNotRecreateItOnClose()
     {
         var item = Assert.Single(vm.UserScripts);
-        vm.OpenScriptFromExplorerCommand.Execute(item);
+        await vm.OpenScriptFromExplorerCommand.ExecuteAsync(item);
         vm.PythonCode = "discard this buffer";
-        Delete(item);
+        await DeleteAsync(item);
         Assert.Null(vm.OpenScript);
         Assert.Empty(vm.PythonCode);
         Assert.Empty(vm.FileName);
         Assert.False(vm.IsEditorVisible);
         Assert.Empty(vm.UserScripts);
-        vm.CloseProject();
+        await vm.CloseProject();
         Assert.False(File.Exists(Path.Combine(root, item.RelativePath)));
     }
 
     [Fact]
-    public void DeletingOtherDocumentPreservesAndSavesCurrentBuffer()
+    public async Task DeletingOtherDocumentPreservesAndSavesCurrentBuffer()
     {
         var item = Assert.Single(vm.UserScripts);
-        vm.OpenScriptFromExplorerCommand.Execute(item);
+        await vm.OpenScriptFromExplorerCommand.ExecuteAsync(item);
         vm.PythonCode = "keep me";
-        Delete(Assert.Single(vm.ObjectScripts));
+        await DeleteAsync(Assert.Single(vm.ObjectScripts));
         Assert.Equal(item.Id, vm.OpenScript!.Id);
         Assert.Equal("keep me", vm.PythonCode);
         Assert.Equal("keep me", File.ReadAllText(Path.Combine(root, item.RelativePath)));
@@ -253,17 +254,17 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     [Theory]
     [InlineData(ProjectScriptKind.Object)]
     [InlineData(ProjectScriptKind.Backdrop)]
-    public void DeletingStageObjectDeletesOnlyItsLinkedScriptAndHandlers(ProjectScriptKind kind)
+    public async Task DeletingStageObjectDeletesOnlyItsLinkedScriptAndHandlers(ProjectScriptKind kind)
     {
         var item = vm.ScriptCategories.Single(c => c.Kind == kind).Scripts.Single(s => s.DisplayName == "hero");
         service.RegisterEventHandler(service.Open(root), item.Id,
             new EventHandlerRegistration(ProjectEventKinds.Start, null, "on_start"));
-        vm.OpenProject(root);
+        await vm.OpenProject(root);
         var selected = kind == ProjectScriptKind.Object ? vm.StageSprites.Single() : vm.StageBackdrops.First();
-        vm.SelectStageObjectCommand.Execute(selected);
+        await vm.SelectStageObjectCommand.ExecuteAsync(selected);
         vm.RequestDeleteScriptCommand.Execute(selected.ToScriptItem());
         Assert.Contains(kind == ProjectScriptKind.Object ? "角色" : "背景", vm.DeleteConfirmationMessage);
-        vm.ConfirmDeleteScriptCommand.Execute(null);
+        await vm.ConfirmDeleteScriptCommand.ExecuteAsync(null);
         Assert.False(File.Exists(Path.Combine(root, item.RelativePath)));
         Assert.DoesNotContain(service.Open(root).Manifest.Scripts, s => s.Id == item.Id);
         Assert.Empty(service.Open(root).Manifest.EventHandlers);
@@ -287,7 +288,7 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     public async Task UnavailableHelperAbortsRenameAndPreservesBuffer()
     {
         var item = Assert.Single(vm.UserScripts);
-        vm.OpenScriptFromExplorerCommand.Execute(item);
+        await vm.OpenScriptFromExplorerCommand.ExecuteAsync(item);
         vm.PythonCode = "unsaved";
         session.FailSave = true;
         vm.StartRenameScriptCommand.Execute(item);
@@ -301,43 +302,43 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     }
 
     [Fact]
-    public void DeleteFailureKeepsDialogDocumentAndStageObjectForRetry()
+    public async Task DeleteFailureKeepsDialogDocumentAndStageObjectForRetry()
     {
         var item = Assert.Single(vm.ObjectScripts);
-        vm.OpenScriptFromExplorerCommand.Execute(item);
+        await vm.OpenScriptFromExplorerCommand.ExecuteAsync(item);
         vm.PythonCode = "unsaved";
         session.FailDelete = true;
-        Delete(item);
+        await DeleteAsync(item);
         Assert.True(vm.IsDeleteConfirmationOpen);
         Assert.NotNull(vm.DeleteError);
         Assert.Equal(item.Id, vm.OpenScript!.Id);
         Assert.Equal("unsaved", vm.PythonCode);
         Assert.Single(vm.StageSprites);
         session.FailDelete = false;
-        vm.ConfirmDeleteScriptCommand.Execute(null);
+        await vm.ConfirmDeleteScriptCommand.ExecuteAsync(null);
         Assert.False(vm.IsDeleteConfirmationOpen);
         Assert.Empty(vm.StageSprites);
     }
 
     [Fact]
-    public void DeferredCleanupIsExplainedToTheUser()
+    public async Task DeferredCleanupIsExplainedToTheUser()
     {
         session.PendingCleanup = true;
-        Delete(Assert.Single(vm.UserScripts));
+        await DeleteAsync(Assert.Single(vm.UserScripts));
         Assert.Contains("重试清理", vm.ProjectResourceMessage);
     }
 
     [Fact]
-    public void ProjectCloseClearsPendingActions()
+    public async Task ProjectCloseClearsPendingActions()
     {
         vm.RequestDeleteScriptCommand.Execute(Assert.Single(vm.UserScripts));
-        vm.CloseProject();
+        await vm.CloseProject();
         Assert.False(vm.IsDeleteConfirmationOpen);
-        vm.ConfirmDeleteScriptCommand.Execute(null);
+        await vm.ConfirmDeleteScriptCommand.ExecuteAsync(null);
         Assert.True(File.Exists(Path.Combine(root, "scripts/user/hero.py")));
-        vm.OpenProject(root);
+        await vm.OpenProject(root);
         vm.StartRenameScriptCommand.Execute(Assert.Single(vm.UserScripts));
-        vm.CloseProject();
+        await vm.CloseProject();
         Assert.Null(vm.ScriptRename);
     }
 
@@ -345,7 +346,7 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     public async Task ExitAutoSavePersistsTheUnsavedEditorBuffer()
     {
         var item = Assert.Single(vm.UserScripts);
-        vm.OpenScriptFromExplorerCommand.Execute(item);
+        await vm.OpenScriptFromExplorerCommand.ExecuteAsync(item);
         vm.PythonCode = "value = 999\n";
         Assert.True(await vm.PrepareForExitAsync());
         Assert.Equal(vm.PythonCode, File.ReadAllText(Path.Combine(root, item.RelativePath)));
@@ -355,7 +356,7 @@ public sealed class ScriptManagementViewModelTests : IDisposable
     [Fact]
     public async Task ExitAutoSaveFailureKeepsDocumentOpenAndSupportsRetry()
     {
-        vm.OpenScriptFromExplorerCommand.Execute(Assert.Single(vm.UserScripts));
+        await vm.OpenScriptFromExplorerCommand.ExecuteAsync(Assert.Single(vm.UserScripts));
         vm.PythonCode = "unsaved";
         session.FailSave = true;
         Assert.False(await vm.PrepareForExitAsync());
@@ -372,20 +373,24 @@ public sealed class ScriptManagementViewModelTests : IDisposable
         Assert.True(await vm.PrepareForExitAsync());
     }
 
-    private MainViewModel CreateRenameModel()
+    private async Task<MainViewModel> CreateRenameModelAsync()
     {
         var model = new MainViewModel(new Settings(), new InMemoryRecentProjectsStore(), session, new PythonProcessBridge());
-        model.OpenProject(root);
+        await model.OpenProject(root);
         return model;
     }
 
-    private void Delete(ProjectScriptItem item)
+    private async Task DeleteAsync(ProjectScriptItem item)
     {
         vm.RequestDeleteScriptCommand.Execute(item);
-        vm.ConfirmDeleteScriptCommand.Execute(null);
+        await vm.ConfirmDeleteScriptCommand.ExecuteAsync(null);
     }
 
-    public void Dispose() => Directory.Delete(root, true);
+    public async Task DisposeAsync()
+    {
+        await vm.DisposeAsync();
+        Directory.Delete(root, true);
+    }
 
     private sealed class Settings : ISettingsStore
     {

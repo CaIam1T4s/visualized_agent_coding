@@ -3,6 +3,13 @@ namespace VisualizedAgentCoding.Domain.Projects;
 /// <summary>Minimal valid source for a newly created project script.</summary>
 public static class ProjectScriptTemplates
 {
+    public static string CreateWithImports(ProjectScriptKind kind, string className,
+        IReadOnlyList<ObjectScriptRegionDefinition>? regions = null)
+    {
+        var source = CreateMultiRegion(kind, className, regions).Replace("# vac:template-version=2", "# vac:template-version=3");
+        var position = source.IndexOf('\n', source.IndexOf('\n') + 1) + 1;
+        return source.Insert(position, "# vac:imports-begin\n# vac:imports-end\n");
+    }
     public const string UserPlaceholderStatement = "pass  # 请删除此行并编写代码";
     /// <summary>Version 2 source used for newly created object and backdrop scripts.</summary>
     public static string CreateMultiRegion(ProjectScriptKind kind, string className,

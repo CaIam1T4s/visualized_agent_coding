@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="happy_agent_coding.Views.ManageImportsView" KeyboardNavigation.TabNavigation="Cycle">
+    <Border Background="#99000000">
+        <Border Width="620" MaxWidth="760" MaxHeight="680" Margin="24" CornerRadius="8"
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+            <Grid RowDefinitions="Auto,*">
+                <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="24,10,20,10">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="管理导入" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="caption-button" Click="OnCancel" ToolTip.Tip="关闭" AutomationProperties.Name="关闭">
+                            <TextBlock Classes="caption-glyph" Text="&#xE8BB;" />
+                        </Button>
+                    </Grid>
+                </Border>
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="24" Spacing="12">
+                        <TextBlock Text="已导入的模块" />
+                        <ListBox x:Name="ImportList" MinHeight="64" MaxHeight="150" SelectionChanged="OnImportSelected" />
+                        <Button Content="移除选中项" HorizontalAlignment="Left" Click="OnRemove" Classes="command-button secondary" />
+                        <TextBlock Text="导入来源" />
+                        <ComboBox x:Name="SourceKind" HorizontalAlignment="Stretch" SelectionChanged="OnSourceChanged" />
+                        <ComboBox x:Name="TargetModule" HorizontalAlignment="Stretch" PlaceholderText="选择模块" SelectionChanged="OnTargetChanged" />
+                        <TextBlock x:Name="SourceHint" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Text="别名（可留空）" />
+                        <TextBox x:Name="ImportAlias" PlaceholderText="例如 utils" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="添加到列表" Click="OnAdd" Classes="command-button secondary" />
+                            <Button Content="修改选中项别名" Click="OnUpdate" Classes="command-button secondary" />
+                        </StackPanel>
+                        <TextBlock Text="确认后应用到编辑器，可撤销；不会立即保存文件。修改或移除导入不会自动改写已有调用。"
+                                   TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBlock x:Name="ValidationError" IsVisible="False" TextWrapping="Wrap" Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                            <Button Content="取消" Classes="command-button secondary" Click="OnCancel" />
+                            <Button x:Name="ApplyButton" Content="确认" Classes="command-button primary" Click="OnAccept" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Border>
+</UserControl>

@@ -8,6 +8,8 @@ public interface IPythonBridge : IAsyncDisposable
 {
     Task<PythonHelperInfo> InitializeAsync(CancellationToken cancellationToken = default);
     Task<PythonParseResult> ParseAsync(PythonParseRequest request, CancellationToken cancellationToken = default);
+    Task<VisualizedAgentCoding.Application.Editor.ScriptImportsResult> InspectImportsAsync(VisualizedAgentCoding.Application.Editor.ScriptImportsRequest request, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Import management is unavailable.");
     Task<ObjectScriptInspectionResult> InspectObjectScriptAsync(ObjectScriptInspectionRequest request, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Object script inspection is unavailable.");
     Task<PythonModuleRenameResult> PlanModuleRenameAsync(PythonModuleRenameRequest request, CancellationToken cancellationToken = default)

@@ -18,7 +18,7 @@
                     </Grid>
                 </Border>
                 <TextBlock Grid.Row="1" Margin="24,16" TextWrapping="Wrap"
-                    Text="原用户代码将完整保留到“类定义”，新增“程序启动时运行”区域。不会自动移动代码或保存磁盘；确认后可撤销，保存时仍会检查磁盘冲突。" />
+                    Text="升级后支持统一管理导入，已有用户区域完整保留；单区域旧脚本会新增“程序启动时运行”。不会自动移动代码或保存磁盘；确认后可撤销，保存时仍会检查磁盘冲突。" />
                 <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="12" Margin="24,0" MinHeight="250">
                     <Grid RowDefinitions="Auto,*">
                         <TextBlock Text="升级前" Margin="0,0,0,8" />

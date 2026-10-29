@@ -24,7 +24,7 @@ public sealed class ScriptUpgradeTests : IDisposable
         var documents = new ObjectScriptDocumentService(bridge);
         var original = await documents.InspectAsync(project, script.Id, 2, source);
         var updated = await new ObjectScriptUpgradeService(documents).PrepareAsync(project, original, 2);
-        Assert.Equal(2, updated.TemplateVersion);
+        Assert.Equal(3, updated.TemplateVersion);
         var members = updated.Regions!.Single(r => r.Kind == "members").Span;
         Assert.Equal(body, updated.FullSource.Substring(members.Offset, members.Length));
         Assert.Equal(new[] { "members", "start" }, updated.Regions!.Select(r => r.Kind));
@@ -104,14 +104,14 @@ public sealed class ScriptUpgradeTests : IDisposable
         var service = new ObjectScriptUpgradeService(documents);
         var invalid = await documents.InspectAsync(project, script.Id, 1, source.Replace("# vac:user-code-end", "# broken-end"));
         await Assert.ThrowsAsync<ProjectOperationException>(() => service.PrepareAsync(project, invalid, 1));
-        var latest = await documents.InspectAsync(project, script.Id, 2, ProjectScriptTemplates.CreateMultiRegion(script.Kind, "Hero"));
+        var latest = await documents.InspectAsync(project, script.Id, 2, ProjectScriptTemplates.CreateWithImports(script.Kind, "Hero"));
         await Assert.ThrowsAsync<ProjectOperationException>(() => service.PrepareAsync(project, latest, 2));
         Assert.Equal(source, File.ReadAllText(project.ToAbsolutePath(script.Path)));
     }
 
     [Theory]
     [InlineData("# vac:template-version=1\n", 1, true)]
-    [InlineData("\uFEFF# ordinary comment\n# vac:template-version=2\r\n", 2, false)]
+    [InlineData("\uFEFF# ordinary comment\n# vac:template-version=2\r\n", 2, true)]
     [InlineData("\"\"\"\n# vac:template-version=1\n\"\"\"", null, false)]
     [InlineData("# vac:template-version=99\n", 99, false)]
     [InlineData("# vac:template-version=bad\n", null, false)]

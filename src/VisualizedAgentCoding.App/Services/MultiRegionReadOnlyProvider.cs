@@ -33,6 +33,7 @@ public sealed class MultiRegionReadOnlyProvider : IReadOnlySectionProvider
     }
     public Dictionary<string, string> ReadBodies() => regions.ToDictionary(r => r.Id,
         r => document.GetText(r.Start.Offset, r.End.Offset - r.Start.Offset));
+    public SourceSpan[] ReadSpans() => regions.Select(r => new SourceSpan(r.Start.Offset, r.End.Offset - r.Start.Offset)).ToArray();
 
     public bool TryEnterFromTitle(int caretOffset, out int caret)
     {

@@ -86,8 +86,19 @@ def _recover_diagnostics(source, lines, first):
         if ('was never closed' in first['message'] and message == 'invalid syntax'
                 and (not text.strip() or text.lstrip().startswith('#'))):
             continue
-        diagnostics.append({'severity': 'error', 'message': message,
-                            'line': line, 'column': column})
+        diagnostic = {'severity': 'error', 'message': message,
+                      'line': line, 'column': column, 'parser': 'recovery'}
+        if message == 'expected an indented block':
+            # The issue can point to EOF or the next generated handler. Retain
+            # the actual suite header so clients need not guess from text lines.
+            leaf = module.get_leaf_for_position(issue.start_pos, include_prefixes=True)
+            if leaf is not None and leaf.start_pos >= issue.start_pos:
+                leaf = leaf.get_previous_leaf()
+            while leaf is not None and leaf.type in ('newline', 'endmarker'):
+                leaf = leaf.get_previous_leaf()
+            if leaf is not None and leaf.value == ':':
+                diagnostic['relatedLine'] = leaf.start_pos[0]
+        diagnostics.append(diagnostic)
     return sorted(diagnostics, key=lambda diagnostic: (diagnostic['line'], diagnostic['column']))
 
 
@@ -100,7 +111,7 @@ def parse(source):
         text = _line_text(lines, lineno)
         chars = max((err.offset or 1) - 1, 0)
         column = len(text[:chars].encode('utf-16-le')) // 2 + 1
-        first = {'severity': 'error', 'message': err.msg, 'line': lineno, 'column': column}
+        first = {'severity': 'error', 'message': err.msg, 'line': lineno, 'column': column, 'parser': 'native'}
         try:
             diagnostics = _recover_diagnostics(source, lines, first)
         except (SyntaxError, ValueError, NotImplementedError, RecursionError):

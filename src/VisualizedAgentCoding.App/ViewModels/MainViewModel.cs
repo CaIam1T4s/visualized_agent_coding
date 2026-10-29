@@ -64,7 +64,7 @@ public partial class MainViewModel : ViewModelBase
     }
 
     public MainViewModel()
-        : this(new JsonSettingsStore(), new JsonRecentProjectsStore(), new ProjectSession(), new PythonProcessBridge())
+        : this(new JsonSettingsStore(), new JsonRecentProjectsStore(), new ProjectSession(), createAnalysisBridge: true)
     {
     }
 
@@ -84,7 +84,8 @@ public partial class MainViewModel : ViewModelBase
         IProjectSession projectSession,
         IPythonBridge? pythonBridge = null,
         IAutoSavePolicyProvider? autoSavePolicies = null,
-        IProjectStore? analysisStore = null)
+        IProjectStore? analysisStore = null,
+        bool createAnalysisBridge = false)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(recentProjectsStore);
@@ -93,6 +94,12 @@ public partial class MainViewModel : ViewModelBase
         this.projectSession = projectSession;
         recentProjectsService = new RecentProjectsService(recentProjectsStore, projectSession);
         var settings = this.settingsStore.Load();
+        pythonExecutable = settings.PythonExecutable;
+        pythonExecutableDraft = settings.PythonExecutable;
+        ownsAnalysisBridge = createAnalysisBridge;
+        runtimeStore = analysisStore ?? Composition.AnalysisComposition.CreateStore();
+        if (createAnalysisBridge) pythonBridge = CreateConfiguredBridge();
+        executionBridge = pythonBridge;
 
         SetRecentProjects(recentProjectsService.LoadValidProjects());
 
@@ -109,7 +116,7 @@ public partial class MainViewModel : ViewModelBase
         auxiliaryWidth = LayoutSettingValues.ClampAuxiliaryWidth(settings.AuxiliaryWidth);
         ApplyTheme(selectedThemeIndex);
         InitializePythonDiagnostics(pythonBridge);
-        InitializeReferences(pythonBridge, analysisStore ?? Composition.AnalysisComposition.CreateStore());
+        InitializeReferences(pythonBridge, runtimeStore);
         InitializeExitAutoSave(autoSavePolicies);
     }
 
@@ -219,6 +226,14 @@ public partial class MainViewModel : ViewModelBase
 
     public Task CreateProject(string rootPath, string? name = null) => ActivateProject(projectSession.Create(rootPath, name));
 
+    public async Task CreateProjectInDirectory(string parentDirectory, string name)
+    {
+        // Check before saving, and recheck immediately before creation in the session.
+        ProjectCreationTarget.Resolve(parentDirectory, name);
+        await SaveActiveProjectAsync();
+        await ActivateProject(projectSession.CreateInDirectory(parentDirectory, name));
+    }
+
     public Task OpenProject(string rootPath) => ActivateProject(projectSession.Open(rootPath));
 
     public async Task CloseProject()
@@ -226,7 +241,11 @@ public partial class MainViewModel : ViewModelBase
         var navigation = ++editorNavigationGeneration;
         await SaveActiveProjectAsync();
         if (navigation != editorNavigationGeneration) return;
+        await StopPythonAsync();
+        if (navigation != editorNavigationGeneration) return;
         activeProject = null;
+        runtimeWorkspace++;
+        RefreshRuntimeNavigationState();
         openScriptId = null;
         ResetLoadedScript();
         PythonCode = string.Empty;
@@ -279,7 +298,11 @@ public partial class MainViewModel : ViewModelBase
         var navigation = ++editorNavigationGeneration;
         await SaveActiveProjectAsync();
         if (navigation != editorNavigationGeneration) return;
+        await StopPythonAsync();
+        if (navigation != editorNavigationGeneration) return;
         activeProject = project;
+        runtimeWorkspace++;
+        RefreshRuntimeNavigationState();
         openScriptId = null;
         ResetLoadedScript();
         ClearProjectError();
@@ -322,6 +345,7 @@ public partial class MainViewModel : ViewModelBase
 
     private void RefreshProjectResources()
     {
+        RefreshRuntimeNavigationState();
         foreach (var category in ScriptCategories)
         {
             category.Scripts.Clear();
@@ -708,7 +732,8 @@ public partial class MainViewModel : ViewModelBase
                 SidebarDisplayModeIndex,
                 SelectedThemeIndex,
                 includeLayout ? TopPanelRatio : savedSettings.TopPanelRatio,
-                includeLayout ? AuxiliaryWidth : savedSettings.AuxiliaryWidth));
+                includeLayout ? AuxiliaryWidth : savedSettings.AuxiliaryWidth,
+                PythonExecutable));
         }
         catch (IOException)
         {
@@ -756,9 +781,4 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
-    private void Run()
-    {
-        EditorState = "等待运行时接入";
-    }
 }

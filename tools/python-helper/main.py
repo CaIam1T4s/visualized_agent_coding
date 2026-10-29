@@ -20,7 +20,7 @@ from protocol import (
     ok,
 )
 
-CAPABILITIES = ['parse', 'findReferences', 'findModuleDependencies', 'planModuleRename', 'inspectObjectScript']
+CAPABILITIES = ['parse', 'findReferences', 'findModuleDependencies', 'planModuleRename', 'inspectObjectScript', 'imports']
 
 
 def handle_hello(params, state):
@@ -47,6 +47,10 @@ def handle_parse(params, state):
     if not isinstance(uri, str) or (type(version) is not int or version < 0) or not isinstance(source, str):
         raise ProtocolError(ERR_INVALID_PARAMS, 'expected uri:string, version:int, source:string')
     result = ast_service.parse(source)
+    if params.get('importContext') is not None:
+        from imports_service import inspect_imports
+        inspected = inspect_imports(dict(uri=uri, version=version, source=source, context=params['importContext']))
+        result['diagnostics'].extend(inspected['diagnostics'])
     return {
         'uri': uri,
         'version': version,
@@ -68,6 +72,11 @@ def dispatch(message, state):
             return ok(message_id, handle_hello(params, state)), False
         if method == 'python.parse':
             return ok(message_id, handle_parse(params, state)), False
+        if method == 'python.imports':
+            if state['negotiated'] is None:
+                raise ProtocolError(ERR_NOT_HELLO, 'helper.hello must be called first')
+            from imports_service import inspect_imports
+            return ok(message_id, inspect_imports(params)), False
         if method == 'python.findReferences':
             if state['negotiated'] is None:
                 raise ProtocolError(ERR_NOT_HELLO, 'helper.hello must be called first')

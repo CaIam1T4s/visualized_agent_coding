@@ -33,18 +33,14 @@ public partial class MainViewModel
         SetEditorProjection(restored);
         PythonCode = restored.FullSource;
     }
-    public IEnumerable<PythonDiagnostic> EditorDiagnostics => PythonDiagnostics.Select(d =>
-    {
-        if (editorProjection is null) return d;
-        return editorProjection.TryToViewPosition(d.Line, d.Column, out var line, out var column)
-            ? d with { Line = line, Column = column }
-            : d with { Line = 0, Message = "系统代码：" + d.Message };
-    }).ToArray();
+    public IEnumerable<PythonDiagnostic> EditorDiagnostics => ObjectScriptDiagnostics.Present(PythonDiagnostics, CurrentEditorProjection);
 
     public void SetEditorProjection(IEditorProjection? projection)
     {
         editorProjection = projection;
-        OnPropertyChanged(nameof(EditorDiagnostics));
+        editorUserProjection = null;
+        NotifyEditorDiagnosticsChanged();
+        if (projection is not null && projection.FullSource == PythonCode) SchedulePythonAnalysis();
     }
     /// <summary>Inspect the opened snapshot, never reinterpret a partially edited user region.</summary>
     public async Task<ObjectScriptDocument?> InspectEditorProtectionAsync(CancellationToken token)

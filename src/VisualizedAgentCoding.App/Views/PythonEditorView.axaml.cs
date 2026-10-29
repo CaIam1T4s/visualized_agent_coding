@@ -27,6 +27,9 @@ public partial class PythonEditorView : UserControl
     private CancellationTokenSource? protectionCancellation;
     private long protectionGeneration;
     private IEditorProjection? projection;
+    private VisualizedAgentCoding.Application.Editor.UserScriptImportProjection? userImportProjection;
+    private VisualizedAgentCoding.Application.Editor.ISourceProjection? CurrentProjection =>
+        (VisualizedAgentCoding.Application.Editor.ISourceProjection?)userImportProjection ?? projection;
     private string? displayedFullSource;
     private string? displayedScriptId;
     private (int Line, int Column)? pendingNavigation;
@@ -34,6 +37,9 @@ public partial class PythonEditorView : UserControl
     public PythonEditorView()
     {
         InitializeComponent();
+        EditorTextBox.Options.ConvertTabsToSpaces = true;
+        EditorTextBox.Options.IndentationSize = PythonWrapperIndentation.EditorIndentationSize;
+        ConfigureIndentationPaste();
         using var stream = AssetLoader.Open(new Uri("avares://VisualizedAgentCoding.App/Assets/Python-DarkPlus.xshd"));
         using var reader = XmlReader.Create(stream);
         EditorTextBox.SyntaxHighlighting = HighlightingLoader.Load(reader, HighlightingManager.Instance);
@@ -102,17 +108,30 @@ public partial class PythonEditorView : UserControl
             && projection is MultiRegionProjection };
         initialize.Click += (_, _) => AddInitializeWithHistory();
         add.Items.Add(initialize);
-        add.Items.Add(new MenuItem { Header = "导入脚本（待实现）", IsEnabled = false });
+        var canManageImports = !EditorTextBox.IsReadOnly && (viewModel.OpenScript.Kind == ProjectScriptKind.User || projection?.Document.TemplateVersion == 3);
+        var imports = new MenuItem { Header = "导入脚本…", IsEnabled = canManageImports };
+        ToolTip.SetTip(imports, canManageImports ? "导入其他用户脚本或标准库" : "旧版角色或背景脚本需先升级模板");
+        imports.Click += OnManageImportsClick;
+        add.Items.Add(imports);
         editorMenu.Items.Add(add);
         editorMenu.Items.Add(new Separator());
         editorMenu.Items.Add(references);
         editorMenu.Items.Add(new MenuItem { Header = "重新加载磁盘文件…", Command = viewModel.RequestReloadScriptCommand });
         var upgrade = new MenuItem { Header = "升级脚本模板…", IsEnabled = !EditorTextBox.IsReadOnly
-            && projection is ObjectScriptProjection { Document.TemplateVersion: 1 } };
+            && projection is { Document.TemplateVersion: 1 or 2 } };
         ToolTip.SetTip(upgrade, projection?.Document.TemplateVersion == ObjectScriptTemplateVersion.Current
-            ? "当前脚本已是最新版" : "仅支持区域结构已确认的 v1 角色和背景脚本");
+            ? "当前脚本已是最新版" : "支持区域结构已确认的旧版角色和背景脚本");
         upgrade.Click += OnUpgradeScriptClick;
         editorMenu.Items.Add(upgrade);
+        var manageImports = new MenuItem { Header = "管理导入…", IsEnabled = canManageImports };
+        manageImports.Click += OnManageImportsClick;
+        editorMenu.Items.Add(manageImports);
+        var convertImport = new MenuItem { Header = "将当前行导入转为受管理导入", IsEnabled = canManageImports };
+        convertImport.Click += OnConvertImportClick;
+        editorMenu.Items.Add(convertImport);
+        var indentation = new MenuItem { Header = "转换缩进为空格", IsEnabled = !EditorTextBox.IsReadOnly };
+        indentation.Click += (_, _) => NormalizeIndentation();
+        editorMenu.Items.Add(indentation);
         EditorTextBox.Focus();
         editorMenu.ShowAt(anchor ?? EditorTextBox, atPointer);
     }
@@ -133,6 +152,7 @@ public partial class PythonEditorView : UserControl
         {
             viewModel.PropertyChanged -= OnViewModelPropertyChanged;
             viewModel.DeleteReferenceOpened -= NavigateDeleteReference;
+            viewModel.RuntimeLocationOpened -= NavigateDeleteReference;
             viewModel.EditorHistoryResetRequested -= ResetEditorHistory;
         }
 
@@ -143,6 +163,7 @@ public partial class PythonEditorView : UserControl
 
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
         viewModel.DeleteReferenceOpened += NavigateDeleteReference;
+        viewModel.RuntimeLocationOpened += NavigateDeleteReference;
         viewModel.EditorHistoryResetRequested += ResetEditorHistory;
         UpdateEditorText(viewModel.PythonCode);
     }
@@ -158,11 +179,13 @@ public partial class PythonEditorView : UserControl
     {
         if (!updatingFromViewModel && viewModel is not null)
         {
-            if (projection is MultiRegionProjection multi
+            if (userImportProjection is { } user && EditorTextBox.TextArea.ReadOnlySectionProvider is MultiRegionReadOnlyProvider userProvider)
+                user.UpdateRegions(userProvider.ReadBodies());
+            else if (projection is MultiRegionProjection multi
                 && EditorTextBox.TextArea.ReadOnlySectionProvider is MultiRegionReadOnlyProvider provider)
                 multi.UpdateRegions(provider.ReadBodies());
             else if (projection is ObjectScriptProjection single) single.Update(EditorTextBox.Text);
-            displayedFullSource = projection?.FullSource ?? EditorTextBox.Text;
+            displayedFullSource = CurrentProjection?.FullSource ?? EditorTextBox.Text;
             viewModel.PythonCode = displayedFullSource;
         }
     }
@@ -171,6 +194,7 @@ public partial class PythonEditorView : UserControl
     {
         if (sender is not Button { Tag: PythonDiagnostic diagnostic } || EditorTextBox.Document is not { } document)
             return;
+        if (diagnostic.Navigation == "imports") { OnManageImportsClick(this, e); return; }
         if (diagnostic.Line < 1) { EditorTextBox.TextArea.Focus(); SetProtectionStatus(diagnostic.Message); return; }
         var selection = DiagnosticSelection.Locate(document, diagnostic);
         EditorTextBox.Select(selection.Offset, selection.Length);
@@ -183,7 +207,7 @@ public partial class PythonEditorView : UserControl
     {
         if (viewModel is not null)
         {
-            var position = projection?.ToFullPosition(EditorTextBox.TextArea.Caret.Line, EditorTextBox.TextArea.Caret.Column)
+            var position = CurrentProjection?.ToFullPosition(EditorTextBox.TextArea.Caret.Line, EditorTextBox.TextArea.Caret.Column)
                 ?? (EditorTextBox.TextArea.Caret.Line, EditorTextBox.TextArea.Caret.Column);
             if (position.Item1 < 1) { SetProtectionStatus("请选择区域内的用户代码查询引用"); return; }
             await viewModel.FindReferencesAtAsync(position.Item1, position.Item2);
@@ -210,7 +234,7 @@ public partial class PythonEditorView : UserControl
         pendingNavigation = null;
         var targetLine = target.Line;
         var targetColumn = target.Column;
-        if (projection is not null && !projection.TryToViewPosition(target.Line, target.Column, out targetLine, out targetColumn))
+        if (CurrentProjection is { } currentProjection && !currentProjection.TryToViewPosition(target.Line, target.Column, out targetLine, out targetColumn))
         {
             SetProtectionStatus("该位置位于系统代码中，未在用户视图中显示");
             return;
@@ -264,6 +288,7 @@ public partial class PythonEditorView : UserControl
         {
             if (current?.OpenScript is null)
             {
+                userImportProjection = null;
                 projection = null;
                 current?.SetEditorProjection(null);
                 displayedFullSource = source;
@@ -275,17 +300,29 @@ public partial class PythonEditorView : UserControl
             {
                 projection = null;
                 current.SetEditorProjection(null);
+                VisualizedAgentCoding.Application.Editor.ScriptImportsResult? imports = null;
+                try { imports = await current.InspectScriptImportsAsync(token: cancellation.Token); }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception) when (source is not null && !source.Contains("# vac:imports-begin", StringComparison.Ordinal)
+                    && !source.Contains("# vac:imports-end", StringComparison.Ordinal))
+                { /* Plain user editing remains available without a Python helper. */ }
+                if (generation != protectionGeneration || current != viewModel || source != current.PythonCode) return;
+                if (imports?.Problem is not null) { displayedFullSource = source; SetViewText(source!); SetProtectionStatus(imports.Problem); return; }
+                userImportProjection = new(new(current.OpenScript.Id, imports?.Uri ?? current.CurrentScriptUri!, source!, imports?.Block));
+                current.SetUserImportProjection(userImportProjection);
                 displayedFullSource = source;
-                SetViewText(source!);
+                SetViewText(userImportProjection.ViewSource);
                 EditorTextBox.IsReadOnly = false;
-                SetProtectionStatus("用户脚本：全文可编辑");
+                EditorTextBox.TextArea.ReadOnlySectionProvider = new MultiRegionReadOnlyProvider(EditorTextBox.Document, userImportProjection.EditableRegions);
+                SetProtectionStatus(imports is null ? "用户脚本可编辑；导入分析暂不可用" : "用户脚本：用户代码可编辑");
                 ApplyPendingNavigation();
                 return;
             }
             SetProtectionStatus("正在识别用户区域，编辑暂时锁定");
             var document = await current.InspectEditorProtectionAsync(cancellation.Token);
             if (generation != protectionGeneration || current != viewModel || source != current.PythonCode) return;
-            if (document is { TemplateVersion: 2, HasRegions: true } && document.FullSource == source)
+            userImportProjection = null;
+            if (document is { TemplateVersion: 2 or 3, HasRegions: true } && document.FullSource == source)
             {
                 var multi = new MultiRegionProjection(document);
                 projection = multi;

@@ -16,6 +16,12 @@ def create_project(root):
     jedi.settings.auto_import_modules = []
     jedi.settings.allow_unsafe_interpreter_executions = False
     search_paths = [root, root / 'scripts', root / 'scripts/user', root / 'scripts/objects', root / 'scripts/backdrops']
+    # Product interface fallback; the project's own compatibility modules retain priority.
+    product = Path(__file__).resolve().parent.parent / 'python-runtime'
+    if not product.is_dir():
+        product = Path(__file__).resolve().parents[2] / 'src' / 'VisualizedAgentCoding.Python.Runtime'
+    if product.is_dir():
+        search_paths.append(product)
     return jedi.Project(root, sys_path=[str(p) for p in search_paths],
                            smart_sys_path=False, load_unsafe_extensions=False)
 

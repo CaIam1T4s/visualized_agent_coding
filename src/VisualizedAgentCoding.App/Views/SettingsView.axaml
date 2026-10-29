@@ -46,7 +46,12 @@
                         BorderThickness="0,0,1,0"
                         Padding="16,20">
                     <StackPanel Spacing="6">
-                        <Button Classes="settings-category-button selected"
+                        <Button Classes="settings-category-button" Classes.selected="{Binding IsGeneralSettings}"
+                                Click="OnGeneralClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                            <TextBlock Text="通用" />
+                        </Button>
+                        <Button Classes="settings-category-button" Classes.selected="{Binding IsAppearanceSettings}"
+                                Click="OnAppearanceClick"
                                 HorizontalAlignment="Stretch"
                                 HorizontalContentAlignment="Left">
                             <TextBlock Text="外观" />
@@ -54,7 +59,7 @@
                     </StackPanel>
                 </Border>
 
-                <ScrollViewer Grid.Column="1" Padding="28,24">
+                <ScrollViewer Grid.Column="1" Padding="28,24" IsVisible="{Binding IsAppearanceSettings}">
                     <StackPanel Spacing="20" MaxWidth="620" HorizontalAlignment="Left">
                         <TextBlock Text="外观"
                                    FontSize="18"
@@ -102,6 +107,26 @@
                                     <ComboBoxItem Content="深色模式" />
                                 </ComboBox>
                             </Grid>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+                <ScrollViewer Grid.Column="1" Padding="28,24" IsVisible="{Binding IsGeneralSettings}">
+                    <StackPanel Spacing="18" MaxWidth="620" HorizontalAlignment="Stretch">
+                        <TextBlock Text="通用" FontSize="18" FontWeight="SemiBold" />
+                        <Border Background="{DynamicResource LayerFillColorBrush}" CornerRadius="4" Padding="16">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="Python 可执行文件" FontWeight="SemiBold" />
+                                <TextBlock Text="用于运行项目和 Python 静态分析。选择 python.exe；留空可自动检测。" TextWrapping="Wrap" />
+                                <TextBox Text="{Binding PythonExecutableDraft}" PlaceholderText="选择 Python 可执行文件路径"
+                                         IsEnabled="{Binding CanChangePythonEnvironment}" AutomationProperties.Name="Python 可执行文件" />
+                                <StackPanel Orientation="Horizontal" Spacing="8" IsEnabled="{Binding CanChangePythonEnvironment}">
+                                    <Button Content="浏览…" Click="OnBrowsePythonClick" />
+                                    <Button Content="自动检测" Command="{Binding DetectPythonEnvironmentCommand}" />
+                                    <Button Content="验证并应用" Command="{Binding ValidatePythonEnvironmentCommand}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding PythonEnvironmentStatus}" TextWrapping="Wrap" />
+                                <TextBlock Text="运行期间不能更换解释器。配置保存在本机用户设置中。" FontSize="12" TextWrapping="Wrap" />
+                            </StackPanel>
                         </Border>
                     </StackPanel>
                 </ScrollViewer>

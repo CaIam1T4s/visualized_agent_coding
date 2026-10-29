@@ -3,7 +3,7 @@ namespace VisualizedAgentCoding.Application.Editor.ObjectScripts;
 /// <summary>Cheap header hint for explorer decoration. Migration still requires full lexical validation.</summary>
 public static class ObjectScriptTemplateVersion
 {
-    public const int Current = 2;
+    public const int Current = 3;
     public static int? ReadHeader(string source)
     {
         foreach (var raw in source.TrimStart('\uFEFF').Split('\n'))

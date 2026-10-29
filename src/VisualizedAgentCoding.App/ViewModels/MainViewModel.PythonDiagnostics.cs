@@ -15,8 +15,8 @@ public partial class MainViewModel : IAsyncDisposable
     private long pythonDocumentVersion;
     public Task PythonAnalysisTask { get; private set; } = Task.CompletedTask;
     public ObservableCollection<PythonDiagnostic> PythonDiagnostics { get; } = [];
-    public bool HasPythonDiagnostics => PythonDiagnostics.Count > 0;
-    public int PythonErrorCount => PythonDiagnostics.Count(d => d.Severity == "error");
+    public bool HasPythonDiagnostics => EditorDiagnostics.Any();
+    public int PythonErrorCount => EditorDiagnostics.Count(d => d.Severity == "error");
     public string PythonErrorListTitle => $"当前程序共有 {PythonErrorCount} 个错误";
     public string PythonErrorSummary => PythonAnalysisStatus switch
     {
@@ -41,11 +41,7 @@ public partial class MainViewModel : IAsyncDisposable
             PythonDiagnostics.Clear();
             foreach (var diagnostic in update.Result?.Diagnostics ?? []) PythonDiagnostics.Add(diagnostic);
             PythonAnalysisStatus = update.Status;
-            OnPropertyChanged(nameof(HasPythonDiagnostics));
-            OnPropertyChanged(nameof(PythonErrorCount));
-            OnPropertyChanged(nameof(PythonErrorListTitle));
-            OnPropertyChanged(nameof(PythonErrorSummary));
-            OnPropertyChanged(nameof(EditorDiagnostics));
+            NotifyEditorDiagnosticsChanged();
         }, dispatch: action =>
         {
             if (Dispatcher.UIThread.CheckAccess()) action();
@@ -53,8 +49,22 @@ public partial class MainViewModel : IAsyncDisposable
         });
     }
 
+    private void NotifyEditorDiagnosticsChanged()
+    {
+        if (PythonAnalysisStatus == "语法正常" || PythonAnalysisStatus.EndsWith(" 个语法错误", StringComparison.Ordinal)
+            || PythonAnalysisStatus.StartsWith("检查完成：", StringComparison.Ordinal))
+            PythonAnalysisStatus = PythonErrorCount == 0 ? "语法正常" : EditorDiagnostics.Any(d => d.Category == "import-rule")
+                ? $"检查完成：{PythonErrorCount} 个错误" : $"{PythonErrorCount} 个语法错误";
+        OnPropertyChanged(nameof(HasPythonDiagnostics));
+        OnPropertyChanged(nameof(PythonErrorCount));
+        OnPropertyChanged(nameof(PythonErrorListTitle));
+        OnPropertyChanged(nameof(PythonErrorSummary));
+        OnPropertyChanged(nameof(EditorDiagnostics));
+    }
+
     partial void OnPythonCodeChanged(string value)
     {
+        RefreshRuntimeNavigationState();
         UpdateOpenTemplateDecoration();
         SchedulePythonAnalysis();
     }
@@ -66,12 +76,16 @@ public partial class MainViewModel : IAsyncDisposable
         if (pythonDiagnostics is null) return;
         PythonParseRequest? document = null;
         if (activeProject is not null && OpenScript is { } script)
-            document = new PythonParseRequest(new Uri(activeProject.ToAbsolutePath(script.Path)).AbsoluteUri, version, PythonCode);
+            document = new PythonParseRequest(new Uri(activeProject.ToAbsolutePath(script.Path)).AbsoluteUri, version, PythonCode, VisualizedAgentCoding.Application.Editor.ScriptImportService.Context(activeProject, script, editorProjection?.Document));
         PythonAnalysisTask = pythonDiagnostics.UpdateAsync(document);
     }
 
     public async ValueTask DisposeAsync()
     {
+        await StopPythonAsync();
+        await runtime.DisposeAsync();
+        environmentLifetime.Cancel();
+        await environmentTask;
         renameCancellation?.Cancel();
         deleteAnalysisCancellation?.Cancel();
         ResetReferenceQuery();

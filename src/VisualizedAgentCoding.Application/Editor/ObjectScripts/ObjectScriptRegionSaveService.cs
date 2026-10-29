@@ -10,7 +10,7 @@ public static class ObjectScriptRegionSaveService
         long version, IReadOnlyDictionary<string, string> replacements)
     {
         var script = project.FindScript(document.ScriptId) ?? throw new ProjectOperationException("脚本未被项目索引。");
-        if (script.Kind == ProjectScriptKind.User || document.TemplateVersion != 2 || !document.HasRegions
+        if (script.Kind == ProjectScriptKind.User || document.TemplateVersion is not (2 or 3) || !document.HasRegions
             || document.Uri != new Uri(project.ToAbsolutePath(script.Path)).AbsoluteUri)
             throw new ProjectOperationException("缺少当前脚本已确认的 v2 多区域文档。");
         if (version < document.Version) throw new ProjectOperationException("编辑版本已过期。");

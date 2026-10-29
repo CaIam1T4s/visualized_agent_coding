@@ -1,11 +1,12 @@
 namespace VisualizedAgentCoding.Application.Python;
 
 public sealed record PythonHelperInfo(int ProtocolVersion, string PythonVersion, string[] Capabilities);
-public sealed record PythonParseRequest(string Uri, long Version, string Source);
+public sealed record PythonParseRequest(string Uri, long Version, string Source, VisualizedAgentCoding.Application.Editor.ScriptImportContext? ImportContext = null);
 public sealed record PythonSourceRange(int Line, int Column, int EndLine, int EndColumn);
-public sealed record PythonDiagnostic(string Severity, string Message, int Line, int Column)
+public sealed record PythonDiagnostic(string Severity, string Message, int Line, int Column, string Parser = "", int? RelatedLine = null, string Category = "syntax", string Navigation = "")
 {
-    public string DisplayText => Line < 1 ? Message : $"第 {Line} 行，第 {Column} 列：{Message}";
+    public string DisplayText => (Line < 1 ? "" : $"第 {Line} 行，第 {Column} 列：")
+        + (Category == "import-rule" ? "导入规则：" : "") + Message;
 }
 public sealed record PythonSymbol(string Name, PythonSourceRange Range);
 public sealed record PythonImport(string Module, string[] Names, PythonSourceRange Range);

@@ -188,40 +188,17 @@ public class ProjectWorkspaceTests
     }
 
     [Fact]
-    public void ResourceExplorerNeverListsTheEntryScript()
-    {
-        var root = NewTempDirectory();
-        try
-        {
-            CreateService().Create(root, "Demo");
-            File.WriteAllText(Path.Combine(root, "scripts", "user", "helpers.py"), "pass");
-            var viewModel = TestMainViewModelFactory.Create(new TestSettingsStore());
-
-            viewModel.OpenProject(root);
-
-            Assert.DoesNotContain(viewModel.UserScripts, item => item.RelativePath == "scripts/main.py");
-            Assert.DoesNotContain(viewModel.ObjectScripts, item => item.RelativePath == "scripts/main.py");
-            Assert.DoesNotContain(viewModel.BackdropScripts, item => item.RelativePath == "scripts/main.py");
-            Assert.Equal("helpers", Assert.Single(viewModel.UserScripts).DisplayName);
-        }
-        finally
-        {
-            DeleteDirectory(root);
-        }
-    }
-
-    [Fact]
-    public void RejectedProjectKeepsTheCurrentlyOpenProject()
+    public async Task RejectedProjectKeepsTheCurrentlyOpenProject()
     {
         var validRoot = NewTempDirectory();
         var invalidRoot = NewTempDirectory();
         try
         {
-            var viewModel = TestMainViewModelFactory.Create(new TestSettingsStore());
-            viewModel.CreateProject(validRoot, "Valid");
+            await using var viewModel = TestMainViewModelFactory.Create(new TestSettingsStore());
+            await viewModel.CreateProject(validRoot, "Valid");
             viewModel.PythonCode = "print('valid')";
 
-            viewModel.OpenRecentProjectCommand.Execute(invalidRoot);
+            await viewModel.OpenRecentProjectCommand.ExecuteAsync(invalidRoot);
 
             Assert.True(viewModel.HasProjectError);
             Assert.Equal("Valid", viewModel.ProjectName);

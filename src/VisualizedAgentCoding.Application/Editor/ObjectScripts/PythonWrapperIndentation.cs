@@ -5,6 +5,36 @@ namespace VisualizedAgentCoding.Application.Editor.ObjectScripts;
 /// <summary>Removes wrapper whitespace only outside literals; never formats Python statements.</summary>
 public sealed class PythonWrapperIndentation
 {
+    public sealed record IndentationEdit(int Offset, string Replacement);
+
+    public const int EditorIndentationSize = 4;
+
+    /// <summary>Expand code-leading tabs using the editor's four-column tab stops.</summary>
+    public static IEnumerable<IndentationEdit> FindIndentationTabs(string source, int wrapperColumns = 0)
+    {
+        var lexer = new LiteralState();
+        var offset = 0;
+        foreach (var line in Lines(source))
+        {
+            if (!lexer.InLiteral)
+            {
+                var column = wrapperColumns;
+                for (var i = 0; i < line.Length && line[i] is ' ' or '\t'; i++)
+                {
+                    if (line[i] == '\t')
+                    {
+                        var width = EditorIndentationSize - column % EditorIndentationSize;
+                        yield return new(offset + i, new string(' ', width));
+                        column += width;
+                    }
+                    else column++;
+                }
+            }
+            lexer.Scan(line);
+            offset += line.Length;
+        }
+    }
+
     public sealed record Line(string Raw, string Visible, bool LiteralContinuation);
     private readonly int indentation;
     private readonly Line[] original;

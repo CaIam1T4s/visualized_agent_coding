@@ -34,10 +34,12 @@ public sealed record AppSettings(
     int SidebarDisplayModeIndex = 0,
     int ThemeIndex = 0,
     double TopPanelRatio = LayoutSettingValues.DefaultTopPanelRatio,
-    double AuxiliaryWidth = LayoutSettingValues.DefaultAuxiliaryWidth);
+    double AuxiliaryWidth = LayoutSettingValues.DefaultAuxiliaryWidth,
+    string PythonExecutable = "");
 
 public static class SettingsKeys
 {
+    public const string PythonExecutable = "General.PythonExecutable";
     public const string SidebarDisplayMode = "Appearance.SidebarDisplayMode";
     public const string Theme = "Appearance.Theme";
     public const string LegacyRightPanelRatio = "Layout.RightPanelRatio";
@@ -98,7 +100,9 @@ public sealed class JsonSettingsStore : ISettingsStore
                 LayoutSettingValues.ClampTopPanelRatio(
                     ReadDouble(values, SettingsKeys.TopPanelRatio, LayoutSettingValues.DefaultTopPanelRatio)),
                 LayoutSettingValues.ClampAuxiliaryWidth(
-                    ReadDouble(values, SettingsKeys.AuxiliaryWidth, LayoutSettingValues.DefaultAuxiliaryWidth)));
+                    ReadDouble(values, SettingsKeys.AuxiliaryWidth, LayoutSettingValues.DefaultAuxiliaryWidth)),
+                values.TryGetValue(SettingsKeys.PythonExecutable, out var python) && python.ValueKind == JsonValueKind.String
+                    ? python.GetString() ?? "" : "");
         }
         catch (JsonException)
         {
@@ -118,6 +122,7 @@ public sealed class JsonSettingsStore : ISettingsStore
     {
         var values = new Dictionary<string, object>
         {
+            [SettingsKeys.PythonExecutable] = settings.PythonExecutable,
             [SettingsKeys.SidebarDisplayMode] = SidebarDisplayModeName(settings.SidebarDisplayModeIndex),
             [SettingsKeys.Theme] = ThemeName(settings.ThemeIndex),
             [SettingsKeys.TopPanelRatio] = LayoutSettingValues.ClampTopPanelRatio(settings.TopPanelRatio),

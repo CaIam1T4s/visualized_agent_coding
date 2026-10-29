@@ -18,12 +18,12 @@ public sealed class ObjectScriptSaveService(ObjectScriptDocumentService document
             || document.Uri != new Uri(project.ToAbsolutePath(script.Path)).AbsoluteUri)
             document = await documents.InspectAsync(project, scriptId, version, originalSource, token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
-        if (document.TemplateVersion == 2 && document.HasRegions)
+        if (document.TemplateVersion is 2 or 3 && document.HasRegions)
         {
             if (editedSource == originalSource)
                 return ObjectScriptRegionSaveService.Prepare(project, document, version, new Dictionary<string, string>());
             var edited = await documents.InspectAsync(project, scriptId, version, editedSource, token).ConfigureAwait(false);
-            if (!edited.HasRegions || edited.TemplateVersion != 2 || edited.Regions!.Length != document.Regions!.Length
+            if (!edited.HasRegions || edited.TemplateVersion != document.TemplateVersion || edited.Regions!.Length != document.Regions!.Length
                 || edited.Regions.Where((r, i) => (r with { Span = document.Regions[i].Span }) != document.Regions[i]).Any())
                 throw new ProjectOperationException("多区域身份或系统结构已改变，未保存。");
             var replacements = edited.Regions.ToDictionary(r => r.Id,

@@ -1,0 +1,59 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:happy_agent_coding.ViewModels"
+             xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+             x:Class="happy_agent_coding.Views.TerminalView" x:DataType="vm:MainViewModel">
+    <Grid RowDefinitions="Auto,*,Auto,Auto" RowSpacing="6">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+            <TextBlock Text="{Binding RuntimeStatus}" ToolTip.Tip="{Binding RuntimeStatus}"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="复制输出" Click="OnCopyClick" />
+            <Button Grid.Column="2" Content="清空" Command="{Binding ClearTerminalCommand}" />
+        </Grid>
+        <edit:TextEditor x:Name="OutputEditor" Grid.Row="1" IsReadOnly="True" ShowLineNumbers="False"
+                         FontFamily="Cascadia Mono,Consolas,monospace" FontSize="12" WordWrap="True"
+                         Background="{DynamicResource LayerFillColorDefaultBrush}"
+                         Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+        <ScrollViewer Grid.Row="2" MaxHeight="220" IsVisible="{Binding HasRuntimeError}">
+          <Border Padding="10" CornerRadius="6" BorderThickness="1"
+                  BorderBrush="{DynamicResource SystemFillColorCriticalBrush}" Background="{DynamicResource LayerFillColorBrush}">
+            <StackPanel Spacing="6">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <TextBlock Text="{Binding RuntimeErrorSummary}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                <Button Grid.Column="1" Content="复制错误" Click="OnCopyErrorClick" />
+              </Grid>
+              <TextBlock Text="{Binding RuntimeErrorExplanation}" TextWrapping="Wrap" />
+              <ListBox ItemsSource="{Binding RuntimeLocations}" SelectedItem="{Binding SelectedRuntimeLocation}" MaxHeight="110">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RuntimeLocationItem">
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                        <StackPanel Spacing="2">
+                          <TextBlock Text="{Binding DisplayText}" TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding Diagnostic}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="定位" Tag="{Binding}" Click="OnLocationClick" IsEnabled="{Binding CanNavigate}" />
+                      </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <TextBlock Text="{Binding SelectedRuntimeLocation.Code}" IsVisible="{Binding SelectedRuntimeLocation.HasCode}"
+                         FontFamily="Cascadia Mono,Consolas,monospace" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding RuntimeNavigationStatus}" TextWrapping="Wrap" />
+              <Expander Header="诊断详情（完整原始调用栈）">
+                <StackPanel Spacing="6">
+                  <Button Content="复制完整诊断" Click="OnCopyDiagnosticClick" HorizontalAlignment="Right" />
+                  <TextBox Text="{Binding RuntimeDiagnosticDetails, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
+                           TextWrapping="Wrap" MaxHeight="160" FontFamily="Cascadia Mono,Consolas,monospace" FontSize="11" />
+                </StackPanel>
+              </Expander>
+            </StackPanel>
+          </Border>
+        </ScrollViewer>
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="6">
+            <TextBox x:Name="InputBox" Text="{Binding TerminalInput}" IsEnabled="{Binding CanSendTerminalInput}"
+                     PlaceholderText="运行后可输入，Enter 发送" KeyDown="OnInputKeyDown" />
+            <Button Grid.Column="1" Content="发送" Command="{Binding SendTerminalInputCommand}"
+                    IsEnabled="{Binding CanSendTerminalInput}" />
+        </Grid>
+    </Grid>
+</UserControl>

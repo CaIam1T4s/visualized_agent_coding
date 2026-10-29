@@ -8,10 +8,11 @@ END = '# vac:region-end '
 ID = re.compile(r'[a-z][a-z0-9_]{0,63}\Z')
 
 
-def inspect_v2(uri, version, source, name, module, base, directives, lines, starts):
+def inspect_v2(uri, version, source, name, module, base, directives, lines, starts, template=2):
+    import_block = None
     def result(status, regions=None, problem=None):
-        return dict(uri=uri, version=version, status=status, templateVersion=2,
-                    userRegion=None, regions=regions, problems=[problem] if problem else [])
+        return dict(uri=uri, version=version, status=status, templateVersion=template,
+                    userRegion=None, regions=regions, problems=[problem] if problem else [], imports=import_block if status == 'recognized' else None)
 
     def invalid(message):
         return result('invalidStructure', problem=message)
@@ -24,8 +25,17 @@ def inspect_v2(uri, version, source, name, module, base, directives, lines, star
             obj[key] = value
         return obj
 
-    if directives[0].string != '# vac:template-version=2' or directives[0].start != (1, 0):
+    if directives[0].string != '# vac:template-version=' + str(template) or directives[0].start != (1, 0):
         return invalid('v2 version marker must be first.')
+    if template == 3:
+        from imports_service import inspect_block, BEGIN as IMPORT_BEGIN, END as IMPORT_END
+        try:
+            import_block = inspect_block(source)
+        except (ValueError, SyntaxError, TypeError, KeyError):
+            return invalid('Managed import block is malformed.')
+        if import_block is None:
+            return invalid('v3 requires a module-level managed import block.')
+        directives = [t for t in directives if t.string not in (IMPORT_BEGIN, IMPORT_END) and not t.string.startswith('# vac:import ')]
     tokens = directives[1:]
     if len(tokens) < 4 or len(tokens) % 2:
         return invalid('Regions require paired, non-nested begin/end markers.')
@@ -76,6 +86,13 @@ def inspect_v2(uri, version, source, name, module, base, directives, lines, star
     skeleton = source
     for first, last, replacement in reversed(slices):
         skeleton = skeleton[:first] + replacement + skeleton[last:]
+    if import_block is not None:
+        first = len(source.encode('utf-16-le')[:import_block['span']['offset'] * 2].decode('utf-16-le'))
+        last = len(source.encode('utf-16-le')[:(import_block['span']['offset'] + import_block['span']['length']) * 2].decode('utf-16-le'))
+        class_row = next((i for i, text in enumerate(lines) if re.match(r'^class\s+' + re.escape(name) + r'\b', text)), None)
+        if class_row is None or last > starts[class_row]:
+            return invalid('Managed imports must precede the class definition.')
+        skeleton = skeleton[:first] + skeleton[last:]
     try:
         if ast.dump(ast.parse(skeleton), include_attributes=False) != ast.dump(ast.parse(expected), include_attributes=False):
             return invalid('System imports, class, handlers or placeholders differ from the template.')

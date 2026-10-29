@@ -11,6 +11,12 @@ public interface IProjectSession : IProjectValidityChecker
 {
     ProjectWorkspace Create(string rootPath, string? name = null);
 
+    ProjectWorkspace CreateInDirectory(string parentDirectory, string name)
+    {
+        var target = ProjectCreationTarget.Resolve(parentDirectory, name);
+        return Create(target.RootPath, target.Name);
+    }
+
     ProjectWorkspace Open(string rootPath);
 
     string LoadMainScript(ProjectWorkspace project);

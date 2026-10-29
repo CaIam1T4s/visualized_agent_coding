@@ -35,7 +35,7 @@
                                                 Width="16"
                                                 Height="16"
                                                 VerticalAlignment="Center" />
-                                <TextBlock Text="运行"
+                                <TextBlock Text="{Binding RunButtonText}"
                                            Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
                                            VerticalAlignment="Center" />
                             </StackPanel>
@@ -44,14 +44,14 @@
                                   Classes="workspace-view-selector"
                                   Width="88"
                                   HorizontalAlignment="Right"
-                                  SelectedIndex="0">
+                                  SelectedIndex="{Binding StageViewIndex}">
                             <ComboBoxItem Content="终端" />
                             <ComboBoxItem Content="舞台" />
                         </ComboBox>
                     </Grid>
                     <Panel x:Name="StagePreviewHost"
                            Grid.Row="1">
-                        <Border x:Name="StageFrame"
+                        <Border x:Name="StageFrame" IsVisible="{Binding IsStageVisible}"
                                 Background="Transparent"
                                 CornerRadius="8"
                                 MinWidth="360"
@@ -151,6 +151,7 @@
                                 </Viewbox>
                             </Panel>
                         </Border>
+                        <views:TerminalView IsVisible="{Binding IsTerminalVisible}" />
                     </Panel>
                 </Grid>
             </Border>

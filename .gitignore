@@ -9,3 +9,5 @@ __pycache__/
 
 # Generated helper dependencies and build artifacts
 /artifacts/
+PythonRuntimeTest/
+/tests/PythonRuntimeTest/

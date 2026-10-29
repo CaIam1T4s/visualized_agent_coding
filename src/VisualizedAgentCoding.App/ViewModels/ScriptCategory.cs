@@ -17,7 +17,7 @@ public sealed record ProjectScriptItem(
     int? TemplateVersion = null)
 {
     public bool IsRenaming => RenameState is not null;
-    public bool NeedsTemplateUpgrade => Kind != ProjectScriptKind.User && TemplateVersion is > 0 and < 2;
+    public bool NeedsTemplateUpgrade => Kind != ProjectScriptKind.User && TemplateVersion is > 0 and < VisualizedAgentCoding.Application.Editor.ObjectScripts.ObjectScriptTemplateVersion.Current;
     public string TemplateUpgradeHint => $"此脚本使用旧版模板（v{TemplateVersion}）。请打开脚本，在“更多”中选择“升级脚本模板…”进行升级。";
 }
 

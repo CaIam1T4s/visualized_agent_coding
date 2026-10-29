@@ -79,10 +79,10 @@ def inspect_object_script(params):
     if len(version_text) > 9:
         return result('unsupportedVersion', problem='模板版本超出支持范围。')
     template = int(version_text)
-    if template == 2:
+    if template in (2, 3):
         from object_script_v2 import inspect_v2
         module, base = BASES[kind]
-        return inspect_v2(uri, version, source, name, module, base, directives, lines, starts)
+        return inspect_v2(uri, version, source, name, module, base, directives, lines, starts, template)
     if template != 1:
         return result('unsupportedVersion', template, problem='不支持此对象脚本模板版本。')
     if len(begins) != 1 or len(ends) != 1 or len(directives) != 3:

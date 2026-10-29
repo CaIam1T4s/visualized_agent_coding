@@ -7,6 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="..\VisualizedAgentCoding.Python.Runtime\**\*.py" Exclude="**\__pycache__\**"
+             Link="python-runtime\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Folder Include="Models\" />
     <AvaloniaResource Include="Assets\**" />
     <Content Include="..\..\tools\python-helper\*.py" Exclude="..\..\tools\python-helper\test_*.py"

@@ -14,12 +14,12 @@ namespace VisualizedAgentCoding.App.Tests;
 public class ScriptCreationTests
 {
     [Fact]
-    public void CreatingAUserScriptWritesTheFileAndIndexesItWithAStableId()
+    public async Task CreatingAUserScriptWritesTheFileAndIndexesItWithAStableId()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             var category = CategoryFor(viewModel, ProjectScriptKind.User);
 
             category.StartCreateCommand.Execute(null);
@@ -47,12 +47,12 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void CreatingAnObjectOrBackdropScriptAlsoAllocatesADistinctObjectId()
+    public async Task CreatingAnObjectOrBackdropScriptAlsoAllocatesADistinctObjectId()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
 
             CreateScript(viewModel, ProjectScriptKind.Object, "hero");
             CreateScript(viewModel, ProjectScriptKind.Backdrop, "forest");
@@ -72,15 +72,15 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void CreatedScriptsSurviveReopeningTheProject()
+    public async Task CreatedScriptsSurviveReopeningTheProject()
     {
         var root = NewTempDirectory();
         try
         {
-            var creator = OpenProject(root);
+            await using var creator = await OpenProjectAsync(root);
             CreateScript(creator, ProjectScriptKind.User, "helpers");
 
-            var reopened = ReopenProject(root);
+            await using var reopened = await ReopenProjectAsync(root);
 
             var script = Assert.Single(CategoryFor(reopened, ProjectScriptKind.User).Scripts);
             Assert.Equal("helpers", script.DisplayName);
@@ -93,16 +93,16 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void OpeningAScriptLoadsItsContentsAndMarksTheRow()
+    public async Task OpeningAScriptLoadsItsContentsAndMarksTheRow()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             CreateScript(viewModel, ProjectScriptKind.User, "helpers");
             var item = Assert.Single(CategoryFor(viewModel, ProjectScriptKind.User).Scripts);
 
-            viewModel.OpenScriptFromExplorerCommand.Execute(item);
+            await viewModel.OpenScriptFromExplorerCommand.ExecuteAsync(item);
 
             Assert.Equal(File.ReadAllText(Path.Combine(root, "scripts", "user", "helpers.py")), viewModel.PythonCode);
             Assert.Equal("helpers.py", viewModel.FileName);
@@ -118,20 +118,20 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void SwitchingScriptsSavesThePreviousBuffer()
+    public async Task SwitchingScriptsSavesThePreviousBuffer()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             CreateScript(viewModel, ProjectScriptKind.User, "helpers");
             CreateScript(viewModel, ProjectScriptKind.Object, "hero");
             var helpers = Assert.Single(CategoryFor(viewModel, ProjectScriptKind.User).Scripts);
             var hero = Assert.Single(CategoryFor(viewModel, ProjectScriptKind.Object).Scripts);
 
-            viewModel.OpenScriptFromExplorerCommand.Execute(helpers);
+            await viewModel.OpenScriptFromExplorerCommand.ExecuteAsync(helpers);
             viewModel.PythonCode = "print('helpers')\n";
-            viewModel.OpenScriptFromExplorerCommand.Execute(hero);
+            await viewModel.OpenScriptFromExplorerCommand.ExecuteAsync(hero);
 
             Assert.Equal("print('helpers')\n", File.ReadAllText(Path.Combine(root, "scripts", "user", "helpers.py")));
             Assert.Contains("ElementBase", viewModel.PythonCode);
@@ -146,19 +146,19 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void SavingWritesTheOpenScriptAndLeavesTheEntryScriptAlone()
+    public async Task SavingWritesTheOpenScriptAndLeavesTheEntryScriptAlone()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             CreateScript(viewModel, ProjectScriptKind.User, "helpers");
             var originalMain = File.ReadAllText(Path.Combine(root, "scripts", "main.py"));
-            viewModel.OpenScriptFromExplorerCommand.Execute(
+            await viewModel.OpenScriptFromExplorerCommand.ExecuteAsync(
                 Assert.Single(CategoryFor(viewModel, ProjectScriptKind.User).Scripts));
             viewModel.PythonCode = "print('saved helpers')\n";
 
-            viewModel.SaveCommand.Execute(null);
+            await viewModel.SaveCommand.ExecuteAsync(null);
 
             Assert.Equal("已保存", viewModel.EditorState);
             Assert.Equal("print('saved helpers')\n", File.ReadAllText(Path.Combine(root, "scripts", "user", "helpers.py")));
@@ -171,17 +171,26 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void ClosingTheProjectClearsTheOpenScript()
+    public async Task ClosingTheProjectClearsEditorStageAndExplorerState()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             CreateScript(viewModel, ProjectScriptKind.User, "helpers");
-            viewModel.OpenScriptFromExplorerCommand.Execute(
-                Assert.Single(CategoryFor(viewModel, ProjectScriptKind.User).Scripts));
+            CreateScript(viewModel, ProjectScriptKind.Object, "hero");
+            CreateScript(viewModel, ProjectScriptKind.Backdrop, "forest");
+            await viewModel.SelectStageObjectCommand.ExecuteAsync(Assert.Single(viewModel.StageSprites));
+            viewModel.StageSprites[0].X = 40;
+            var userCategory = CategoryFor(viewModel, ProjectScriptKind.User);
+            userCategory.StartCreateCommand.Execute(null);
+            viewModel.ResourceSearchQuery = "hero";
+            Assert.NotNull(viewModel.OpenScript);
+            Assert.NotNull(viewModel.SelectedSprite);
+            Assert.True(userCategory.IsCreating);
+            Assert.True(CategoryFor(viewModel, ProjectScriptKind.Object).IsExpanded);
 
-            viewModel.CloseProject();
+            await viewModel.CloseProject();
 
             Assert.Equal(string.Empty, viewModel.PythonCode);
             Assert.Equal(string.Empty, viewModel.FileName);
@@ -190,6 +199,22 @@ public class ScriptCreationTests
             Assert.False(viewModel.ShowStageCanvas);
             Assert.True(viewModel.ShowOpenProjectPrompt);
             Assert.Equal("尚未打开项目", viewModel.EditorEmptyPromptTitle);
+            Assert.Empty(viewModel.StageSprites);
+            Assert.Empty(viewModel.StageBackdrops);
+            Assert.Null(viewModel.SelectedSprite);
+            Assert.Null(viewModel.SelectedBackdrop);
+            Assert.Null(viewModel.CurrentBackdrop);
+            Assert.False(viewModel.HasOpenProject);
+            Assert.Equal(3, viewModel.ScriptCategories.Count);
+            Assert.All(viewModel.ScriptCategories, category =>
+            {
+                Assert.False(category.CanCreate);
+                Assert.True(category.IsEmpty);
+                Assert.False(category.IsExpanded);
+                Assert.False(category.IsCreating);
+            });
+            Assert.Empty(viewModel.ResourceSearchQuery);
+            Assert.Equal("打开项目后显示脚本", viewModel.ProjectResourceStatus);
         }
         finally
         {
@@ -198,12 +223,12 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void RefusedNamesKeepTheEditorOpenAndSurfaceTheReason()
+    public async Task RefusedNamesKeepTheEditorOpenAndSurfaceTheReason()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             var category = CategoryFor(viewModel, ProjectScriptKind.User);
             CreateScript(viewModel, ProjectScriptKind.User, "helpers");
 
@@ -229,9 +254,9 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void CreatingIsUnavailableUntilAProjectIsOpen()
+    public async Task CreatingIsUnavailableUntilAProjectIsOpen()
     {
-        var viewModel = TestMainViewModelFactory.Create(new TestSettingsStore());
+        await using var viewModel = TestMainViewModelFactory.Create(new TestSettingsStore());
 
         Assert.All(viewModel.ScriptCategories, category => Assert.False(category.CanCreate));
 
@@ -242,37 +267,12 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void CategoriesFollowTheProjectIndexNotTheDisk()
+    public async Task SwitchingExplorerModeLeavesIndexedScriptsIntact()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
-            Assert.All(viewModel.ScriptCategories, category => Assert.True(category.CanCreate));
-            Assert.All(viewModel.ScriptCategories, category => Assert.True(category.IsEmpty));
-
-            CreateScript(viewModel, ProjectScriptKind.User, "helpers");
-            CreateScript(viewModel, ProjectScriptKind.Backdrop, "forest");
-
-            viewModel.ResourceSearchQuery = "forest";
-
-            Assert.Empty(CategoryFor(viewModel, ProjectScriptKind.User).Scripts);
-            Assert.Single(CategoryFor(viewModel, ProjectScriptKind.Backdrop).Scripts);
-            Assert.Equal("1 项脚本", viewModel.ProjectResourceStatus);
-        }
-        finally
-        {
-            DeleteDirectory(root);
-        }
-    }
-
-    [Fact]
-    public void SwitchingExplorerModeLeavesIndexedScriptsIntact()
-    {
-        var root = NewTempDirectory();
-        try
-        {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             CreateScript(viewModel, ProjectScriptKind.User, "helpers");
             Assert.True(viewModel.IsResourceFilterMode);
             Assert.False(viewModel.IsObjectManagerMode);
@@ -297,12 +297,12 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void ObjectAndBackdropScriptsAppearInTheObjectManager()
+    public async Task ObjectAndBackdropScriptsAppearInTheObjectManager()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             CreateScript(viewModel, ProjectScriptKind.User, "helpers");
             CreateScript(viewModel, ProjectScriptKind.Object, "hero");
             CreateScript(viewModel, ProjectScriptKind.Backdrop, "forest");
@@ -325,17 +325,17 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void SelectingAStageObjectOpensItsScriptAndShowsProperties()
+    public async Task SelectingAStageObjectOpensItsScriptAndShowsProperties()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             CreateScript(viewModel, ProjectScriptKind.Object, "hero");
             CreateScript(viewModel, ProjectScriptKind.Backdrop, "forest");
             var sprite = Assert.Single(viewModel.StageSprites);
 
-            viewModel.SelectStageObjectCommand.Execute(sprite);
+            await viewModel.SelectStageObjectCommand.ExecuteAsync(sprite);
 
             Assert.Equal("hero.py", viewModel.FileName);
             Assert.True(viewModel.IsEditorVisible);
@@ -345,7 +345,7 @@ public class ScriptCreationTests
             Assert.Equal(0, viewModel.ObjectManagerTabIndex);
             Assert.Contains("ElementBase", viewModel.PythonCode);
 
-            viewModel.SelectStageObjectCommand.Execute(Assert.Single(viewModel.StageBackdrops));
+            await viewModel.SelectStageObjectCommand.ExecuteAsync(Assert.Single(viewModel.StageBackdrops));
 
             Assert.Equal("forest.py", viewModel.FileName);
             Assert.False(Assert.Single(viewModel.StageSprites).IsSelected);
@@ -361,17 +361,17 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void OpeningAUserScriptClearsTheStageObjectSelection()
+    public async Task OpeningAUserScriptClearsTheStageObjectSelection()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             CreateScript(viewModel, ProjectScriptKind.User, "helpers");
             CreateScript(viewModel, ProjectScriptKind.Object, "hero");
-            viewModel.SelectStageObjectCommand.Execute(Assert.Single(viewModel.StageSprites));
+            await viewModel.SelectStageObjectCommand.ExecuteAsync(Assert.Single(viewModel.StageSprites));
 
-            viewModel.OpenScriptFromExplorerCommand.Execute(
+            await viewModel.OpenScriptFromExplorerCommand.ExecuteAsync(
                 Assert.Single(CategoryFor(viewModel, ProjectScriptKind.User).Scripts));
 
             Assert.False(Assert.Single(viewModel.StageSprites).IsSelected);
@@ -385,16 +385,16 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void AddingASpriteFromTheObjectManagerCreatesAndSelectsIt()
+    public async Task AddingASpriteFromTheObjectManagerCreatesAndSelectsIt()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
 
-            viewModel.AddSpriteCommand.Execute(null);
-            viewModel.AddSpriteCommand.Execute(null);
-            viewModel.AddBackdropCommand.Execute(null);
+            await viewModel.AddSpriteCommand.ExecuteAsync(null);
+            await viewModel.AddSpriteCommand.ExecuteAsync(null);
+            await viewModel.AddBackdropCommand.ExecuteAsync(null);
 
             Assert.Equal(2, viewModel.StageSprites.Count);
             Assert.Single(viewModel.StageBackdrops);
@@ -414,38 +414,12 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void ClosingTheProjectClearsStageObjects()
+    public async Task StageSpritesExposeCanvasGeometryForThePreview()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
-            CreateScript(viewModel, ProjectScriptKind.Object, "hero");
-            viewModel.SelectStageObjectCommand.Execute(Assert.Single(viewModel.StageSprites));
-            viewModel.StageSprites[0].X = 40;
-
-            viewModel.CloseProject();
-
-            Assert.Empty(viewModel.StageSprites);
-            Assert.Empty(viewModel.StageBackdrops);
-            Assert.Null(viewModel.SelectedSprite);
-            Assert.Null(viewModel.SelectedBackdrop);
-            Assert.Null(viewModel.CurrentBackdrop);
-            Assert.False(viewModel.IsEditorVisible);
-        }
-        finally
-        {
-            DeleteDirectory(root);
-        }
-    }
-
-    [Fact]
-    public void StageSpritesExposeCanvasGeometryForThePreview()
-    {
-        var root = NewTempDirectory();
-        try
-        {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             CreateScript(viewModel, ProjectScriptKind.Object, "hero");
             var sprite = Assert.Single(viewModel.StageSprites);
 
@@ -478,18 +452,18 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void CurrentBackdropFollowsSelectionThenFallsBackToTheFirstItem()
+    public async Task CurrentBackdropFollowsSelectionThenFallsBackToTheFirstItem()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             CreateScript(viewModel, ProjectScriptKind.Backdrop, "forest");
             CreateScript(viewModel, ProjectScriptKind.Backdrop, "night");
 
             Assert.Same(viewModel.StageBackdrops[0], viewModel.CurrentBackdrop);
 
-            viewModel.SelectStageObjectCommand.Execute(viewModel.StageBackdrops[1]);
+            await viewModel.SelectStageObjectCommand.ExecuteAsync(viewModel.StageBackdrops[1]);
             Assert.Same(viewModel.StageBackdrops[1], viewModel.CurrentBackdrop);
             Assert.Equal("night.py", viewModel.FileName);
 
@@ -499,7 +473,7 @@ public class ScriptCreationTests
             Assert.Equal("night.py", viewModel.FileName);
             Assert.True(viewModel.IsEditorVisible);
 
-            viewModel.SelectStageObjectCommand.Execute(viewModel.CurrentBackdrop);
+            await viewModel.SelectStageObjectCommand.ExecuteAsync(viewModel.CurrentBackdrop);
             Assert.Same(viewModel.StageBackdrops[0], viewModel.SelectedBackdrop);
             Assert.Equal("forest.py", viewModel.FileName);
         }
@@ -510,14 +484,14 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void ClearingStageSelectionDoesNotCloseTheOpenScript()
+    public async Task ClearingStageSelectionDoesNotCloseTheOpenScript()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             CreateScript(viewModel, ProjectScriptKind.Object, "hero");
-            viewModel.SelectStageObjectCommand.Execute(Assert.Single(viewModel.StageSprites));
+            await viewModel.SelectStageObjectCommand.ExecuteAsync(Assert.Single(viewModel.StageSprites));
 
             viewModel.ClearStageSelection();
 
@@ -533,39 +507,17 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void ClosingTheProjectDisablesCreationButKeepsTheCategories()
+    public async Task OpeningAProjectCollapsesEveryCategory()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
-            CreateScript(viewModel, ProjectScriptKind.User, "helpers");
-
-            viewModel.CloseProject();
-
-            Assert.False(viewModel.HasOpenProject);
-            Assert.All(viewModel.ScriptCategories, category => Assert.False(category.CanCreate));
-            Assert.All(viewModel.ScriptCategories, category => Assert.True(category.IsEmpty));
-            Assert.Equal("打开项目后显示脚本", viewModel.ProjectResourceStatus);
-        }
-        finally
-        {
-            DeleteDirectory(root);
-        }
-    }
-
-    [Fact]
-    public void OpeningAProjectCollapsesEveryCategory()
-    {
-        var root = NewTempDirectory();
-        try
-        {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             CreateScript(viewModel, ProjectScriptKind.User, "helpers");
             CategoryFor(viewModel, ProjectScriptKind.User).IsExpanded = true;
             CategoryFor(viewModel, ProjectScriptKind.Object).IsExpanded = true;
 
-            var reopened = ReopenProject(root);
+            await using var reopened = await ReopenProjectAsync(root);
 
             Assert.All(reopened.ScriptCategories, category => Assert.False(category.IsExpanded));
             Assert.Equal("1 项脚本", reopened.ProjectResourceStatus);
@@ -577,40 +529,12 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void ClosingTheProjectCollapsesCategoriesAndClearsTheFilter()
+    public async Task ClearingTheSearchRestoresTheExpansionTheUserChose()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
-            CreateScript(viewModel, ProjectScriptKind.User, "helpers");
-            CreateScript(viewModel, ProjectScriptKind.Object, "hero");
-            var userCategory = CategoryFor(viewModel, ProjectScriptKind.User);
-            userCategory.StartCreateCommand.Execute(null);
-            Assert.True(userCategory.IsExpanded);
-
-            viewModel.ResourceSearchQuery = "hero";
-            Assert.True(CategoryFor(viewModel, ProjectScriptKind.Object).IsExpanded);
-
-            viewModel.CloseProject();
-
-            Assert.Empty(viewModel.ResourceSearchQuery);
-            Assert.All(viewModel.ScriptCategories, category => Assert.False(category.IsExpanded));
-            Assert.All(viewModel.ScriptCategories, category => Assert.False(category.IsCreating));
-        }
-        finally
-        {
-            DeleteDirectory(root);
-        }
-    }
-
-    [Fact]
-    public void ClearingTheSearchRestoresTheExpansionTheUserChose()
-    {
-        var root = NewTempDirectory();
-        try
-        {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             CreateScript(viewModel, ProjectScriptKind.User, "helpers");
             CreateScript(viewModel, ProjectScriptKind.Object, "hero");
             var userCategory = CategoryFor(viewModel, ProjectScriptKind.User);
@@ -640,12 +564,12 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public void SearchingACategoryThatIsCollapsedOpensItSoHitsStayVisible()
+    public async Task SearchingACategoryThatIsCollapsedOpensItSoHitsStayVisible()
     {
         var root = NewTempDirectory();
         try
         {
-            var viewModel = OpenProject(root);
+            await using var viewModel = await OpenProjectAsync(root);
             CreateScript(viewModel, ProjectScriptKind.Object, "hero");
             var objectCategory = CategoryFor(viewModel, ProjectScriptKind.Object);
             objectCategory.IsExpanded = false;
@@ -661,18 +585,18 @@ public class ScriptCreationTests
         }
     }
 
-    private static MainViewModel OpenProject(string root)
+    private static async Task<MainViewModel> OpenProjectAsync(string root)
     {
         CreateService().Create(root, "Demo");
         var viewModel = TestMainViewModelFactory.Create(new TestSettingsStore());
-        viewModel.OpenProject(root);
+        await viewModel.OpenProject(root);
         return viewModel;
     }
 
-    private static MainViewModel ReopenProject(string root)
+    private static async Task<MainViewModel> ReopenProjectAsync(string root)
     {
         var viewModel = TestMainViewModelFactory.Create(new TestSettingsStore());
-        viewModel.OpenProject(root);
+        await viewModel.OpenProject(root);
         return viewModel;
     }
 

@@ -45,6 +45,7 @@ public partial class MainViewModel
             scriptRenameService = new ScriptRenameService(bridge, store);
             objectScriptDocumentService = new ObjectScriptDocumentService(bridge);
             objectScriptSaveService = new ObjectScriptSaveService(objectScriptDocumentService, store);
+            scriptImportService = new VisualizedAgentCoding.Application.Editor.ScriptImportService(bridge);
         }
     }
 
@@ -79,17 +80,23 @@ public partial class MainViewModel
             // No Save call: the overlay, including an empty buffer, replaces disk content.
             var snapshot = await Task.Run(() => referenceService.Collect(project, new[] { overlay }, token), token);
             var result = await referenceService.FindSnapshotAsync(project, uri, version, line, column, snapshot, token);
-            var projections = new Dictionary<string, IEditorProjection?>(StringComparer.OrdinalIgnoreCase);
+            var projections = new Dictionary<string, VisualizedAgentCoding.Application.Editor.ISourceProjection?>(StringComparer.OrdinalIgnoreCase);
             foreach (var targetUri in result.References.Select(r => r.Uri).Concat(result.Issues.Select(i => i.Uri)).Distinct())
             {
-                if (targetUri == uri && editorProjection is not null) { projections[targetUri] = editorProjection; continue; }
+                if (targetUri == uri && CurrentEditorProjection is not null) { projections[targetUri] = CurrentEditorProjection; continue; }
                 var entry = project.Manifest.Scripts.FirstOrDefault(s => new Uri(project.ToAbsolutePath(s.Path)).AbsoluteUri == targetUri);
                 var text = snapshot.FirstOrDefault(d => d.Uri == targetUri)?.Source;
                 if (entry is { Kind: not ProjectScriptKind.User } && text is not null && objectScriptDocumentService is not null)
                 {
                     var doc = await objectScriptDocumentService.InspectAsync(project, entry.Id, version, text, token);
-                    projections[targetUri] = doc.TemplateVersion == 2 && doc.HasRegions ? new MultiRegionProjection(doc)
+                    projections[targetUri] = doc.TemplateVersion is 2 or 3 && doc.HasRegions ? new MultiRegionProjection(doc)
                         : doc.HasUserRegion ? new ObjectScriptProjection(doc) : null;
+                }
+                else if (entry is { Kind: ProjectScriptKind.User } && text is not null && scriptImportService is not null)
+                {
+                    var imports = await scriptImportService.InspectAsync(project, entry, version, text, token: token);
+                    projections[targetUri] = imports.Problem is null ? new VisualizedAgentCoding.Application.Editor.UserScriptImportProjection(
+                        new(entry.Id, targetUri, text, imports.Block)) : null;
                 }
                 else projections[targetUri] = null;
             }

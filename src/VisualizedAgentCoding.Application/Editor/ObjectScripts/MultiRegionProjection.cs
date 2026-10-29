@@ -20,7 +20,7 @@ public sealed class MultiRegionProjection : IEditorProjection
 
     public MultiRegionProjection(ObjectScriptDocument document)
     {
-        if (document.TemplateVersion != 2 || !document.HasRegions) throw new ArgumentException("Confirmed v2 regions required.");
+        if (document.TemplateVersion is not (2 or 3) || !document.HasRegions) throw new ArgumentException("Confirmed v2 regions required.");
         BaselineDocument = Document = document;
         newline = document.FullSource.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
         codecs = document.Regions!.ToDictionary(r => r.Id, r => new PythonWrapperIndentation(
@@ -101,9 +101,11 @@ public sealed class MultiRegionProjection : IEditorProjection
         // Presentation order is independent of disk order. Existing files keep
         // their shell byte-for-byte, including files with initialize at the end.
         var orderedView = new StringBuilder();
+        if (original.Imports is { Entries.Length: > 0 } imports)
+            orderedView.Append(VisualizedAgentCoding.Application.Editor.ImportSummary.Text(imports)).Append(newline).Append(newline);
         var orderedEditable = new List<ProjectedRegion>();
         var orderedMappings = new List<Mapping>();
-        var nextLine = 1;
+        var nextLine = 1 + orderedView.ToString().Count(c => c == '\n');
         foreach (var region in original.Regions!.OrderBy(r => r.Kind == "members" ? 0 : r.Kind == "initialize" ? 1 : 2))
         {
             var block = blocks[region.Id];
@@ -129,6 +131,12 @@ public sealed class MultiRegionProjection : IEditorProjection
 
     public bool TryToViewPosition(int line, int column, out int viewLine, out int viewColumn)
     {
+        if (Document.Imports is { Entries.Length: > 0 } imports)
+        {
+            var first = 1 + FullSource[..imports.Span.Offset].Count(c => c == '\n');
+            var last = first + FullSource.Substring(imports.Span.Offset, imports.Span.Length).Count(c => c == '\n');
+            if (line >= first && line < last) { viewLine = viewColumn = 1; return true; }
+        }
         var mapping = mappings.FirstOrDefault(m => m.FullLine == line);
         viewLine = mapping?.ViewLine ?? 0;
         viewColumn = mapping is null ? 0 : Math.Clamp(column - mapping.Shift, 1, mapping.VisibleLength + 1);

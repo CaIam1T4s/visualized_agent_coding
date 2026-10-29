@@ -59,6 +59,18 @@ public sealed class PythonProcessBridge : IPythonBridge
         }, cancellationToken);
     }
 
+    public Task<VisualizedAgentCoding.Application.Editor.ScriptImportsResult> InspectImportsAsync(
+        VisualizedAgentCoding.Application.Editor.ScriptImportsRequest request, CancellationToken cancellationToken = default)
+        => ExecuteAsync(async token =>
+        {
+            await EnsureStartedAsync(token).ConfigureAwait(false);
+            if (!info!.Capabilities.Contains("imports")) throw new PythonBridgeException("Python Helper 不支持导入管理。");
+            var result = await SendAsync<VisualizedAgentCoding.Application.Editor.ScriptImportsResult>("python.imports", request, token).ConfigureAwait(false);
+            if (result.Uri != request.Uri || result.Version != request.Version)
+                throw new PythonBridgeException("导入分析返回了过期文档。");
+            return result;
+        }, cancellationToken);
+
     public Task<ObjectScriptInspectionResult> InspectObjectScriptAsync(ObjectScriptInspectionRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);

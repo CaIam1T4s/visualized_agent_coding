@@ -147,6 +147,7 @@ public partial class MainViewModel
             CancelDeleteScript();
             RefreshProjectResources();
             NotifyScriptEditorState();
+            SchedulePythonAnalysis();
             ReportResourceMessage(projectSession.HasPendingScriptCleanup(activeProject)
                 ? "已从项目移除，文件将在下次打开项目时重试清理。"
                 : $"已删除 {Path.GetFileName(script.Path)}");

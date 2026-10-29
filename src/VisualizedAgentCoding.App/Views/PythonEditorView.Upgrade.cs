@@ -15,7 +15,7 @@ public partial class PythonEditorView
     private async void OnUpgradeScriptClick(object? sender, RoutedEventArgs e)
     {
         editorMenu?.Hide();
-        if (showingUpgrade || EditorTextBox.IsReadOnly || projection is not ObjectScriptProjection original || viewModel is null
+        if (showingUpgrade || EditorTextBox.IsReadOnly || projection is not { Document.TemplateVersion: 1 or 2 } original || viewModel is null
             || TopLevel.GetTopLevel(this) is not Window owner || owner.FindControl<Border>("WindowFrame")?.Child is not Grid host) return;
         showingUpgrade = true;
         var current = viewModel;
