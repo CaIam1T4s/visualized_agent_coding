@@ -12,6 +12,8 @@ public sealed class ProjectRunService(IProjectStore store, IPythonBridge bridge)
 {
     public async Task<PythonRunRequest> PrepareAsync(ProjectWorkspace project, string executable, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
+        ManagedProjectEntry.Ensure(store, project);
         var sources = await Task.Run(() => new ProjectSourceService(store).Collect(project, [], token), token);
         var imports = new ScriptImportService(bridge);
         var documents = new ObjectScriptDocumentService(bridge);
@@ -22,8 +24,15 @@ public sealed class ProjectRunService(IProjectStore store, IPythonBridge bridge)
             token.ThrowIfCancellationRequested();
             var path = new Uri(source.Uri).LocalPath;
             var relative = Path.GetRelativePath(project.RootPath, path).Replace('\\', '/');
-            var script = project.Manifest.Scripts.FirstOrDefault(s => s.Path == relative)
-                ?? (relative == project.Manifest.MainScript ? new(project.Manifest.MainScriptId, relative, ProjectScriptKind.User) : null);
+            // Product-owned entry imports a private product API, not user-managed imports.
+            // Its entire content is checked instead of applying user-script import rules.
+            if (relative == project.Manifest.MainScript)
+            {
+                if (!ManagedProjectEntry.IsCurrent(source.Source))
+                    throw new ProjectOperationException("系统入口在运行准备期间已变化，请重新运行。");
+                continue;
+            }
+            var script = project.Manifest.Scripts.FirstOrDefault(s => s.Path == relative);
             ObjectScriptDocument? document = null;
             if (script is { Kind: not ProjectScriptKind.User })
             {

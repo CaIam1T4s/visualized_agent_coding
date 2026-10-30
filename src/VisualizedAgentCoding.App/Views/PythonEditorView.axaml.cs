@@ -243,7 +243,8 @@ public partial class PythonEditorView : UserControl
         var column = Math.Clamp(targetColumn, 1, line.Length + 1);
         EditorTextBox.CaretOffset = line.Offset + column - 1;
         EditorTextBox.ScrollTo(line.LineNumber, column);
-        EditorTextBox.Focus();
+        // Keyboard input belongs to AvaloniaEdit's TextArea, not its outer control.
+        EditorTextBox.TextArea.Focus();
     }
 
     private void UpdateEditorText(string text)

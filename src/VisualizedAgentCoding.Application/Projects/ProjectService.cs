@@ -13,9 +13,6 @@ public sealed record ProjectScriptCreation(ProjectWorkspace Project, ProjectScri
 /// <summary>Use cases for creating, opening, saving and indexing project workspaces.</summary>
 public sealed class ProjectService : IProjectValidityChecker
 {
-    private const string DefaultMainScript =
-        "def main():\n    pass\n\n\nif __name__ == \"__main__\":\n    main()\n";
-
     private readonly IProjectStore store;
 
     public ProjectService(IProjectStore store)
@@ -46,7 +43,7 @@ public sealed class ProjectService : IProjectValidityChecker
             MainScriptId = NewId("script"),
         };
 
-        store.CreateProject(root, manifest, DefaultMainScript);
+        store.CreateProject(root, manifest, ManagedProjectEntry.Source);
         return new ProjectWorkspace(root, manifest);
     }
 

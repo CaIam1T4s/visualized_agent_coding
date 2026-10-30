@@ -144,7 +144,9 @@ public sealed class PythonRuntimeTests : IDisposable
     {
         var store = new JsonProjectStore();
         var project = new ProjectService(store).Create(Path.Combine(root, "project"));
-        store.WriteMainScript(project.RootPath, "print('项目运行成功')\n");
+        var actor = new ProjectService(store).CreateScript(project, ProjectScriptKind.Object, "actor").Script;
+        store.WriteScript(project.RootPath, actor.Path, store.ReadScript(project.RootPath, actor.Path)
+            .Replace(ProjectScriptTemplates.UserPlaceholderStatement, "print('项目运行成功')"));
         await using var bridge = new PythonProcessBridge();
         await using var vm = new MainViewModel(new JsonSettingsStore(Path.Combine(root, "settings.json")),
             new InMemoryRecentProjectsStore(), new ProjectSession(), bridge);
@@ -165,7 +167,6 @@ public sealed class PythonRuntimeTests : IDisposable
     {
         var store = new JsonProjectStore();
         var project = new ProjectService(store).Create(Path.Combine(root, "project"));
-        store.WriteMainScript(project.RootPath, "input('wait')\n");
         await using var bridge = new PythonProcessBridge();
         await using var vm = new MainViewModel(new JsonSettingsStore(Path.Combine(root, "settings.json")),
             new InMemoryRecentProjectsStore(), new ProjectSession(), bridge);

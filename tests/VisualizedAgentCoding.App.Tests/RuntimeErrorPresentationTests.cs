@@ -180,15 +180,21 @@ public sealed class RuntimeErrorPresentationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task MainErrorCardNavigationIsDisabledWhenBufferChangesOrProjectIsReopened()
+    public async Task UserErrorCardNavigationIsDisabledWhenBufferChangesOrProjectIsReopened()
     {
-        store.WriteMainScript(root, "print('before')\nvalue = 1 / 0\n");
+        var user = Add(ProjectScriptKind.User, "failure");
+        store.WriteScript(root, user.Path, "value = 1 / 0\n");
+        var actor = Add(ProjectScriptKind.Object, "actor");
+        var document = await new ObjectScriptDocumentService(bridge).InspectAsync(project, actor.Id, 1, store.ReadScript(root, actor.Path));
+        var imported = await new ScriptImportService(bridge).InspectAsync(project, actor, 1, document.FullSource, document,
+            [new("scripts.user.failure", Source: "project", ScriptId: user.Id)]);
+        store.WriteScript(root, actor.Path, imported.Source);
         await using var vmBridge = new PythonProcessBridge();
         await using var vm = new MainViewModel(new JsonSettingsStore(Path.Combine(root, "settings.json")), new InMemoryRecentProjectsStore(), new ProjectSession(), vmBridge);
         await vm.OpenProject(root);
         await vm.RunCommand.ExecuteAsync(null);
         Assert.True(vm.HasRuntimeError);
-        var item = Assert.Single(vm.RuntimeLocations);
+        var item = Assert.Single(vm.RuntimeLocations, item => item.Code == "value = 1 / 0");
         Assert.True(item.CanNavigate);
         Assert.DoesNotContain(root, vm.RuntimeErrorText);
         Assert.DoesNotContain("Traceback", vm.TerminalOutput);

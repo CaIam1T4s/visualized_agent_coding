@@ -12,12 +12,31 @@ The runner compiles the captured sources, uses a snapshot importer, and reports 
 the original file names and line cache. Script edits after launch affect the next run. Assets and
 other non-source data are read from the original project working directory.
 
-Lifecycle: load object modules, construct every object, inject `_vac_context` (stable script/object
-IDs, project root, runtime API), initialize all instances, execute `scripts/main.py` once as
-`__main__`, then invoke each object's explicit start binding or `_vac_on_start` fallback.
-Initialization failure aborts before the main entry and start handlers. Restart creates fresh
+The desktop owns `scripts/main.py` (entry template version 1); it is not a user script.
+New projects receive a fixed template that calls private `vac_runtime._entry.run_project()`.
+Before runtime analysis, the application upgrades only the exact original empty `main()`
+template (LF or CRLF). Modified entries and unknown versions block execution without being
+overwritten. The captured entry is rechecked with the other sources before launch, excluded
+from user import rules, and never included among navigable user error locations. This is an
+ordinary file update with a pre-write check, not a crash-safe transaction or security sandbox.
+
+Lifecycle: execute the managed entry once as `__main__`; its runtime bridge loads object
+modules, constructs every object, injects `_vac_context` (stable script/object IDs, project root,
+runtime API), resolves start bindings, initializes all instances, then invokes each object's
+explicit start binding or `_vac_on_start` fallback. The bridge requires the active execution
+thread, permits only one invocation per session, and clears its state even on failure.
+Restart creates fresh
 instances. Start handlers currently run sequentially; no stage event loop, animation, clone,
 parallel event scheduling, or public stage API is supplied yet.
+
+Initialization failure aborts the remaining initializations and all start handlers. User-level
+project logic belongs in object start regions and user modules called by those regions; user
+modules do not run automatically. The entry bridge is the boundary for future message routing;
+message registration, `broadcast`, message-region editing, and a persistent event loop are not
+implemented in this change. Runs finish after start handlers and non-daemon workers complete.
+For compatibility with existing low-level process clients, unmarked submitted entry sources
+retain the previous initialize / custom entry / start ordering. Desktop project preparation
+does not expose that path: only the exact managed template is submitted.
 
 The desktop launches an unbuffered UTF-8 child with stdin/stdout/stderr pipes. An ephemeral
 loopback socket authenticated with a per-session token carries ready/exception/finished events;

@@ -13,6 +13,7 @@ import sys
 import threading
 import traceback
 import types
+from vac_runtime._entry import entry_session
 
 
 def exception_payload(error):
@@ -131,8 +132,29 @@ def run(request, emit):
     for filename, source in snapshot.modules.values():
         compile(source, filename, 'exec')
     emit('ready')
+    main_path = str(root / request['mainScript'])
+    main_source = next(s['source'] for s in request['sources'] if s['path'] == request['mainScript'])
+
+    def execute_main():
+        main = types.ModuleType('__main__')
+        main.__file__, main.__package__ = main_path, None
+        sys.modules['__main__'] = main
+        sys.argv = [main_path]
+        exec(compile(main_source, main_path, 'exec'), main.__dict__)
+
+    if main_source.startswith('# vac:entry-version='):
+        # The managed project entry owns the lifecycle invocation. The host validates
+        # the complete template before submitting this frozen request.
+        with entry_session(lambda: execute_project(request, root, snapshot=snapshot)):
+            execute_main()
+    else:
+        # Compatibility for existing low-level execution clients. Desktop project
+        # preparation rejects custom entries and upgrades only the exact empty one.
+        execute_project(request, root, execute_main, snapshot=snapshot)
+
+
+def execute_project(request, root, legacy_main=None, *, snapshot):
     instances = []
-    modules = {}
     for script in request['scripts']:
         if script['kind'] not in ('object', 'backdrop'):
             continue
@@ -143,33 +165,30 @@ def run(request, emit):
                  and any(isinstance(b, ast.Name) and b.id == base for b in n.bases)]
         if len(names) != 1:
             raise RuntimeError(f"{script['path']}：不能唯一确定对象类")
-        module = modules[script['id']] = importlib.import_module(name)
+        module = importlib.import_module(name)
         instance = getattr(module, names[0])()
         instance._vac_context = {'object_id': script['objectId'], 'script_id': script['id'],
                                  'project_root': str(root), 'runtime_api': 1}
         instances.append((script, instance))
-    # Construct every instance before initializing; do not start any on initialization failure.
+    # Resolve every start binding before executing any initialization or start body.
+    starts = []
     for script, instance in instances:
-        initialize = getattr(instance, 'initialize', None)
-        if callable(initialize):
-            initialize()
-    main_path = str(root / request['mainScript'])
-    main_source = next(s['source'] for s in request['sources'] if s['path'] == request['mainScript'])
-    main = types.ModuleType('__main__')
-    main.__file__, main.__package__ = main_path, None
-    sys.modules['__main__'] = main
-    sys.argv = [main_path]
-    exec(compile(main_source, main_path, 'exec'), main.__dict__)
-    for script, instance in instances:
-        # Explicit legacy start bindings take priority over the template default.
         bindings = [h for h in request['handlers'] if h['scriptId'] == script['id'] and h['event'] == 'start']
         methods = [h['handler'] for h in bindings] or ['_vac_on_start']
         for name in dict.fromkeys(methods):
             method = getattr(instance, name, None)
             if callable(method):
-                method()
+                starts.append(method)
             elif bindings:
                 raise RuntimeError(f"{script['path']}：启动处理器 {name} 不存在")
+    for script, instance in instances:
+        initialize = getattr(instance, 'initialize', None)
+        if callable(initialize):
+            initialize()
+    if legacy_main is not None:
+        legacy_main()
+    for method in starts:
+        method()
 
 
 def main():
