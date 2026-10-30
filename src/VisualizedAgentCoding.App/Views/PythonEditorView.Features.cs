@@ -54,20 +54,21 @@ public partial class PythonEditorView
         if (EditorTextBox.IsReadOnly || projection is not MultiRegionProjection multi || viewModel is null) return;
         var updated = ObjectScriptFeatures.AddInitialize(multi.Document);
         var target = new MultiRegionProjection(updated);
+        target.UpdateRegions(multi.ViewRegionSources());
         var id = updated.Regions!.First(r => r.Kind == "initialize").Id;
         var region = target.EditableRegions.First(r => r.Id == id);
         var body = target.ViewSource.Substring(region.Span.Offset, region.Span.Length);
         var pass = body.IndexOf("pass", StringComparison.Ordinal);
         var visible = new TextDocument(target.ViewSource);
         var line = visible.GetLineByOffset(region.Span.Offset + Math.Max(0, pass));
-        var after = new StructuralEditorState(updated, pass >= 0 ? line.Offset : region.Span.Offset,
+        var after = StructuralEditorState.Capture(target, target.ViewSource, pass >= 0 ? line.Offset : region.Span.Offset,
             pass >= 0 ? line.Length : 0, pass >= 0 ? line.EndOffset : region.Span.Offset);
         if (ReferenceEquals(updated, multi.Document))
         {
             RestoreStructuralSelection(after);
             return;
         }
-        var before = new StructuralEditorState(multi.Document, EditorTextBox.SelectionStart,
+        var before = StructuralEditorState.Capture(multi, EditorTextBox.Text, EditorTextBox.SelectionStart,
             EditorTextBox.SelectionLength, EditorTextBox.CaretOffset);
         StructuralEditorHistory.Apply(EditorTextBox.Document, before, after, BeginStructureChange, RestoreStructure);
     }
@@ -83,8 +84,7 @@ public partial class PythonEditorView
     {
         try
         {
-            var restored = EditorProjection.Create(state.Document);
-            if (restored is ObjectScriptProjection single && state.ViewSource is not null) single.Update(state.ViewSource);
+            var restored = state.CreateProjection();
             userImportProjection = null;
             projection = restored;
             displayedFullSource = restored.FullSource;
@@ -102,11 +102,7 @@ public partial class PythonEditorView
 
     private void RestoreStructuralSelection(StructuralEditorState state)
     {
-        var start = state.SelectionStart;
-        var end = state.SelectionStart + state.SelectionLength;
-        EditorTextBox.TextArea.Selection = AvaloniaEdit.Editing.Selection.Create(EditorTextBox.TextArea,
-            state.CaretOffset == state.SelectionStart ? end : start, state.CaretOffset == state.SelectionStart ? start : end);
-        EditorTextBox.CaretOffset = state.CaretOffset;
+        StructuralEditorHistory.RestoreSelection(EditorTextBox, state);
         EditorTextBox.TextArea.Focus();
         EditorTextBox.ScrollToLine(EditorTextBox.TextArea.Caret.Line);
     }

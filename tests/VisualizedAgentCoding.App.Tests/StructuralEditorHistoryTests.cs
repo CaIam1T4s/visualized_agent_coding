@@ -98,6 +98,74 @@ public sealed class StructuralEditorHistoryTests : IDisposable
         Assert.Equal(added, vm.PythonCode);
     }
 
+    [Theory]
+    [InlineData("\n", false)]
+    [InlineData("\r\n", false)]
+    [InlineData("\n", true)]
+    [InlineData("\r\n", true)]
+    public async Task EventEditAfterTypingWithoutTrailingNewlinePreservesLiveViewUndoAndAnchors(string nl, bool message)
+    {
+        var (project, script, source) = Create(nl);
+        await using var bridge = new PythonProcessBridge();
+        var service = new ObjectScriptDocumentService(bridge);
+        var doc = await service.InspectAsync(project, script.Id, 0, source);
+        var imported = await new VisualizedAgentCoding.Application.Editor.ScriptImportService(bridge).InspectAsync(
+            project, script, 0, source, doc,
+            [new("vac_runtime", Name: "broadcast", Source: "runtime")]);
+        doc = (await service.InspectAsync(project, script.Id, 1, imported.Source)) with { Imports = imported.Block };
+        doc = ObjectScriptFeatures.AddInitialize(doc);
+        var live = new MultiRegionProjection(doc);
+        var text = new TextDocument(live.ViewSource);
+        var provider = new MultiRegionReadOnlyProvider(text, live.EditableRegions);
+        var changingStructure = false;
+        text.TextChanged += (_, _) => { if (!changingStructure) live.UpdateRegions(provider.ReadBodies()); };
+        var start = live.EditableRegions.Single(r => r.Id == "start").Span;
+        text.Replace(start.Offset, start.Length, "print('ready')");
+        Assert.Equal(text.Text, live.ViewSource);
+        Assert.NotEqual(text.Text, new MultiRegionProjection(live.Document).ViewSource);
+        var before = StructuralEditorState.Capture(live, text.Text, start.Offset, 0, start.Offset);
+        var updated = message ? ObjectScriptFeatures.AddMessage(live.Document, "go") : ObjectScriptFeatures.AddSpriteClick(live.Document);
+        var target = new MultiRegionProjection(updated);
+        target.UpdateRegions(before.RegionBodies!);
+        var after = StructuralEditorState.Capture(target, target.ViewSource, 0, 0, 0);
+        void Restore(StructuralEditorState state)
+        {
+            live = (MultiRegionProjection)state.CreateProjection();
+            provider = new(text, live.EditableRegions);
+            changingStructure = false;
+            Assert.Equal(text.Text, live.ViewSource);
+        }
+        StructuralEditorHistory.Apply(text, before, after, () => changingStructure = true, Restore);
+        Assert.Equal("print('ready')", live.ViewRegionSources()["start"]);
+        Assert.Contains("broadcast", text.Text);
+        text.UndoStack.Undo();
+        Assert.Equal(before.ViewSource, text.Text);
+        Assert.DoesNotContain(live.Document.Regions!, r => r.Id == updated.Regions!.Last().Id);
+        text.UndoStack.Redo();
+        Assert.Equal(after.ViewSource, text.Text);
+        var eventId = updated.Regions!.Last().Id;
+        var deleted = message ? ObjectScriptFeatures.DeleteMessage(live.Document, eventId)
+            : ObjectScriptFeatures.DeleteSpriteClick(live.Document, eventId);
+        var deletionTarget = new MultiRegionProjection(deleted);
+        deletionTarget.UpdateRegions(live.ViewRegionSources().Where(pair => pair.Key != eventId)
+            .ToDictionary(pair => pair.Key, pair => pair.Value));
+        var deletionState = StructuralEditorState.Capture(deletionTarget, deletionTarget.ViewSource, 0, 0, 0);
+        StructuralEditorHistory.Apply(text, after, deletionState, () => changingStructure = true, Restore);
+        Assert.Equal(before.ViewSource, text.Text);
+        text.UndoStack.Undo();
+        Assert.Equal(after.ViewSource, text.Text);
+        text.UndoStack.Undo();
+        var restoredStart = live.EditableRegions.Single(r => r.Id == "start").Span;
+        Assert.True(provider.CanInsert(restoredStart.Offset + restoredStart.Length));
+        Assert.False(provider.CanInsert(restoredStart.Offset - 1));
+        text.Insert(restoredStart.Offset + restoredStart.Length, nl + "print('after undo')");
+        Assert.Contains("after undo", live.FullSource);
+        Assert.Equal(text.Text, StructuralEditorState.Capture(live, text.Text, 0, 0, 0).CreateProjection().ViewSource);
+        var conflict = StructuralEditorState.Capture(live, text.Text, 0, 0, 0);
+        text.Insert(restoredStart.Offset, "# changed" + nl);
+        Assert.Throws<InvalidOperationException>(() => StructuralEditorHistory.Apply(text, conflict, after, () => { }, _ => { }));
+    }
+
     private sealed class HistoryEditor
     {
         public TextDocument Text { get; }

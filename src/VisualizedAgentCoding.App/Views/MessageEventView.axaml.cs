@@ -12,21 +12,23 @@ public partial class MessageEventView : UserControl
     private readonly Func<string, string?> validate;
     public Task<string?> Result => completion.Task;
     public MessageEventView() : this("添加消息事件", "", _ => null) { }
-    public MessageEventView(string title, string name, Func<string, string?> validate, string? deletePreview = null, bool renaming = false)
+    public MessageEventView(string title, string name, Func<string, string?> validate, string? deletePreview = null, bool renaming = false, bool fixedEvent = false)
     {
         this.validate = validate;
         InitializeComponent();
         DialogTitle.Text = title;
         MessageName.Text = name;
+        MessageName.IsVisible = !fixedEvent;
         MessageName.IsReadOnly = deletePreview is not null;
         AcceptButton.Content = deletePreview is null ? "确定" : "删除区域";
         Description.Text = deletePreview is null
             ? renaming ? "名称区分大小写。改名不会自动修改发送方的 broadcast 调用，请同步调整消息名称。"
                 : "同一对象不能有重复的同名消息事件。名称区分大小写。"
             : "将删除整个消息区域及以下代码，可通过撤销恢复。";
+        if (fixedEvent) Description.Text = deletePreview is null ? "运行时点击该角色，将执行此区域。每个角色只能有一个点击区域。" : "将删除整个角色点击区域及以下代码，可通过撤销恢复。";
         CodePreview.IsVisible = deletePreview is not null;
         CodePreview.Text = deletePreview;
-        Loaded += (_, _) => { MessageName.Focus(); MessageName.SelectAll(); };
+        Loaded += (_, _) => { if (fixedEvent) AcceptButton.Focus(); else { MessageName.Focus(); MessageName.SelectAll(); } };
         Unloaded += (_, _) => completion.TrySetResult(null);
         AddHandler(KeyDownEvent, (_, e) =>
         {

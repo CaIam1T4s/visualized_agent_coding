@@ -32,8 +32,8 @@ public partial class PythonEditorView
         var originalProjection = projection;
         var originalUser = userImportProjection?.Document;
         var selection = (EditorTextBox.SelectionStart, EditorTextBox.SelectionLength, EditorTextBox.CaretOffset);
-        var before = originalProjection is null ? null : new StructuralEditorState(originalProjection.Document,
-            EditorTextBox.SelectionStart, EditorTextBox.SelectionLength, EditorTextBox.CaretOffset, originalView);
+        var before = originalProjection is null ? null : StructuralEditorState.Capture(originalProjection, originalView,
+            EditorTextBox.SelectionStart, EditorTextBox.SelectionLength, EditorTextBox.CaretOffset);
         ManageImportsView? dialog = null;
         showingImports = true;
         try
@@ -78,8 +78,10 @@ public partial class PythonEditorView
                 if (current.PythonCode != originalSource || EditorTextBox.Text != originalView)
                     throw new InvalidOperationException("编辑内容已改变，未应用导入。");
                 var target = new MultiRegionProjection(targetDocument);
+                if (before!.RegionBodies is not null) target.UpdateRegions(before.RegionBodies);
                 var offset = target.EditableRegions.First().Span.Offset;
-                StructuralEditorHistory.Apply(EditorTextBox.Document, before!, new(targetDocument, offset, 0, offset), BeginStructureChange, RestoreStructure);
+                StructuralEditorHistory.Apply(EditorTextBox.Document, before!,
+                    StructuralEditorState.Capture(target, target.ViewSource, offset, 0, offset), BeginStructureChange, RestoreStructure);
             }
             SetProtectionStatus("导入已更新，可撤销；保存后写入磁盘。");
         }

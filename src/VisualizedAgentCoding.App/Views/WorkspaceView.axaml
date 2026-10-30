@@ -88,11 +88,11 @@
                                                 PointerCaptureLost="OnStageCanvasPointerCaptureLost">
                                             <ContentControl Width="480"
                                                             Height="360"
-                                                            Content="{Binding CurrentBackdrop}"
+                                                            Content="{Binding DisplayBackdrop}"
                                                             IsHitTestVisible="False">
                                                 <ContentControl.ContentTemplate>
                                                     <DataTemplate x:DataType="vm:StageObjectItem">
-                                                        <Border Classes="stage-backdrop"
+                                                        <Border Classes="stage-backdrop" Opacity="{Binding StageOpacity}"
                                                                 Width="480"
                                                                 Height="360">
                                                             <Grid>
@@ -122,7 +122,7 @@
                                                     <ControlTheme TargetType="ContentPresenter" x:DataType="vm:StageObjectItem">
                                                         <Setter Property="Canvas.Left" Value="{Binding CanvasLeft}" />
                                                         <Setter Property="Canvas.Top" Value="{Binding CanvasTop}" />
-                                                        <Setter Property="ZIndex" Value="{Binding Layer}" />
+                                                        <Setter Property="ZIndex" Value="{Binding RenderLayer}" />
                                                     </ControlTheme>
                                                 </ItemsControl.ItemContainerTheme>
                                                 <ItemsControl.ItemTemplate>
@@ -131,7 +131,7 @@
                                                                 BorderThickness="0"
                                                                 Classes.has-image="{Binding HasImage}"
                                                                 Classes.selected="{Binding IsSelected}"
-                                                                IsHitTestVisible="{Binding IsVisible}"
+                                                                IsHitTestVisible="{Binding RenderVisible}"
                                                                 Width="{Binding SpriteWidth}"
                                                                 Height="{Binding SpriteHeight}"
                                                                 Opacity="{Binding StageOpacity}"
@@ -162,6 +162,11 @@
                                         </Canvas><Border IsHitTestVisible="False" CornerRadius="8" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" /></Grid>
                                     </Border>
                                 </Viewbox>
+                                <Border IsVisible="{Binding HasRuntimeStagePreview}" IsHitTestVisible="False"
+                                        HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8" Padding="6,3"
+                                        Background="{DynamicResource LayerFillColorBrush}" CornerRadius="4">
+                                    <TextBlock Text="运行预览（不保存为初始布局）" FontSize="11" />
+                                </Border>
                             </Panel>
                         </Border>
                         <views:TerminalView IsVisible="{Binding IsTerminalVisible}" />

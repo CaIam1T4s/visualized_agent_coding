@@ -29,8 +29,8 @@ transforms, and external image paths are rejected. Removed objects are omitted o
 scene save. Current backdrop remains independent of editor selection.
 
 Sprite X/Y range is ±10000; size 1–1000%, direction −180–180, layer ±10000. Higher
-layers draw in front; object-list order breaks ties. Hidden sprites do not draw or intercept
-stage clicks, but can be selected and shown in the object manager. New backdrop images fit
+layers draw in front; object-list order breaks ties. Hidden sprites do not draw. `ClickEnabled` (default true) alone decides whether a sprite intercepts
+stage clicks, regardless of visibility. Hidden sprites can be selected and shown in the object manager. New backdrop images fit
 inside the stage without cropping, centered without upscaling. Only the current backdrop is drawn; sprite transforms do
 not apply to backdrops.
 
@@ -58,6 +58,47 @@ cancel, close, and Escape preserve the current layout. Failed parsing leaves it 
 script saves are not a cross-file atomic transaction.
 
 New projects no longer create empty `runtime/`; existing project-local runtime files remain
-untouched. This feature does not change Python bases, synchronize execution transforms,
-dispatch stage input events, or add an animation/event loop. Future runtime state needs a
-separate model. Tests use temporary projects and never modify the two retained manual projects.
+untouched. Runtime transforms use a separate transient preview, never this persisted model.
+Tests use temporary projects and never modify the two retained manual projects.
+
+## Runtime preview
+
+Each desktop run freezes the saved scene as `initialStage` alongside its source request.
+The host checks the scene revision again after preparing sources. Python merges, from lowest
+to highest priority: system defaults, saved layout, explicit class/constructor parameters,
+then assignments in `initialize()`. Omitted values differ from explicit `0` and `False`.
+Class declarations such as `x = 0` and constructor keyword arguments such as
+`super().__init__(visible=False)` are explicit. Constructor assignments take priority over
+class declarations. All initialization completes before the first normal preview and start
+handlers. Assignments in start/message handlers update the runtime instance.
+
+`stage` events on the authenticated protocol-v2 channel carry a `stage` object with
+`sessionId`, monotonically increasing `sequence`, `objects` (stable `objectId` plus x/y/size/
+direction/visible/layer), and `currentBackdropId`. Changed snapshots are sampled at 30 Hz;
+initialization completion and exit flush immediately. The host retains at most one pending
+stage frame, validates object membership/values/session/sequence, and updates UI bindings on
+its normal 50 ms dispatch timer. No user stdout parsing is involved. Multiple assignments
+between frames are coalesced; this is a preview, not an atomic multi-property animation API.
+
+`BackdropBase.activate()` selects that background by stable identity. The current background's
+visibility affects its preview; background transforms are retained but not used to position
+the fixed stage background. Images remain the initial project assets, without a runtime
+costume replacement API. Runtime size uses the imported image's logical 100% base dimensions.
+
+During execution, object-manager edits and stage dragging are disabled. Completion, failure,
+and stop retain the latest preview; saving still writes only initial layout. The inspector
+displays preview X/Y/size/direction/layer/visibility and is read-only only while Python runs.
+After stop, completion or failure, direct property edits are enabled. The first explicit edit
+clears the transient preview and applies only that requested property to the initial layout;
+other runtime values are never promoted. A binding echo of the current display value does
+not count as an edit. Visibility/layer commands use the same transition. Tiles and tabs remain available to inspect other objects/backgrounds;
+this selection does not open scripts or change the active background during a preview.
+The "返回初始布局" button is available after execution ends, clears all transient transforms
+and restores the initial background and initial inspector values together. It does not reread disk,
+write files, or discard unsaved initial layout edits. Another run or changing projects also
+clears the preview. The next run creates
+fresh instances and merges initial values again. A managed-main event loop now keeps desktop
+runs active after startup, dispatching role clicks on the main thread until Stop or error.
+Role click events use stable object identities and a bounded per-session queue. Background
+click events remain unimplemented. See the Python runtime README for the control protocol. Existing custom project-local bases are not overwritten; to opt into
+desktop stage synchronization they must inherit the product bases.

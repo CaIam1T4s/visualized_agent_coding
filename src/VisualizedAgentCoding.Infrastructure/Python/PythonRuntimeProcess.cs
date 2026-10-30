@@ -14,6 +14,11 @@ public sealed class PythonRuntimeProcess(string? runtimeDirectory = null) : IPyt
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly string runtimeDirectory = runtimeDirectory ?? Path.Combine(AppContext.BaseDirectory, "python-runtime");
     private readonly SemaphoreSlim inputGate = new(1, 1);
+    private readonly SemaphoreSlim commandGate = new(1, 1);
+    private TcpClient? liveControl;
+    private string? sessionId;
+    private HashSet<string> clickObjects = [];
+    private volatile bool acceptsClicks;
     private Process? process;
     private int running;
     private bool ready;
@@ -21,6 +26,7 @@ public sealed class PythonRuntimeProcess(string? runtimeDirectory = null) : IPyt
     public async Task<int> RunAsync(PythonRunRequest request, Action<PythonRunEvent> publish, CancellationToken token)
     {
         if (Interlocked.Exchange(ref running, 1) != 0) throw new InvalidOperationException("Python 已在运行。");
+        acceptsClicks = false; ready = false;
         var temporary = Path.Combine(Path.GetTempPath(), "vac-run-" + Guid.NewGuid().ToString("N"));
         var listener = new TcpListener(IPAddress.Loopback, 0);
         Process? child = null;
@@ -53,6 +59,13 @@ public sealed class PythonRuntimeProcess(string? runtimeDirectory = null) : IPyt
             var reader = new StreamReader(control.GetStream(), Encoding.UTF8);
             var hello = await reader.ReadLineAsync(handshake.Token);
             if (hello != secret) throw new IOException("Python 运行握手失败。");
+            await commandGate.WaitAsync(token);
+            try
+            {
+                liveControl = control; sessionId = request.SessionId;
+                clickObjects = request.Scripts.Where(s => s.Kind == "object" && s.ObjectId is not null).Select(s => s.ObjectId!).ToHashSet(StringComparer.Ordinal);
+            }
+            finally { commandGate.Release(); }
             events = ReadEventsAsync(reader, publish);
             var exit = child.WaitForExitAsync(token);
             if (await Task.WhenAny(exit, events) == events) await events;
@@ -63,16 +76,24 @@ public sealed class PythonRuntimeProcess(string? runtimeDirectory = null) : IPyt
         }
         finally
         {
-            ready = false;
+            ready = false; acceptsClicks = false;
+            await commandGate.WaitAsync();
+            try { liveControl = null; sessionId = null; clickObjects.Clear(); }
+            finally { commandGate.Release(); }
             listener.Stop();
             if (child is not null && !child.HasExited)
             {
                 // EOF lets waiting input() exit; interrupt requested loops via the control channel.
                 try
                 {
+                    await commandGate.WaitAsync();
+                    try
+                    {
+                        if (control?.Connected == true)
+                            await control.GetStream().WriteAsync(Encoding.UTF8.GetBytes("stop\n"));
+                    }
+                    finally { commandGate.Release(); }
                     child.StandardInput.Close();
-                    if (control?.Connected == true)
-                        await control.GetStream().WriteAsync(Encoding.UTF8.GetBytes("stop\n"));
                     using var grace = new CancellationTokenSource(500);
                     await child.WaitForExitAsync(grace.Token);
                 }
@@ -103,6 +124,7 @@ public sealed class PythonRuntimeProcess(string? runtimeDirectory = null) : IPyt
             if (message.Kind == "exception" && message.Exception is null) throw new IOException("Python 异常事件缺少结构化数据。");
             if (message.Kind == "finished") return;
             if (message.Kind == "ready") ready = true;
+            if (message.Kind == "interactive-ready") acceptsClicks = true;
             publish(message);
         }
     }
@@ -112,6 +134,20 @@ public sealed class PythonRuntimeProcess(string? runtimeDirectory = null) : IPyt
         var buffer = new char[2048];
         int count;
         while ((count = await reader.ReadAsync(buffer)) > 0) publish(new(kind, new string(buffer, 0, count)));
+    }
+
+    public async Task SendSpriteClickAsync(string requestedSession, string objectId, CancellationToken token = default)
+    {
+        await commandGate.WaitAsync(token);
+        try
+        {
+            if (!acceptsClicks || sessionId != requestedSession || !clickObjects.Contains(objectId)
+                || liveControl is null || process is not { HasExited: false })
+                throw new IOException("当前运行会话无法接收该角色的点击。");
+            var command = JsonSerializer.Serialize(new { kind = "sprite-click", sessionId = requestedSession, objectId }, Json) + "\n";
+            await liveControl.GetStream().WriteAsync(Encoding.UTF8.GetBytes(command), token);
+        }
+        finally { commandGate.Release(); }
     }
 
     public async Task SendInputAsync(string text, CancellationToken token = default)

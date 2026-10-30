@@ -39,6 +39,8 @@ public sealed class MultiRegionProjection : IEditorProjection
     public Dictionary<string, string> FullRegionSources() => Document.Regions!.ToDictionary(r => r.Id,
         r => Document.FullSource.Substring(r.Span.Offset, r.Span.Length));
 
+    public Dictionary<string, string> ViewRegionSources() => new(bodies, StringComparer.Ordinal);
+
     public void AcceptSavedDocument(ObjectScriptDocument document)
     {
         if (document.FullSource != FullSource || document.ScriptId != Document.ScriptId)

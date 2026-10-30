@@ -152,9 +152,14 @@ public sealed class PythonRuntimeTests : IDisposable
             new InMemoryRecentProjectsStore(), new ProjectSession(), bridge);
         await vm.OpenProject(project.RootPath);
         Assert.Null(vm.OpenScript);
-        await vm.RunCommand.ExecuteAsync(null);
+        var run = vm.RunCommand.ExecuteAsync(null);
+        await TestMainViewModelFactory.WaitForInteractiveAsync(vm, run);
         Assert.Contains("项目运行成功", vm.TerminalOutput);
-        Assert.Equal("已结束 · 退出码 0", vm.RuntimeStatus);
+        Assert.True(vm.IsPythonActive);
+        Assert.False(run.IsCompleted);
+        await vm.StopPythonAsync();
+        await run;
+        Assert.Equal("已停止", vm.RuntimeStatus);
         Assert.False(vm.CanSendTerminalInput);
         vm.StageViewIndex = 1;
         Assert.True(vm.IsStageVisible);

@@ -113,6 +113,11 @@ public partial class PythonEditorView : UserControl
         ToolTip.SetTip(message, messagesEnabled ? "添加当收到消息区域" : "需要已确认的 v3 角色或背景模板");
         message.Click += (_, _) => EditMessage();
         add.Items.Add(message);
+        var clickRegion = projection?.Document.Regions?.FirstOrDefault(r => r.Kind == "event" && r.EventName == ProjectEventKinds.SpriteClick);
+        var click = new MenuItem { Header = "当角色被点击…", IsEnabled = messagesEnabled
+            && viewModel.OpenScript.Kind == ProjectScriptKind.Object && clickRegion is null };
+        click.Click += (_, _) => EditMessage(spriteClick: true);
+        add.Items.Add(click);
         var canManageImports = !EditorTextBox.IsReadOnly && (viewModel.OpenScript.Kind == ProjectScriptKind.User || projection?.Document.TemplateVersion == 3);
         var imports = new MenuItem { Header = "导入脚本…", IsEnabled = canManageImports };
         ToolTip.SetTip(imports, canManageImports ? "导入其他用户脚本或标准库" : "旧版角色或背景脚本需先升级模板");
@@ -133,6 +138,10 @@ public partial class PythonEditorView : UserControl
         }
         messageRegions.IsEnabled &= messageRegions.Items.Count > 0;
         editorMenu.Items.Add(messageRegions);
+        var deleteClick = new MenuItem { Header = "删除角色点击区域…", IsEnabled = messagesEnabled
+            && viewModel.OpenScript.Kind == ProjectScriptKind.Object && clickRegion is not null };
+        deleteClick.Click += (_, _) => EditMessage(clickRegion?.Id, delete: true, spriteClick: true);
+        editorMenu.Items.Add(deleteClick);
         editorMenu.Items.Add(new Separator());
         editorMenu.Items.Add(references);
         editorMenu.Items.Add(new MenuItem { Header = "重新加载磁盘文件…", Command = viewModel.RequestReloadScriptCommand });

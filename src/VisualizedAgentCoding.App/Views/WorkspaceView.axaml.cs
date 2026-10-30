@@ -198,7 +198,8 @@ public partial class WorkspaceView : UserControl
         if (DataContext is not MainViewModel viewModel)
             return;
 
-        if (viewModel.CurrentBackdrop is { } backdrop)
+        if (viewModel.IsPythonActive) return;
+        if (viewModel.DisplayBackdrop is { } backdrop)
             viewModel.SelectStageObjectCommand.Execute(backdrop);
         else
             viewModel.ClearStageSelection();
@@ -212,6 +213,13 @@ public partial class WorkspaceView : UserControl
         if (DataContext is not MainViewModel viewModel)
             return;
 
+        if (viewModel.IsPythonActive)
+        {
+            e.Handled = true;
+            _ = viewModel.DispatchStageClickAsync(item);
+            return;
+        }
+        if (!viewModel.CanEditStage) return;
         viewModel.SelectStageObjectCommand.Execute(item);
         var canvasPos = e.GetPosition(StageCanvas);
         draggingSprite = item;
@@ -224,6 +232,7 @@ public partial class WorkspaceView : UserControl
 
     private void OnStageCanvasPointerMoved(object? sender, PointerEventArgs e)
     {
+        if (DataContext is MainViewModel { CanEditStage: false }) { EndStageDrag(); return; }
         if (draggingSprite is null)
             return;
         if (!e.GetCurrentPoint(StageCanvas).Properties.IsLeftButtonPressed)

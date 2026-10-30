@@ -46,9 +46,10 @@
                         <TextBox Text="{Binding DisplayName}"
                                  IsReadOnly="True" />
                     </StackPanel>
-                    <Button Content="导入图片…" Tag="{Binding}" Click="OnImportImageClick" Classes="command-button secondary" />
+                    <Button Content="导入图片…" Tag="{Binding}" Click="OnImportImageClick" IsEnabled="{Binding CanEditProperties}" Classes="command-button secondary" />
                     <TextBlock Text="{Binding ImageStatus}" TextWrapping="Wrap" FontSize="11" />
-                    <Button Content="重新加载舞台…" Click="OnReloadStageClick" Classes="command-button secondary"
+                    <TextBlock Text="{Binding InspectorVisibilityText}" FontSize="11" />
+                    <Button Content="重新加载舞台…" Click="OnReloadStageClick" IsEnabled="{Binding CanEditProperties}" Classes="command-button secondary"
                             ToolTip.Tip="确认后放弃所有尚未保存的舞台布局修改，读取磁盘文件" />
                     <Grid IsVisible="{Binding IsSprite}" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                         <TextBlock Text="X"
@@ -59,10 +60,10 @@
                                    FontSize="12"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         <NumericUpDown Grid.Row="1" Minimum="-10000" Maximum="10000" Increment="1"
-                                 Value="{Binding X}"
+                                 Value="{Binding InspectorX}" IsEnabled="{Binding CanEditProperties}"
                                  Margin="0,4,0,8" />
                         <NumericUpDown Grid.Row="3" Minimum="-10000" Maximum="10000" Increment="1"
-                                 Value="{Binding Y}"
+                                 Value="{Binding InspectorY}" IsEnabled="{Binding CanEditProperties}"
                                  Margin="0,4,0,8" />
                         <TextBlock Grid.Row="4"
                                    Text="大小"
@@ -73,33 +74,33 @@
                                    FontSize="12"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         <NumericUpDown Grid.Row="5" Minimum="1" Maximum="1000" Increment="1"
-                                 Value="{Binding Size}"
+                                 Value="{Binding InspectorSize}" IsEnabled="{Binding CanEditProperties}"
                                  Margin="0,4,0,8" />
                         <NumericUpDown Grid.Row="7" Minimum="-180" Maximum="180" Increment="1"
-                                 Value="{Binding Direction}"
+                                 Value="{Binding InspectorDirection}" IsEnabled="{Binding CanEditProperties}"
                                  Margin="0,4,0,0" />
                     </Grid>
                     <StackPanel IsVisible="{Binding IsSprite}" Spacing="6">
                         <TextBlock Text="图层（数值越大越靠前）" FontSize="11" TextWrapping="Wrap" />
-                        <NumericUpDown Value="{Binding Layer}" Minimum="-10000" Maximum="10000" Increment="1" />
+                        <NumericUpDown Value="{Binding InspectorLayer}" IsEnabled="{Binding CanEditProperties}" Minimum="-10000" Maximum="10000" Increment="1" />
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="前移" Command="{Binding BringForwardCommand}" />
-                            <Button Content="后移" Command="{Binding SendBackwardCommand}" />
+                            <Button Content="前移" Command="{Binding BringForwardCommand}" IsEnabled="{Binding CanEditProperties}" />
+                            <Button Content="后移" Command="{Binding SendBackwardCommand}" IsEnabled="{Binding CanEditProperties}" />
                         </StackPanel>
                         <TextBlock Text="显示"
                                    FontSize="12"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Classes="object-visibility"
-                                    Classes.selected="{Binding IsVisible}"
-                                    Command="{Binding ShowObjectCommand}"
+                                    Classes.selected="{Binding InspectorVisible}"
+                                    Command="{Binding ShowObjectCommand}" IsEnabled="{Binding CanEditProperties}"
                                     ToolTip.Tip="显示"
                                     AutomationProperties.Name="显示">
                                 <TextBlock Classes="explorer-glyph" Text="&#xE890;" FontSize="14" />
                             </Button>
                             <Button Classes="object-visibility"
-                                    Classes.selected="{Binding IsHidden}"
-                                    Command="{Binding HideObjectCommand}"
+                                    Classes.selected="{Binding InspectorHidden}"
+                                    Command="{Binding HideObjectCommand}" IsEnabled="{Binding CanEditProperties}"
                                     ToolTip.Tip="隐藏"
                                     AutomationProperties.Name="隐藏">
                                 <TextBlock Classes="explorer-glyph" Text="&#xED1A;" FontSize="14" />
@@ -110,7 +111,10 @@
             </ScrollViewer>
         </DataTemplate>
     </UserControl.Resources>
-    <TabControl Classes="object-manager-tabs"
+    <Grid RowDefinitions="Auto,*">
+    <Button Content="返回初始布局" IsVisible="{Binding HasRuntimeStagePreview}"
+            Command="{Binding ReturnToInitialStageCommand}" Margin="0,0,0,8" />
+    <TabControl Grid.Row="1" Classes="object-manager-tabs"
                 SelectedIndex="{Binding ObjectManagerTabIndex}">
         <TabItem Header="角色">
             <Grid ColumnDefinitions="*,180" Margin="0,8,0,0">
@@ -122,7 +126,7 @@
                         <views:ObjectTileWrapHost.TrailingContent>
                             <Button Classes="object-add"
                                     Command="{Binding AddSpriteCommand}"
-                                    IsEnabled="{Binding HasOpenProject}"
+                                    IsEnabled="{Binding CanEditInitialStage}"
                                     ToolTip.Tip="添加角色"
                                     AutomationProperties.Name="添加角色">
                                 <StackPanel Spacing="2" HorizontalAlignment="Center">
@@ -159,7 +163,7 @@
                     <views:ObjectTileWrapHost.TrailingContent>
                         <Button Classes="object-add"
                                 Command="{Binding AddBackdropCommand}"
-                                IsEnabled="{Binding HasOpenProject}"
+                                IsEnabled="{Binding CanEditInitialStage}"
                                 ToolTip.Tip="添加背景"
                                 AutomationProperties.Name="添加背景">
                             <StackPanel Spacing="2" HorizontalAlignment="Center">
@@ -180,4 +184,5 @@
             </Grid>
         </TabItem>
     </TabControl>
+    </Grid>
 </UserControl>

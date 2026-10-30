@@ -13,6 +13,6 @@ public static class MessageEvents
             throw new ArgumentException($"消息名称须为 1–{MaxNameLength} 个字符，不能包含控制字符或首尾空白。");
         return name;
     }
-    public static string Title(string? identity) => Name(identity) is { } name
+    public static string Title(string? identity) => identity == ProjectEventKinds.SpriteClick ? "当角色被点击" : Name(identity) is { } name
         ? "当收到消息：" + name : "事件：" + identity;
 }

@@ -15,6 +15,8 @@ import traceback
 import types
 from vac_runtime._entry import entry_session, install_router, open_messages
 from vac_runtime.messages import MessageRouter
+from vac_runtime.stage import StageSession
+from vac_runtime.events import EventInbox
 
 
 def exception_payload(error):
@@ -120,7 +122,7 @@ class SnapshotLoader(importlib.abc.MetaPathFinder, importlib.abc.Loader):
             exec(compile(source, filename, 'exec'), module.__dict__)
 
 
-def run(request, emit):
+def run(request, emit, inbox=None):
     # Keep the same logical path as the host snapshot (including selected junction paths).
     root = Path(os.path.abspath(request['root']))
     snapshot = SnapshotLoader(root, request['sources'])
@@ -146,15 +148,15 @@ def run(request, emit):
     if main_source.startswith('# vac:entry-version='):
         # The managed project entry owns the lifecycle invocation. The host validates
         # the complete template before submitting this frozen request.
-        with entry_session(lambda: execute_project(request, root, snapshot=snapshot)):
+        with entry_session(lambda: execute_project(request, root, snapshot=snapshot, emit=emit, inbox=inbox)):
             execute_main()
     else:
         # Compatibility for existing low-level execution clients. Desktop project
         # preparation rejects custom entries and upgrades only the exact empty one.
-        execute_project(request, root, execute_main, snapshot=snapshot)
+        execute_project(request, root, execute_main, snapshot=snapshot, emit=emit, inbox=inbox)
 
 
-def execute_project(request, root, legacy_main=None, *, snapshot):
+def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=None):
     instances = []
     for script in request['scripts']:
         if script['kind'] not in ('object', 'backdrop'):
@@ -173,6 +175,7 @@ def execute_project(request, root, legacy_main=None, *, snapshot):
         instances.append((script, instance))
     # Resolve every start binding before executing any initialization or start body.
     starts = []
+    clicks = {}
     router = MessageRouter()
     for script, instance in instances:
         bindings = [h for h in request['handlers'] if h['scriptId'] == script['id'] and h['event'] == 'start']
@@ -183,6 +186,14 @@ def execute_project(request, root, legacy_main=None, *, snapshot):
                 starts.append(method)
             elif bindings:
                 raise RuntimeError(f"{script['path']}：启动处理器 {name} 不存在")
+        click_bindings = [h for h in request['handlers'] if h['scriptId'] == script['id'] and h['event'] == 'sprite-click']
+        if click_bindings:
+            if script['kind'] != 'object' or len(click_bindings) != 1:
+                raise RuntimeError('Invalid sprite click binding.')
+            callback = getattr(instance, click_bindings[0]['handler'], None)
+            if not callable(callback):
+                raise RuntimeError('Sprite click handler is missing.')
+            clicks[script['objectId']] = (instance, callback)
         seen = set()
         for binding in request['handlers']:
             if binding['scriptId'] != script['id'] or binding['event'] != 'broadcast':
@@ -197,16 +208,35 @@ def execute_project(request, root, legacy_main=None, *, snapshot):
             router.register(name, handler)
     if legacy_main is None:
         install_router(router)
-    for script, instance in instances:
-        initialize = getattr(instance, 'initialize', None)
-        if callable(initialize):
-            initialize()
-    if legacy_main is None:
-        open_messages()
-    if legacy_main is not None:
-        legacy_main()
-    for method in starts:
-        method()
+    stage = StageSession(request, instances, emit) if request.get('initialStage') is not None else None
+    try:
+        for script, instance in instances:
+            initialize = getattr(instance, 'initialize', None)
+            if callable(initialize):
+                initialize()
+        if stage:
+            stage.start()
+        if legacy_main is None:
+            open_messages()
+        if legacy_main is not None:
+            legacy_main()
+        for method in starts:
+            method()
+        if request.get('keepAlive'):
+            if legacy_main is not None or inbox is None:
+                raise RuntimeError('Interactive execution requires the managed project entry.')
+            inbox.run(clicks, emit, stage)
+        # Keep publication alive for user-created non-daemon workers as well.
+        while stage:
+            workers = [t for t in threading.enumerate() if not t.daemon and t is not threading.current_thread()]
+            if not workers:
+                break
+            for worker in workers:
+                worker.join(timeout=0.1)
+    finally:
+        if stage:
+            stage.close()
+
 
 
 def main():
@@ -220,10 +250,10 @@ def main():
 
     protocol_lock = threading.Lock()
 
-    def emit(kind, text='', frames=None, exception=None, raw=None):
+    def emit(kind, text='', frames=None, exception=None, raw=None, stage=None):
         with protocol_lock:
             stream.write(json.dumps(dict(kind=kind, text=text, frames=frames, exception=exception,
-                                        rawTraceback=raw, protocolVersion=2), ensure_ascii=True) + '\n')
+                                        rawTraceback=raw, protocolVersion=2, stage=stage), ensure_ascii=True) + '\n')
             stream.flush()
 
     def emit_exception(error):
@@ -235,25 +265,51 @@ def main():
     def thread_error(args):
         thread_failure.set()
         emit_exception(args.exc_value)
+        if request.get('keepAlive'):
+            inbox.stop(requested=True)
+            import _thread
+            _thread.interrupt_main()
 
     threading.excepthook = thread_error
 
     finished = threading.Event()
+    inbox = EventInbox(request['sessionId'])
 
     def stop_listener():
+        buffer = b''
         try:
             while not finished.is_set():
-                if select.select([channel], [], [], 0.1)[0]:
-                    if channel.recv(64):
+                if not select.select([channel], [], [], 0.1)[0]:
+                    continue
+                data = channel.recv(4096)
+                if not data:
+                    inbox.stop(requested=True)
+                    import _thread
+                    _thread.interrupt_main()
+                    return
+                buffer += data
+                if len(buffer) > 8192:
+                    raise ValueError('Control command exceeds the supported size.')
+                while b'\n' in buffer:
+                    line, buffer = buffer.split(b'\n', 1)
+                    if line == b'stop':
+                        inbox.stop(requested=True)
                         import _thread
                         _thread.interrupt_main()
-                    return
-        except OSError:
-            pass
+                        return
+                    try:
+                        command = json.loads(line)
+                    except (ValueError, UnicodeError):
+                        continue
+                    inbox.offer(command)
+        except (OSError, ValueError):
+            inbox.stop(requested=True)
+            import _thread
+            _thread.interrupt_main()
     listener = threading.Thread(target=stop_listener, daemon=True)
     listener.start()
     try:
-        run(request, emit)
+        run(request, emit, inbox)
         # Match CPython's non-daemon thread lifetime while keeping the diagnostic channel open.
         while True:
             workers = [t for t in threading.enumerate() if not t.daemon and t is not threading.current_thread()]
@@ -268,9 +324,12 @@ def main():
             emit_exception(error)
         raise
     except BaseException as error:
+        if isinstance(error, (KeyboardInterrupt, EOFError)) and inbox.stop_requested.is_set():
+            return 1 if thread_failure.is_set() else 0
         emit_exception(error)
         return 1
     finally:
+        inbox.stop()
         finished.set()
         listener.join(timeout=0.5)
         emit('finished')

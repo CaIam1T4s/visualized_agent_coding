@@ -176,8 +176,12 @@ public sealed class ScriptImportsTests : IDisposable
         await vm.RunCommand.ExecuteAsync(null);
         Assert.Contains("导入规则错误", vm.EditorState);
         vm.PythonCode = "import math\n";
-        await vm.RunCommand.ExecuteAsync(null);
-        Assert.Equal("已结束 · 退出码 0", vm.EditorState);
+        var run = vm.RunCommand.ExecuteAsync(null);
+        await TestMainViewModelFactory.WaitForInteractiveAsync(vm, run);
+        Assert.True(vm.IsPythonActive);
+        await vm.StopPythonAsync();
+        await run;
+        Assert.Equal("已停止", vm.EditorState);
         vm.PythonCode = "value =\n";
         await vm.RunCommand.ExecuteAsync(null);
         Assert.Contains("存在语法错误", vm.EditorState);

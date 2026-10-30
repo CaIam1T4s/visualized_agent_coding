@@ -187,9 +187,10 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnSelectedBackdropChanged(StageObjectItem? value)
     {
-        if (!restoringStage && value is not null && currentBackdropId != value.ObjectId)
-        { currentBackdropId = value.ObjectId; stageDirty = true; }
+        if (!restoringStage && !IsPythonActive && !hasRuntimePreview && value is not null && currentBackdropId != value.ObjectId)
+        { ClearRuntimeStage(); currentBackdropId = value.ObjectId; stageDirty = true; }
         OnPropertyChanged(nameof(CurrentBackdrop));
+        OnPropertyChanged(nameof(DisplayBackdrop));
     }
 
     public string FileName =>
@@ -502,13 +503,20 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Selects a stage object, opens its script, and shows that object's properties.</summary>
+    /// <summary>Inspects preview objects without changing initial layout; otherwise opens their scripts.</summary>
     [RelayCommand]
     private async Task SelectStageObject(StageObjectItem? item)
     {
         if (item is null)
             return;
 
+        if (IsPythonActive || hasRuntimePreview)
+        {
+            foreach (var candidate in StageSprites.Concat(StageBackdrops)) candidate.IsSelected = candidate.ObjectId == item.ObjectId;
+            if (item.IsSprite) SelectedSprite = item; else SelectedBackdrop = item;
+            ObjectManagerTabIndex = item.IsSprite ? 0 : 1;
+            return;
+        }
         await OpenScriptFromExplorer(item.ToScriptItem());
         if (openScriptId != item.ScriptId) return;
         ApplyStageSelection(item.ScriptId);
@@ -578,8 +586,9 @@ public partial class MainViewModel : ViewModelBase
         SelectedSprite = SyncStageObjects(StageSprites, ProjectScriptKind.Object);
         SelectedBackdrop = SyncStageObjects(StageBackdrops, ProjectScriptKind.Backdrop);
         OnPropertyChanged(nameof(CurrentBackdrop));
+        OnPropertyChanged(nameof(DisplayBackdrop));
         }
-        finally { restoringStage = false; }
+        finally { restoringStage = false; RefreshStageInspectorState(); }
     }
 
     private StageObjectItem? SyncStageObjects(
@@ -633,9 +642,10 @@ public partial class MainViewModel : ViewModelBase
 
         SelectedSprite = StageSprites.FirstOrDefault(item => item.IsSelected);
         SelectedBackdrop = StageBackdrops.FirstOrDefault(item => item.IsSelected);
-        if (SelectedBackdrop is { } current && currentBackdropId != current.ObjectId)
-        { currentBackdropId = current.ObjectId; stageDirty = true; }
+        if (!IsPythonActive && !hasRuntimePreview && SelectedBackdrop is { } current && currentBackdropId != current.ObjectId)
+        { ClearRuntimeStage(); currentBackdropId = current.ObjectId; stageDirty = true; }
         OnPropertyChanged(nameof(CurrentBackdrop));
+        OnPropertyChanged(nameof(DisplayBackdrop));
     }
 
     private ObservableCollection<StageObjectItem> ObjectsFor(ProjectScriptKind kind) =>

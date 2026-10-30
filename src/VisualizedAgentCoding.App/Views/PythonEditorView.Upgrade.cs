@@ -19,8 +19,8 @@ public partial class PythonEditorView
             || TopLevel.GetTopLevel(this) is not Window owner || owner.FindControl<Border>("WindowFrame")?.Child is not Grid host) return;
         showingUpgrade = true;
         var current = viewModel;
-        var before = new StructuralEditorState(original.Document, EditorTextBox.SelectionStart, EditorTextBox.SelectionLength,
-            EditorTextBox.CaretOffset, EditorTextBox.Text);
+        var before = StructuralEditorState.Capture(original, EditorTextBox.Text, EditorTextBox.SelectionStart, EditorTextBox.SelectionLength,
+            EditorTextBox.CaretOffset);
         ScriptUpgradeView? preview = null;
         try
         {

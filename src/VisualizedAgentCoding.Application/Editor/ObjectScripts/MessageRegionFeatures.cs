@@ -8,9 +8,13 @@ public static partial class ObjectScriptFeatures
     public static ObjectScriptDocument AddMessage(ObjectScriptDocument document, string name)
     {
         ValidateMessage(document, name);
-        var id = "message_" + Guid.NewGuid().ToString("N");
+        return AddEventRegion(document, MessageEvents.Prefix + name, "message_");
+    }
+
+    private static ObjectScriptDocument AddEventRegion(ObjectScriptDocument document, string identity, string prefixId)
+    {
+        var id = prefixId + Guid.NewGuid().ToString("N");
         var nl = document.FullSource.Contains("\r\n") ? "\r\n" : "\n";
-        var identity = MessageEvents.Prefix + name;
         var prefix = document.FullSource + (document.FullSource.EndsWith('\n') ? "" : nl) + nl
             + "    def _vac_event_" + id + "(self):" + nl
             + "        # vac:region-begin " + Metadata(id, identity) + nl;
@@ -35,6 +39,12 @@ public static partial class ObjectScriptFeatures
     public static ObjectScriptDocument DeleteMessage(ObjectScriptDocument document, string id)
     {
         var region = MessageRegion(document, id);
+        return DeleteEventRegion(document, region);
+    }
+
+    private static ObjectScriptDocument DeleteEventRegion(ObjectScriptDocument document, ObjectScriptRegion region)
+    {
+        var id = region.Id;
         // Search only the verified shell between regions, never user body text.
         var index = Array.IndexOf(document.Regions!, region);
         var previous = index > 0 ? document.Regions![index - 1].Span : null;
@@ -43,13 +53,32 @@ public static partial class ObjectScriptFeatures
         var shell = document.FullSource.Substring(shellStart, markerStart - shellStart);
         var handlers = System.Text.RegularExpressions.Regex.Matches(shell,
             @"(?m)^    def _vac_event_" + System.Text.RegularExpressions.Regex.Escape(id) + @"\(self\):\r?$");
-        if (handlers.Count != 1) throw new ArgumentException("消息区域包装无法安全识别，未删除任何代码。");
+        if (handlers.Count != 1) throw new ArgumentException("事件区域包装无法安全识别，未删除任何代码。");
         var start = shellStart + handlers[0].Index;
         var marker = region.Span.Offset + region.Span.Length;
         var end = document.FullSource.IndexOf('\n', marker);
         end = end < 0 ? document.FullSource.Length : end + 1;
         var without = document with { Regions = document.Regions!.Where(r => r.Id != id).ToArray() };
         return ReplaceShell(without, start, end - start, "");
+    }
+
+    public static void ValidateSpriteClick(ObjectScriptDocument document)
+    {
+        RequireMessageDocument(document);
+        if (document.Regions!.Any(r => r.Kind == "event" && r.EventName == ProjectEventKinds.SpriteClick))
+            throw new ArgumentException("该角色已经有点击事件区域。");
+    }
+    public static ObjectScriptDocument AddSpriteClick(ObjectScriptDocument document)
+    {
+        ValidateSpriteClick(document);
+        return AddEventRegion(document, ProjectEventKinds.SpriteClick, "click_");
+    }
+    public static ObjectScriptDocument DeleteSpriteClick(ObjectScriptDocument document, string id)
+    {
+        RequireMessageDocument(document);
+        var region = document.Regions!.SingleOrDefault(r => r.Id == id && r.Kind == "event" && r.EventName == ProjectEventKinds.SpriteClick)
+            ?? throw new ArgumentException("请选择角色点击区域。");
+        return DeleteEventRegion(document, region);
     }
 
     private static ObjectScriptDocument ReplaceShell(ObjectScriptDocument document, int offset, int length, string replacement)

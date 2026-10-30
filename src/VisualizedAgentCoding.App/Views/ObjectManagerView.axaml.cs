@@ -31,7 +31,7 @@ public partial class ObjectManagerView : UserControl
 
     private async void OnReloadStageClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (showingStageReload || DataContext is not MainViewModel model || TopLevel.GetTopLevel(this) is not Window owner
+        if (showingStageReload || DataContext is not MainViewModel model || model.IsPythonActive || !model.HasOpenProject || TopLevel.GetTopLevel(this) is not Window owner
             || owner.FindControl<Border>("WindowFrame")?.Child is not Grid host) return;
         var projectRoot = model.ProjectRootPath;
         var dialog = new StageReloadView();
@@ -48,6 +48,7 @@ public partial class ObjectManagerView : UserControl
     {
         if (sender is Control { DataContext: StageObjectItem item } source && DataContext is MainViewModel viewModel)
         {
+            if (!viewModel.CanEditInitialStage) { e.Handled = true; return; }
             ScriptActionMenu.Show(source, viewModel, item.ToScriptItem());
             e.Handled = true;
         }

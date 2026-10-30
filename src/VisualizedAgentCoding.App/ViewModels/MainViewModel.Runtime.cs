@@ -41,6 +41,9 @@ public partial class MainViewModel
     private PythonRunRequest? lastRun;
     private long runtimeWorkspace;
     private long runWorkspace;
+    [ObservableProperty] private bool canDispatchStageClicks;
+    private readonly object stageEventLock = new();
+    private (long Generation, RuntimeStageFrame Frame)? pendingStage;
     [ObservableProperty] private bool hasRuntimeError;
     [ObservableProperty] private string runtimeErrorSummary = "";
     [ObservableProperty] private string runtimeErrorText = "";
@@ -55,7 +58,7 @@ public partial class MainViewModel
     [ObservableProperty] private string terminalOutput = "";
     [ObservableProperty] private string terminalInput = "";
     [ObservableProperty] private string runtimeStatus = "未运行";
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanChangePythonEnvironment)), NotifyPropertyChangedFor(nameof(RunButtonText))]
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanChangePythonEnvironment)), NotifyPropertyChangedFor(nameof(RunButtonText)), NotifyPropertyChangedFor(nameof(CanEditStage))]
     private bool isPythonActive;
     [ObservableProperty] private bool canSendTerminalInput;
     public string RunButtonText => IsPythonActive ? "停止" : "运行";
@@ -68,16 +71,19 @@ public partial class MainViewModel
         if (IsPythonActive) { await StopPythonAsync(); return; }
         if (activeProject is null) { EditorState = "尚未打开项目"; return; }
         if (IsPythonEnvironmentBusy || executionBridge is null) { EditorState = "Python 分析服务尚未就绪"; return; }
+        ClearRuntimeStage();
+        lock (stageEventLock) pendingStage = null;
         var generation = ++runGeneration;
         runCancellation?.Dispose();
         runCancellation = new();
+        CanDispatchStageClicks = false;
         IsPythonActive = true;
         CanSendTerminalInput = false;
         ResetRuntimeError();
         lastRun = null;
         runWorkspace = runtimeWorkspace;
         RuntimeStatus = "启动中…";
-        StageViewIndex = 0;
+        // Keep the selected stage/terminal view while running.
         AppendTerminal($"\n──────── {DateTime.Now:HH:mm:ss} · {activeProject.Name} ────────\n");
         terminalTimer.Tick -= OnTerminalTick;
         terminalTimer.Tick += OnTerminalTick;
@@ -98,6 +104,9 @@ public partial class MainViewModel
             token.ThrowIfCancellationRequested();
             if (!ReferenceEquals(activeProject, project) || revision != pythonDocumentVersion)
                 throw new IOException("运行准备期间编辑内容已变化，请重新运行。");
+            if (stageService.Load(project).Revision != stageSnapshot.Revision)
+                throw new VisualizedAgentCoding.Domain.Projects.ProjectOperationException("运行准备期间舞台布局已被修改，请重新加载舞台后运行。");
+            request = request with { InitialStage = stageSnapshot.State, KeepAlive = true };
             lastRun = request;
             var exit = await runtime.RunAsync(request, message => QueueRuntimeEvent(generation, message), token);
             FlushTerminalEvents();
@@ -123,6 +132,7 @@ public partial class MainViewModel
         finally
         {
             CanSendTerminalInput = false;
+            CanDispatchStageClicks = false;
             IsPythonActive = false;
             terminalTimer.Stop();
             EditorState = RuntimeStatus;
@@ -132,6 +142,7 @@ public partial class MainViewModel
     public async Task StopPythonAsync()
     {
         if (!IsPythonActive) return;
+        CanDispatchStageClicks = false;
         RuntimeStatus = "停止中…";
         CanSendTerminalInput = false;
         runCancellation?.Cancel();
@@ -142,6 +153,14 @@ public partial class MainViewModel
 
     private void QueueRuntimeEvent(long generation, PythonRunEvent message)
     {
+        if (message.Kind == "stage")
+        {
+            if (message.Stage is { } frame && frame.SessionId == lastRun?.SessionId)
+                lock (stageEventLock)
+                    if (generation == runGeneration && (pendingStage is null || frame.Sequence > pendingStage.Value.Frame.Sequence))
+                        pendingStage = (generation, frame);
+            return;
+        }
         // Bound pending text independently of the visible history, even under a print flood.
         if (message.Kind is "stdout" or "stderr")
         {
@@ -153,6 +172,9 @@ public partial class MainViewModel
     private void OnTerminalTick(object? sender, EventArgs e) => FlushTerminalEvents();
     private void FlushTerminalEvents()
     {
+        (long Generation, RuntimeStageFrame Frame)? stage;
+        lock (stageEventLock) { stage = pendingStage; pendingStage = null; }
+        if (stage is { } update && update.Generation == runGeneration) ApplyRuntimeStage(update.Frame);
         var text = new System.Text.StringBuilder();
         while (outputQueue.TryDequeue(out var item))
         {
@@ -162,11 +184,23 @@ public partial class MainViewModel
             if (message.Kind == "ready" && !runCancellation!.IsCancellationRequested)
             { RuntimeStatus = "运行中"; CanSendTerminalInput = true; }
             if (message.Kind is "stdout" or "stderr") text.Append(message.Text);
-            if (message.Kind == "exception")
+            if (message.Kind == "interactive-ready" && !runCancellation!.IsCancellationRequested)
+            { RuntimeStatus = "运行中 · 舞台交互已启用"; CanDispatchStageClicks = true; }
+            if (message.Kind == "exception" && runCancellation?.IsCancellationRequested != true)
                 SetRuntimeError(new RuntimeErrorPresentationService().Present(message, lastRun?.PresentationSources ?? []));
         }
         if (Interlocked.Exchange(ref droppedOutput, 0) != 0) text.Append("\n[输出过快，部分内容已省略]\n");
         if (text.Length > 0) AppendTerminal(text.ToString());
+    }
+
+    public async Task DispatchStageClickAsync(StageObjectItem item)
+    {
+        if (!IsPythonActive || !CanDispatchStageClicks || !item.IsSprite || !item.RenderVisible
+            || !StageSprites.Contains(item) || lastRun is null || runWorkspace != runtimeWorkspace) return;
+        var generation = runGeneration;
+        try { await runtime.SendSpriteClickAsync(lastRun.SessionId, item.ObjectId, runCancellation!.Token); }
+        catch (OperationCanceledException) { }
+        catch (IOException) { if (generation == runGeneration && IsPythonActive) RuntimeStatus = "当前无法发送舞台点击，请重新运行。"; }
     }
 
     private void AppendTerminal(string text)

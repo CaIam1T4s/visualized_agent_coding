@@ -1,7 +1,7 @@
 # Python execution runtime (API 1)
 
 This product component is distributed beside the desktop app under `python-runtime/`.
-It is separate from the read-only static analysis Helper. `vac_runtime` provides minimal
+It is separate from the read-only static analysis Helper. `vac_runtime` provides validated
 object state, while `runtime/element_base.py` and `runtime/backdrop_base.py` are compatibility
 imports for v1/v2/v3 templates. Project-local base files retain priority and are never overwritten.
 Existing custom bases must remain constructible without arguments and permit context injection;
@@ -22,19 +22,19 @@ ordinary file update with a pre-write check, not a crash-safe transaction or sec
 
 Lifecycle: execute the managed entry once as `__main__`; its runtime bridge loads object
 modules, constructs every object, injects `_vac_context` (stable script/object IDs, project root,
-runtime API), resolves start and message bindings, initializes all instances, opens message
+runtime API), resolves start, message and click bindings, initializes all instances, opens message
 routing, then invokes each object's
 explicit start binding or `_vac_on_start` fallback. The bridge requires the active execution
 thread, permits only one invocation per session, and clears its state even on failure.
 Restart creates fresh
-instances. Start handlers currently run sequentially; no stage event loop, animation, clone,
-parallel event scheduling, or public stage API is supplied yet.
+instances. Start and click handlers run sequentially. Desktop runs then remain in the managed
+event loop; animation APIs, cloning and parallel event scheduling are not supplied.
 
 Initialization failure aborts the remaining initializations and all start handlers. User-level
 project logic belongs in object start regions and user modules called by those regions; user
 modules do not run automatically. The entry bridge owns a synchronous message router for the
-session. Runs finish after start handlers and non-daemon workers complete; message handlers
-alone do not keep the process alive. A persistent event loop is not implemented.
+session. Desktop runs remain active after start handlers complete until Stop or an error.
+Low-level batch requests without keepAlive finish after start handlers and non-daemon workers.
 For compatibility with existing low-level process clients, unmarked submitted entry sources
 retain the previous initialize / custom entry / start ordering. Desktop project preparation
 does not expose that path: only the exact managed template is submitted.
@@ -108,3 +108,79 @@ exception messages/notes are preserved and may themselves contain paths. Editing
 deleting or switching/reopening projects invalidates old navigation; unchanged buffers retain
 their exact original coordinate for the editor to map once. External changes are checked again
 before navigating, and source identity is checked after asynchronous script opening.
+
+
+## Stage state API
+
+`ElementBase` and `BackdropBase` expose `x`, `y`, `size`, `direction`, `visible`, `layer`, and `click_enabled` (default `True`). `click_enabled` controls click interception only and is independent of `visible`.
+Coordinates use a 480x360 stage, center origin, X right and Y up; direction 90 points right.
+Ranges match the scene contract: x/y +/-10000, size 1..1000, direction -180..180,
+integer layer +/-10000, strict boolean visibility. Invalid assignments raise ValueError
+without replacing the previous valid value. Both bases accept optional keyword initial values.
+Class declarations are also explicit initial values. The desktop never infers omission by
+comparing values to defaults: explicit zero and False override the saved layout.
+
+```python
+# In a role's class-definition region:
+x = 0
+visible = False
+
+# In its initialization region (runs after the layout/parameter merge):
+self.y = 30
+self.visible = True
+
+# In start or message event regions:
+self.x += 10
+self.size = 150
+self.direction = -90
+
+# In a background's start/message region:
+self.activate()
+```
+
+For a full ordinary Python subclass, `super().__init__(x=0, visible=False)` supplies explicit
+constructor parameters. Layout is fallback only; initialize assignments take final priority.
+The UI retains runtime transforms as a separate preview and never saves them into stage.json.
+Runtime sampling continues through non-daemon workers and flushes at exit (including errors).
+Low-level callers may omit `initialStage` for legacy execution without stage binding.
+Desktop runs include it; custom local bases must inherit the product bases, and are never
+rewritten automatically. See [scene and runtime wire contract](../VisualizedAgentCoding.Domain/Projects/stage-format.md).
+Sprite clicks and a persistent project event loop are implemented; stage-background, keyboard and timer events remain future work.
+
+
+## Persistent execution and sprite clicks
+
+Desktop requests set `keepAlive: true`. Managed main constructs/initializes all objects,
+executes start handlers in order, then enters a main-thread event loop. Runs stay active even
+without any click handler until Stop, an uncaught error, or an explicit process exit. Low-level
+requests default to `keepAlive: false` to retain finite batch execution compatibility.
+
+The runner emits `interactive-ready` only after all start handlers return. Click input before
+that point is ignored. Host-to-runtime commands on the existing authenticated control socket
+are newline-delimited JSON: `{"kind":"sprite-click","sessionId":"...","objectId":"..."}`.
+The existing `stop` line remains supported and is parsed independently of user stdin. Commands
+are limited to 8192 bytes; malformed commands, wrong sessions and unsupported kinds are ignored.
+The host serializes writes, checks the current session and known role identity, and disables
+click submission during preparation/stopping. No user stdout parsing or main.py edits occur.
+
+Each role may have one source region with `kind=event`, `eventName=sprite-click`, and a stable
+region ID; its generated handler is `_vac_event_<id>`. Preparation derives click bindings from
+verified source regions and replaces manifest click bindings for v2/v3 objects. Backgrounds
+cannot own role-click regions. Click callbacks run sequentially on the main thread, through the
+managed-entry lifecycle; synchronous broadcast within them keeps its existing nested ordering.
+Uncaught callback errors terminate the session and use the frozen source/user-region error maps.
+
+The input queue holds at most 64 pending clicks; excess clicks are discarded. Input or long
+handlers block following callbacks, while stage publication and Stop remain separate. Dispatch
+rechecks target identity and `click_enabled`, ignoring disabled/deleted/unknown recipients. Stop clears
+the queue and interrupts the main thread; forced process-tree cleanup remains the fallback for
+non-cooperative Python. Restarts create a fresh inbox and session. The latest preview remains
+separate from saved initial state.
+
+The UI routes a left press to the topmost role with `click_enabled` true in render layer order, using
+its transformed rectangular bounds (transparent image pixels are not an alpha mask). Editing
+continues to use selection/dragging; running uses clicks, and empty-stage presses have no event.
+The inspector tiles remain available for browsing. No concurrent callback execution, stage-click,
+keyboard, timer event, or dedicated animation API is added.
+
+Runtime inbox checks: `python -B -m unittest discover -s tests/python-runtime -v`.

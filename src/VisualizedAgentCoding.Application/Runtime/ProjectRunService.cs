@@ -47,10 +47,17 @@ public sealed class ProjectRunService(IProjectStore store, IPythonBridge bridge)
                 if (document.HasRegions)
                 {
                     // Region source is authoritative; deleted regions cannot leave ghost bindings.
-                    handlers.RemoveAll(h => h.ScriptId == script.Id && h.Event == ProjectEventKinds.Broadcast);
+                    handlers.RemoveAll(h => h.ScriptId == script.Id && h.Event is ProjectEventKinds.Broadcast or ProjectEventKinds.SpriteClick);
                     foreach (var region in document.Regions!)
+                    {
                         if (region.Kind == "event" && MessageEvents.Name(region.EventName) is { } message)
                             handlers.Add(new(script.Id, ProjectEventKinds.Broadcast, MessageEvents.ValidateName(message), "_vac_event_" + region.Id));
+                        else if (region.Kind == "event" && region.EventName == ProjectEventKinds.SpriteClick)
+                        {
+                            if (script.Kind != ProjectScriptKind.Object) throw new ProjectOperationException("角色点击事件只能用于角色脚本。");
+                            handlers.Add(new(script.Id, ProjectEventKinds.SpriteClick, null, "_vac_event_" + region.Id));
+                        }
+                    }
                 }
             }
             var parsed = await bridge.ParseAsync(new(source.Uri, 0, source.Source), token);
