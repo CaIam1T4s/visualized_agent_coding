@@ -1,0 +1,47 @@
+using System;
+using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+
+namespace happy_agent_coding.Views;
+
+public partial class MessageEventView : UserControl
+{
+    private readonly TaskCompletionSource<string?> completion = new();
+    private readonly Func<string, string?> validate;
+    public Task<string?> Result => completion.Task;
+    public MessageEventView() : this("添加消息事件", "", _ => null) { }
+    public MessageEventView(string title, string name, Func<string, string?> validate, string? deletePreview = null, bool renaming = false)
+    {
+        this.validate = validate;
+        InitializeComponent();
+        DialogTitle.Text = title;
+        MessageName.Text = name;
+        MessageName.IsReadOnly = deletePreview is not null;
+        AcceptButton.Content = deletePreview is null ? "确定" : "删除区域";
+        Description.Text = deletePreview is null
+            ? renaming ? "名称区分大小写。改名不会自动修改发送方的 broadcast 调用，请同步调整消息名称。"
+                : "同一对象不能有重复的同名消息事件。名称区分大小写。"
+            : "将删除整个消息区域及以下代码，可通过撤销恢复。";
+        CodePreview.IsVisible = deletePreview is not null;
+        CodePreview.Text = deletePreview;
+        Loaded += (_, _) => { MessageName.Focus(); MessageName.SelectAll(); };
+        Unloaded += (_, _) => completion.TrySetResult(null);
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Key == Key.Escape) { completion.TrySetResult(null); e.Handled = true; }
+            else if (e.Key == Key.Enter && deletePreview is null && MessageName.IsKeyboardFocusWithin)
+            { OnAccept(this, new RoutedEventArgs()); e.Handled = true; }
+        }, RoutingStrategies.Tunnel);
+    }
+    private void OnCancel(object? sender, RoutedEventArgs e) => completion.TrySetResult(null);
+    private void OnAccept(object? sender, RoutedEventArgs e)
+    {
+        var name = (MessageName.Text ?? "").Trim();
+        var error = validate(name);
+        ValidationError.Text = error;
+        ValidationError.IsVisible = error is not null;
+        if (error is null) completion.TrySetResult(name);
+    }
+}

@@ -102,6 +102,6 @@ public sealed class RuntimeSourceSnapshot
     public static string RegionTitle(ObjectScriptRegion region) => region.Kind switch
     {
         "members" => "类定义", "initialize" => "初始化", "start" => "程序启动",
-        "event" => "事件：" + (region.EventName ?? region.Id).Replace('\r', ' ').Replace('\n', ' '), _ => "用户区域",
+        "event" => MessageEvents.Title(region.EventName ?? region.Id).Replace('\r', ' ').Replace('\n', ' '), _ => "用户区域",
     };
 }

@@ -43,6 +43,7 @@ public partial class MainViewModel
         await scriptSaveGate.WaitAsync(token);
         try
         {
+            SaveStage();
             if (activeProject is null || OpenScript is not { } script) return;
             var project = activeProject;
             var source = PythonCode;

@@ -439,7 +439,7 @@ public class ScriptCreationTests
             Assert.Equal(232, sprite.CanvasLeft);
             Assert.Equal(152, sprite.CanvasTop);
             Assert.Equal(90, sprite.Rotation);
-            Assert.Equal(0.4, sprite.StageOpacity);
+            Assert.Equal(0, sprite.StageOpacity);
 
             sprite.SetPositionFromCanvasTopLeft(232, 152);
             Assert.Equal(40, sprite.X);
@@ -452,7 +452,7 @@ public class ScriptCreationTests
     }
 
     [Fact]
-    public async Task CurrentBackdropFollowsSelectionThenFallsBackToTheFirstItem()
+    public async Task CurrentBackdropRemainsIndependentOfEditorSelection()
     {
         var root = NewTempDirectory();
         try
@@ -469,13 +469,13 @@ public class ScriptCreationTests
 
             viewModel.ClearStageSelection();
             Assert.Null(viewModel.SelectedBackdrop);
-            Assert.Same(viewModel.StageBackdrops[0], viewModel.CurrentBackdrop);
+            Assert.Same(viewModel.StageBackdrops[1], viewModel.CurrentBackdrop);
             Assert.Equal("night.py", viewModel.FileName);
             Assert.True(viewModel.IsEditorVisible);
 
             await viewModel.SelectStageObjectCommand.ExecuteAsync(viewModel.CurrentBackdrop);
-            Assert.Same(viewModel.StageBackdrops[0], viewModel.SelectedBackdrop);
-            Assert.Equal("forest.py", viewModel.FileName);
+            Assert.Same(viewModel.StageBackdrops[1], viewModel.SelectedBackdrop);
+            Assert.Equal("night.py", viewModel.FileName);
         }
         finally
         {

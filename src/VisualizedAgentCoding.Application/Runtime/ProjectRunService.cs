@@ -18,6 +18,7 @@ public sealed class ProjectRunService(IProjectStore store, IPythonBridge bridge)
         var imports = new ScriptImportService(bridge);
         var documents = new ObjectScriptDocumentService(bridge);
         var snapshots = new List<RuntimeSourceSnapshot>();
+        var handlers = project.Manifest.EventHandlers.ToList();
         var presenter = new RuntimeErrorPresentationService();
         foreach (var source in sources)
         {
@@ -42,6 +43,14 @@ public sealed class ProjectRunService(IProjectStore store, IPythonBridge bridge)
                     var unknown = new RuntimeSourceSnapshot(project.RootPath, script, source.Source, null);
                     throw new RuntimePreparationException(presenter.PresentDiagnostics(unknown,
                         [new("error", "无法确认对象脚本结构，请先修复或升级模板。", 0, 0)], "对象脚本结构检查失败", string.Join("\n", document.Problems)));
+                }
+                if (document.HasRegions)
+                {
+                    // Region source is authoritative; deleted regions cannot leave ghost bindings.
+                    handlers.RemoveAll(h => h.ScriptId == script.Id && h.Event == ProjectEventKinds.Broadcast);
+                    foreach (var region in document.Regions!)
+                        if (region.Kind == "event" && MessageEvents.Name(region.EventName) is { } message)
+                            handlers.Add(new(script.Id, ProjectEventKinds.Broadcast, MessageEvents.ValidateName(message), "_vac_event_" + region.Id));
                 }
             }
             var parsed = await bridge.ParseAsync(new(source.Uri, 0, source.Source), token);
@@ -76,6 +85,6 @@ public sealed class ProjectRunService(IProjectStore store, IPythonBridge bridge)
         return new(Guid.NewGuid().ToString("N"), executable, project.RootPath, project.Manifest.MainScript,
             sources.Select(s => new PythonRunSource(Path.GetRelativePath(project.RootPath, new Uri(s.Uri).LocalPath).Replace('\\', '/'), s.Source)).ToArray(),
             project.Manifest.Scripts.Select(s => new PythonRunScript(s.Id, s.ObjectId, s.Path, s.Kind.ToString().ToLowerInvariant())).ToArray(),
-            project.Manifest.EventHandlers.ToArray(), snapshots.ToArray());
+            handlers.ToArray(), snapshots.ToArray());
     }
 }

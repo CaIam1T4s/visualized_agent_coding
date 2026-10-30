@@ -2,6 +2,7 @@
 import ast
 import json
 import re
+import unicodedata
 
 BEGIN = '# vac:region-begin '
 END = '# vac:region-end '
@@ -59,6 +60,11 @@ def inspect_v2(uri, version, source, name, module, base, directives, lines, star
         if kind == 'event':
             if not isinstance(event, str) or not event.strip() or len(event) > 256 or event in events:
                 return invalid('Event identity must be non-empty and unique.')
+            if event.startswith('message:'):
+                message = event[len('message:'):]
+                if (not message or message != message.strip() or len(message.encode('utf-16-le')) // 2 > 248
+                        or any(unicodedata.category(char) == 'Cc' for char in message)):
+                    return invalid('Invalid message event name.')
             events.add(event)
         elif 'eventName' in metadata:
             return invalid('Only event regions may specify eventName.')

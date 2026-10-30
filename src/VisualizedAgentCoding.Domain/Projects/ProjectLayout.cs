@@ -22,7 +22,6 @@ public static class ProjectLayout
         UserScriptDirectory,
         ObjectScriptDirectory,
         BackdropScriptDirectory,
-        "runtime",
         "blocks",
         "assets",
         "assets/images",

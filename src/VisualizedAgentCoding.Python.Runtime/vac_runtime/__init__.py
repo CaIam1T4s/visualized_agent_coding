@@ -1,5 +1,6 @@
 """VAC product execution API, versioned independently of project files."""
 API_VERSION = 1
+from .messages import broadcast
 
 
 class ElementBase:

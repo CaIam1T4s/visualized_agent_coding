@@ -37,6 +37,19 @@ class ImportsTests(unittest.TestCase):
             with self.subTest(module=module), self.assertRaises(ProtocolError):
                 self.inspect('pass\n', imports=[dict(module=module)])
 
+    def test_public_broadcast_roundtrips_alias_and_keeps_internal_modules_private(self):
+        result = self.inspect('pass\n', imports=[dict(module='vac_runtime', name='broadcast', alias='send', source='runtime')])
+        self.assertFalse(result['diagnostics'])
+        self.assertIn('from vac_runtime import broadcast as send', result['source'])
+        self.assertEqual('runtime', self.inspect(result['source'])['block']['entries'][0]['source'])
+        self.assertFalse(self.inspect('from vac_runtime import broadcast\nbroadcast("hello")\n')['diagnostics'])
+        for entry in [dict(module='vac_runtime', source='runtime'),
+                      dict(module='vac_runtime._entry', name='run_project', source='runtime'),
+                      dict(module='vac_runtime', name='ElementBase', source='runtime'),
+                      dict(module='vac_runtime', name='broadcast', source='standard')]:
+            with self.subTest(entry=entry), self.assertRaises(ProtocolError):
+                self.inspect('pass\n', imports=[entry])
+
     def test_project_identity_and_alias_survive_actual_source_roundtrip(self):
         result = self.inspect('value = 1\n', imports=[dict(module='scripts.user.tools', alias='utils', source='project', scriptId='tools')])
         entry = result['block']['entries'][0]

@@ -75,7 +75,7 @@
                                             Height="360"
                                             Background="{DynamicResource LayerFillColorDefaultBrush}"
                                             BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                            BorderThickness="1"
+                                            BorderThickness="0"
                                             CornerRadius="8"
                                             ClipToBounds="True">
                                         <Grid><Canvas x:Name="StageCanvas"
@@ -95,12 +95,17 @@
                                                         <Border Classes="stage-backdrop"
                                                                 Width="480"
                                                                 Height="360">
-                                                            <TextBlock Text="{Binding DisplayName}"
+                                                            <Grid>
+                                                            <Image Source="{Binding Picture}" Stretch="{Binding BackdropStretch}"
+                                                                   Width="{Binding BackdropImageWidth}" Height="{Binding BackdropImageHeight}"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                            <TextBlock IsVisible="{Binding HasImage, Converter={x:Static BoolConverters.Not}}" Text="{Binding DisplayName}"
                                                                        FontSize="28"
                                                                        FontWeight="SemiBold"
                                                                        HorizontalAlignment="Center"
                                                                        VerticalAlignment="Center"
                                                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                            </Grid>
                                                         </Border>
                                                     </DataTemplate>
                                                 </ContentControl.ContentTemplate>
@@ -117,12 +122,16 @@
                                                     <ControlTheme TargetType="ContentPresenter" x:DataType="vm:StageObjectItem">
                                                         <Setter Property="Canvas.Left" Value="{Binding CanvasLeft}" />
                                                         <Setter Property="Canvas.Top" Value="{Binding CanvasTop}" />
+                                                        <Setter Property="ZIndex" Value="{Binding Layer}" />
                                                     </ControlTheme>
                                                 </ItemsControl.ItemContainerTheme>
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="vm:StageObjectItem">
                                                         <Border Classes="stage-sprite"
+                                                                BorderThickness="0"
+                                                                Classes.has-image="{Binding HasImage}"
                                                                 Classes.selected="{Binding IsSelected}"
+                                                                IsHitTestVisible="{Binding IsVisible}"
                                                                 Width="{Binding SpriteWidth}"
                                                                 Height="{Binding SpriteHeight}"
                                                                 Opacity="{Binding StageOpacity}"
@@ -137,11 +146,15 @@
                                                             <Border.RenderTransform>
                                                                 <RotateTransform Angle="{Binding Rotation}" />
                                                             </Border.RenderTransform>
-                                                            <TextBlock Text="{Binding Initial}"
+                                                            <Grid>
+                                                            <Image Source="{Binding Picture}" Stretch="Uniform" />
+                                                            <TextBlock IsVisible="{Binding HasImage, Converter={x:Static BoolConverters.Not}}" Text="{Binding Initial}"
                                                                        FontSize="18"
                                                                        FontWeight="SemiBold"
                                                                        HorizontalAlignment="Center"
                                                                        VerticalAlignment="Center" />
+                                                            <Border Classes="stage-sprite-outline" Classes.selected="{Binding IsSelected}" IsHitTestVisible="False" />
+                                                            </Grid>
                                                         </Border>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>

@@ -3,7 +3,7 @@ using VisualizedAgentCoding.Domain.Projects;
 namespace VisualizedAgentCoding.Application.Editor.ObjectScripts;
 
 /// <summary>Explicit structural edits; ordinary typing cannot change the system shell.</summary>
-public static class ObjectScriptFeatures
+public static partial class ObjectScriptFeatures
 {
     public static ObjectScriptDocument AddInitialize(ObjectScriptDocument document)
     {

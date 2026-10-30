@@ -18,11 +18,14 @@
                             Width="48"
                             Height="48"
                             HorizontalAlignment="Center">
-                        <TextBlock Text="{Binding Initial}"
+                        <Grid>
+                        <Image Source="{Binding Picture}" Stretch="Uniform" />
+                        <TextBlock IsVisible="{Binding HasImage, Converter={x:Static BoolConverters.Not}}" Text="{Binding Initial}"
                                    FontSize="18"
                                    FontWeight="SemiBold"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center" />
+                        </Grid>
                     </Border>
                     <TextBlock Text="{Binding DisplayName}"
                                FontSize="11"
@@ -34,7 +37,7 @@
         </DataTemplate>
         <DataTemplate x:Key="StageObjectProperties" x:DataType="vm:StageObjectItem">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Hidden">
+                          VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="10">
                     <StackPanel Spacing="4">
                         <TextBlock Text="{Binding KindLabel}"
@@ -43,39 +46,46 @@
                         <TextBox Text="{Binding DisplayName}"
                                  IsReadOnly="True" />
                     </StackPanel>
-                    <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                    <Button Content="导入图片…" Tag="{Binding}" Click="OnImportImageClick" Classes="command-button secondary" />
+                    <TextBlock Text="{Binding ImageStatus}" TextWrapping="Wrap" FontSize="11" />
+                    <Button Content="重新加载舞台…" Click="OnReloadStageClick" Classes="command-button secondary"
+                            ToolTip.Tip="确认后放弃所有尚未保存的舞台布局修改，读取磁盘文件" />
+                    <Grid IsVisible="{Binding IsSprite}" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                         <TextBlock Text="X"
                                    FontSize="12"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <TextBlock Grid.Column="2"
+                        <TextBlock Grid.Row="2"
                                    Text="Y"
                                    FontSize="12"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <TextBox Grid.Row="1"
-                                 Text="{Binding X}"
+                        <NumericUpDown Grid.Row="1" Minimum="-10000" Maximum="10000" Increment="1"
+                                 Value="{Binding X}"
                                  Margin="0,4,0,8" />
-                        <TextBox Grid.Row="1"
-                                 Grid.Column="2"
-                                 Text="{Binding Y}"
+                        <NumericUpDown Grid.Row="3" Minimum="-10000" Maximum="10000" Increment="1"
+                                 Value="{Binding Y}"
                                  Margin="0,4,0,8" />
-                        <TextBlock Grid.Row="2"
+                        <TextBlock Grid.Row="4"
                                    Text="大小"
                                    FontSize="12"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <TextBlock Grid.Row="2"
-                                   Grid.Column="2"
+                        <TextBlock Grid.Row="6"
                                    Text="方向"
                                    FontSize="12"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <TextBox Grid.Row="3"
-                                 Text="{Binding Size}"
-                                 Margin="0,4,0,0" />
-                        <TextBox Grid.Row="3"
-                                 Grid.Column="2"
-                                 Text="{Binding Direction}"
+                        <NumericUpDown Grid.Row="5" Minimum="1" Maximum="1000" Increment="1"
+                                 Value="{Binding Size}"
+                                 Margin="0,4,0,8" />
+                        <NumericUpDown Grid.Row="7" Minimum="-180" Maximum="180" Increment="1"
+                                 Value="{Binding Direction}"
                                  Margin="0,4,0,0" />
                     </Grid>
-                    <StackPanel Spacing="6">
+                    <StackPanel IsVisible="{Binding IsSprite}" Spacing="6">
+                        <TextBlock Text="图层（数值越大越靠前）" FontSize="11" TextWrapping="Wrap" />
+                        <NumericUpDown Value="{Binding Layer}" Minimum="-10000" Maximum="10000" Increment="1" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="前移" Command="{Binding BringForwardCommand}" />
+                            <Button Content="后移" Command="{Binding SendBackwardCommand}" />
+                        </StackPanel>
                         <TextBlock Text="显示"
                                    FontSize="12"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -139,7 +149,8 @@
             </Grid>
         </TabItem>
         <TabItem Header="背景">
-            <ScrollViewer Margin="0,8,0,0"
+            <Grid ColumnDefinitions="*,180" Margin="0,8,0,0">
+            <ScrollViewer
                           HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Hidden">
                 <views:ObjectTileWrapHost ItemsSource="{Binding StageBackdrops}"
@@ -164,6 +175,9 @@
                     </views:ObjectTileWrapHost.TrailingContent>
                 </views:ObjectTileWrapHost>
             </ScrollViewer>
+            <ContentControl Grid.Column="1" Width="180" Content="{Binding SelectedBackdrop}"
+                            ContentTemplate="{StaticResource StageObjectProperties}" />
+            </Grid>
         </TabItem>
     </TabControl>
 </UserControl>

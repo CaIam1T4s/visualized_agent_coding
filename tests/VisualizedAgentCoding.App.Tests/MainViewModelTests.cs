@@ -62,7 +62,7 @@ public class MainViewModelTests
             viewModel.PythonCode = "print('saved')";
             await viewModel.SaveCommand.ExecuteAsync(null);
 
-            Assert.Equal("尚未打开脚本", viewModel.EditorState);
+            Assert.Equal("已保存", viewModel.EditorState);
             Assert.Contains("def main():", File.ReadAllText(Path.Combine(root, "scripts", "main.py")));
 
             await using var reopened = TestMainViewModelFactory.Create(new InMemorySettingsStore());

@@ -183,10 +183,14 @@ public partial class MainViewModel : ViewModelBase
     private StageObjectItem? selectedBackdrop;
 
     /// <summary>Backdrop drawn on the stage: the selected one, otherwise the first listed.</summary>
-    public StageObjectItem? CurrentBackdrop => SelectedBackdrop ?? StageBackdrops.FirstOrDefault();
+    public StageObjectItem? CurrentBackdrop => StageBackdrops.FirstOrDefault(b => b.ObjectId == currentBackdropId) ?? StageBackdrops.FirstOrDefault();
 
-    partial void OnSelectedBackdropChanged(StageObjectItem? value) =>
+    partial void OnSelectedBackdropChanged(StageObjectItem? value)
+    {
+        if (!restoringStage && value is not null && currentBackdropId != value.ObjectId)
+        { currentBackdropId = value.ObjectId; stageDirty = true; }
         OnPropertyChanged(nameof(CurrentBackdrop));
+    }
 
     public string FileName =>
         OpenScript is { } script ? Path.GetFileName(script.Path) : string.Empty;
@@ -300,6 +304,8 @@ public partial class MainViewModel : ViewModelBase
         if (navigation != editorNavigationGeneration) return;
         await StopPythonAsync();
         if (navigation != editorNavigationGeneration) return;
+        var loadedStage = stageService.Load(project);
+        ResetStage(loadedStage);
         activeProject = project;
         runtimeWorkspace++;
         RefreshRuntimeNavigationState();
@@ -566,9 +572,14 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     private void RefreshStageObjects()
     {
+        restoringStage = true;
+        try
+        {
         SelectedSprite = SyncStageObjects(StageSprites, ProjectScriptKind.Object);
         SelectedBackdrop = SyncStageObjects(StageBackdrops, ProjectScriptKind.Backdrop);
         OnPropertyChanged(nameof(CurrentBackdrop));
+        }
+        finally { restoringStage = false; }
     }
 
     private StageObjectItem? SyncStageObjects(
@@ -577,6 +588,7 @@ public partial class MainViewModel : ViewModelBase
     {
         if (activeProject is null)
         {
+            foreach (var old in collection) { old.PropertyChanged -= OnStageItemChanged; old.Dispose(); }
             collection.Clear();
             return null;
         }
@@ -598,6 +610,7 @@ public partial class MainViewModel : ViewModelBase
             if (!existing.TryGetValue(script.ObjectId!, out var item))
             {
                 item = new StageObjectItem(script.Id, script.ObjectId!, kind, displayName, script.Path);
+                RestoreStageItem(item);
             }
 
             item.SyncFromScript(script.Id, displayName, script.Path, isSelected);
@@ -606,6 +619,8 @@ public partial class MainViewModel : ViewModelBase
                 selected = item;
         }
 
+        foreach (var removed in existing.Values.Where(old => !collection.Contains(old)))
+        { removed.PropertyChanged -= OnStageItemChanged; removed.Dispose(); stageDirty = true; }
         return selected;
     }
 
@@ -618,6 +633,8 @@ public partial class MainViewModel : ViewModelBase
 
         SelectedSprite = StageSprites.FirstOrDefault(item => item.IsSelected);
         SelectedBackdrop = StageBackdrops.FirstOrDefault(item => item.IsSelected);
+        if (SelectedBackdrop is { } current && currentBackdropId != current.ObjectId)
+        { currentBackdropId = current.ObjectId; stageDirty = true; }
         OnPropertyChanged(nameof(CurrentBackdrop));
     }
 
@@ -760,12 +777,6 @@ public partial class MainViewModel : ViewModelBase
         if (activeProject is null)
         {
             EditorState = "尚未打开项目";
-            return;
-        }
-
-        if (OpenScript is null)
-        {
-            EditorState = "尚未打开脚本";
             return;
         }
 

@@ -206,6 +206,7 @@ public partial class WorkspaceView : UserControl
 
     private void OnStageSpritePointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        if (!e.GetCurrentPoint(StageCanvas).Properties.IsLeftButtonPressed) return;
         if (sender is not Control { Tag: StageObjectItem item })
             return;
         if (DataContext is not MainViewModel viewModel)

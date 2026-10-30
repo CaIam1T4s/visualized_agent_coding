@@ -13,7 +13,8 @@ import sys
 import threading
 import traceback
 import types
-from vac_runtime._entry import entry_session
+from vac_runtime._entry import entry_session, install_router, open_messages
+from vac_runtime.messages import MessageRouter
 
 
 def exception_payload(error):
@@ -172,6 +173,7 @@ def execute_project(request, root, legacy_main=None, *, snapshot):
         instances.append((script, instance))
     # Resolve every start binding before executing any initialization or start body.
     starts = []
+    router = MessageRouter()
     for script, instance in instances:
         bindings = [h for h in request['handlers'] if h['scriptId'] == script['id'] and h['event'] == 'start']
         methods = [h['handler'] for h in bindings] or ['_vac_on_start']
@@ -181,10 +183,26 @@ def execute_project(request, root, legacy_main=None, *, snapshot):
                 starts.append(method)
             elif bindings:
                 raise RuntimeError(f"{script['path']}：启动处理器 {name} 不存在")
+        seen = set()
+        for binding in request['handlers']:
+            if binding['scriptId'] != script['id'] or binding['event'] != 'broadcast':
+                continue
+            name = binding['argument']
+            if name in seen:
+                raise RuntimeError('同一对象存在重复的消息事件。')
+            seen.add(name)
+            handler = getattr(instance, binding['handler'], None)
+            if not callable(handler):
+                raise RuntimeError(f"{script['path']}：消息处理器不存在")
+            router.register(name, handler)
+    if legacy_main is None:
+        install_router(router)
     for script, instance in instances:
         initialize = getattr(instance, 'initialize', None)
         if callable(initialize):
             initialize()
+    if legacy_main is None:
+        open_messages()
     if legacy_main is not None:
         legacy_main()
     for method in starts:

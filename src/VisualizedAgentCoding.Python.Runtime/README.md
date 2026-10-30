@@ -22,7 +22,8 @@ ordinary file update with a pre-write check, not a crash-safe transaction or sec
 
 Lifecycle: execute the managed entry once as `__main__`; its runtime bridge loads object
 modules, constructs every object, injects `_vac_context` (stable script/object IDs, project root,
-runtime API), resolves start bindings, initializes all instances, then invokes each object's
+runtime API), resolves start and message bindings, initializes all instances, opens message
+routing, then invokes each object's
 explicit start binding or `_vac_on_start` fallback. The bridge requires the active execution
 thread, permits only one invocation per session, and clears its state even on failure.
 Restart creates fresh
@@ -31,12 +32,38 @@ parallel event scheduling, or public stage API is supplied yet.
 
 Initialization failure aborts the remaining initializations and all start handlers. User-level
 project logic belongs in object start regions and user modules called by those regions; user
-modules do not run automatically. The entry bridge is the boundary for future message routing;
-message registration, `broadcast`, message-region editing, and a persistent event loop are not
-implemented in this change. Runs finish after start handlers and non-daemon workers complete.
+modules do not run automatically. The entry bridge owns a synchronous message router for the
+session. Runs finish after start handlers and non-daemon workers complete; message handlers
+alone do not keep the process alive. A persistent event loop is not implemented.
 For compatibility with existing low-level process clients, unmarked submitted entry sources
 retain the previous initialize / custom entry / start ordering. Desktop project preparation
 does not expose that path: only the exact managed template is submitted.
+
+## Synchronous messages
+
+The public API is `from vac_runtime import broadcast` (managed import source `runtime`).
+Object regions must add it via the import manager; user modules may also use the normal
+Python import. Internal entry, router, and base APIs remain unavailable through user imports.
+
+`broadcast("start")` enters the main-thread router established by the managed project entry,
+calls every matching object/backdrop handler in manifest object order, and returns only after
+all receivers finish. Matching is case-sensitive, and an unknown message returns normally.
+Names use 1–248 UTF-16 units with no surrounding whitespace or control characters. No payload,
+directed recipient, asynchronous scheduling, or queue is provided. Nested broadcasts complete
+before the outer receiver continues, with a depth limit of 32. Errors abort the current run;
+the existing structured exception pipeline maps the sender and receiver to frozen user regions.
+
+Broadcast is forbidden before all initializations finish and from worker threads, including
+while the main thread is waiting in `input()`. A receiver can itself call `input()`; subsequent
+receivers then wait. Stop and process-tree cleanup apply to receivers just like startup code.
+Bindings and routing availability are cleared on normal exit, failure, and cancellation.
+
+v3 message regions use existing `kind=event`, independent region IDs, and an `eventName` of
+`message:<name>`. The editor supports add, rename, confirmed deletion with a code preview, and
+native structural undo/redo. Rename preserves the region ID and does not rewrite senders.
+Runtime preparation derives broadcast bindings from the verified frozen source, replacing
+manifest broadcast declarations for v2/v3 objects so deleted regions cannot leave ghost handlers.
+Other event identities are preserved without implying execution support for those events.
 
 The desktop launches an unbuffered UTF-8 child with stdin/stdout/stderr pipes. An ephemeral
 loopback socket authenticated with a per-session token carries ready/exception/finished events;

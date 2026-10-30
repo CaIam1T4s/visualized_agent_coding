@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="happy_agent_coding.Views.MessageEventView"
+             KeyboardNavigation.TabNavigation="Cycle">
+    <Border Background="#99000000">
+        <Border Width="480" MaxWidth="640" Margin="24" CornerRadius="8" Padding="24"
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+            <StackPanel Spacing="16">
+                <TextBlock x:Name="DialogTitle" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock x:Name="Description" TextWrapping="Wrap" />
+                <TextBox x:Name="MessageName" PlaceholderText="消息名称" MaxLength="248" />
+                <TextBox x:Name="CodePreview" IsVisible="False" IsReadOnly="True"
+                         AcceptsReturn="True" MaxHeight="220" TextWrapping="NoWrap"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+                <TextBlock x:Name="ValidationError" IsVisible="False" TextWrapping="Wrap"
+                           Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Content="取消" Classes="command-button secondary" Click="OnCancel" />
+                    <Button x:Name="AcceptButton" Classes="command-button primary" Click="OnAccept" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Border>
+</UserControl>

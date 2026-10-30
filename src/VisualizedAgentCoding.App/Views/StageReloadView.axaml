@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="happy_agent_coding.Views.StageReloadView" KeyboardNavigation.TabNavigation="Cycle">
+    <Border Background="#99000000">
+        <Border Width="520" Margin="24" CornerRadius="8" HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+            <Grid RowDefinitions="Auto,Auto">
+                <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="24,10,20,10">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="重新加载舞台" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="caption-button" Click="OnCancel" ToolTip.Tip="取消">
+                            <TextBlock Classes="caption-glyph" Text="&#xE8BB;" />
+                        </Button>
+                    </Grid>
+                </Border>
+                <StackPanel Grid.Row="1" Margin="24" Spacing="16">
+                    <TextBlock Text="这将放弃所有尚未保存的舞台布局修改，并读取磁盘中的布局。脚本编辑内容不受影响。" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button x:Name="CancelButton" Content="取消" Classes="command-button secondary" Click="OnCancel" />
+                        <Button Content="放弃修改并重新加载" Classes="command-button primary" Click="OnAccept" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Border>
+</UserControl>

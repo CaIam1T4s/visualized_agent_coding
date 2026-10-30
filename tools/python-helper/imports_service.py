@@ -101,7 +101,7 @@ def inspect_block(source):
         metadata = json.loads(line[position + len(META):])
         if not isinstance(metadata, dict) or set(metadata) - {'source', 'scriptId'}:
             raise ValueError('受管理导入身份信息无效。')
-        if metadata.get('source') not in ('project', 'standard') or (metadata.get('source') == 'project'
+        if metadata.get('source') not in ('project', 'standard', 'runtime') or (metadata.get('source') == 'project'
                 and (not isinstance(metadata.get('scriptId'), str) or not metadata['scriptId'])):
             raise ValueError('受管理导入必须包含有效的来源和项目脚本身份。')
         entries.extend(_entries(node, metadata.get('source'), metadata.get('scriptId')))
@@ -116,6 +116,12 @@ def classify(entry, context):
         return None, '不支持相对导入、通配符或无效模块名称。'
     if entry.get('alias') is not None and not _ident(entry['alias']):
         return None, '别名必须是有效且非保留的 Python 名称。'
+    if module == 'vac_runtime' and entry.get('name') == 'broadcast':
+        if entry.get('source') not in (None, '', 'runtime') or entry.get('scriptId'):
+            return None, '消息广播 API 必须来自产品运行时。'
+        return dict(entry, source='runtime', scriptId=None), None
+    if entry.get('source') == 'runtime':
+        return None, '当前公开运行时 API 仅支持 from vac_runtime import broadcast。'
     scripts = context.get('scripts', [])
     forms = {module, module + '.' + entry['name'] if entry.get('name') else module}
     target = next((s for s in scripts if forms.intersection((s['module'], s['module'].split('.')[-1]))), None)
@@ -134,8 +140,7 @@ def classify(entry, context):
             return None, '不能导入当前脚本自身。'
         return dict(entry, source='project', scriptId=target['id']), None
     if module == 'runtime' or module.startswith(('runtime.', 'vac_runtime')):
-        # No public runtime API is shipped yet; base interfaces remain system dependencies.
-        return None, '该运行时模块为内部实现，不能直接导入；当前尚无可选公开 API。'
+        return None, '该运行时模块为内部实现，不能直接导入；请使用公开的 broadcast API。'
     if module.split('.')[0] in standard_modules():
         if module != module.split('.')[0] and module != 'os.path':
             paths = list(dict.fromkeys([sysconfig.get_path('stdlib'), sysconfig.get_path('platstdlib')]))

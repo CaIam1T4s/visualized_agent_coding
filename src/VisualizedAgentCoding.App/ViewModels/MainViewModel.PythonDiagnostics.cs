@@ -82,6 +82,7 @@ public partial class MainViewModel : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        DisposeStageImages();
         await StopPythonAsync();
         await runtime.DisposeAsync();
         environmentLifetime.Cancel();

@@ -414,6 +414,17 @@
         <Style Selector="Border.stage-sprite.selected">
             <Setter Property="BorderBrush" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
         </Style>
+        <Style Selector="Border.stage-sprite.has-image">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.stage-sprite-outline">
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="Border.stage-sprite-outline.selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+        </Style>
         <Style Selector="Border.stage-sprite TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
         </Style>

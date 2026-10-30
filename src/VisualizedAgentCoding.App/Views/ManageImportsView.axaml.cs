@@ -40,9 +40,9 @@ public partial class ManageImportsView : UserControl
         {
             0 => targets.Select(t => new Target(t.DisplayName, new ScriptImport(t.Module, Alias: t.Module.Split('.').Last(), Source: "project", ScriptId: t.Id))).ToArray(),
             1 => standard.Select(m => new Target(m, new ScriptImport(m))).ToArray(),
-            _ => Array.Empty<Target>(),
+            _ => new[] { new Target("消息广播 broadcast", new ScriptImport("vac_runtime", Name: "broadcast", Source: "runtime")) },
         };
-        SourceHint.Text = SourceKind.SelectedIndex == 2 ? "当前尚无可选公开运行时 API。基类等内部依赖由系统管理。"
+        SourceHint.Text = SourceKind.SelectedIndex == 2 ? "broadcast(消息名称)：通过系统入口同步发送消息，全部接收方执行完后返回。"
             : SourceKind.SelectedIndex == 0 ? "仅列出其他普通用户脚本；角色、背景和当前脚本不能导入。" : "可用模块来自当前 Python 环境，不自动安装包。";
         TargetModule.SelectedIndex = -1;
     }

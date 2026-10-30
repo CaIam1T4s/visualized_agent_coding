@@ -108,12 +108,31 @@ public partial class PythonEditorView : UserControl
             && projection is MultiRegionProjection };
         initialize.Click += (_, _) => AddInitializeWithHistory();
         add.Items.Add(initialize);
+        var messagesEnabled = !EditorTextBox.IsReadOnly && projection is MultiRegionProjection { Document.TemplateVersion: 3 };
+        var message = new MenuItem { Header = "消息事件…", IsEnabled = messagesEnabled };
+        ToolTip.SetTip(message, messagesEnabled ? "添加当收到消息区域" : "需要已确认的 v3 角色或背景模板");
+        message.Click += (_, _) => EditMessage();
+        add.Items.Add(message);
         var canManageImports = !EditorTextBox.IsReadOnly && (viewModel.OpenScript.Kind == ProjectScriptKind.User || projection?.Document.TemplateVersion == 3);
         var imports = new MenuItem { Header = "导入脚本…", IsEnabled = canManageImports };
         ToolTip.SetTip(imports, canManageImports ? "导入其他用户脚本或标准库" : "旧版角色或背景脚本需先升级模板");
         imports.Click += OnManageImportsClick;
         add.Items.Add(imports);
         editorMenu.Items.Add(add);
+        var messageRegions = new MenuItem { Header = "管理消息事件", IsEnabled = messagesEnabled };
+        foreach (var region in projection?.Document.Regions ?? [])
+        {
+            if (region.Kind != "event" || MessageEvents.Name(region.EventName) is not { } name) continue;
+            var entry = new MenuItem { Header = name };
+            var renameMessage = new MenuItem { Header = "修改消息名称…" };
+            renameMessage.Click += (_, _) => EditMessage(region.Id);
+            var deleteMessage = new MenuItem { Header = "删除消息区域…" };
+            deleteMessage.Click += (_, _) => EditMessage(region.Id, delete: true);
+            entry.Items.Add(renameMessage); entry.Items.Add(deleteMessage);
+            messageRegions.Items.Add(entry);
+        }
+        messageRegions.IsEnabled &= messageRegions.Items.Count > 0;
+        editorMenu.Items.Add(messageRegions);
         editorMenu.Items.Add(new Separator());
         editorMenu.Items.Add(references);
         editorMenu.Items.Add(new MenuItem { Header = "重新加载磁盘文件…", Command = viewModel.RequestReloadScriptCommand });
