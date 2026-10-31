@@ -22,6 +22,8 @@ public partial class WorkspaceView : UserControl
     {
         InitializeComponent();
         RunIcon.Content = CreateIcon(AntDesignIconKind.PlayCircleOutlined);
+        DataContextChanged += (_, _) => AttachRunIconSource(DataContext as MainViewModel);
+        Unloaded += (_, _) => AttachRunIconSource(null);
         Loaded += OnLoaded;
         SizeChanged += OnSizeChanged;
         Sidebar.SizeChanged += OnSidebarSizeChanged;
@@ -29,6 +31,56 @@ public partial class WorkspaceView : UserControl
         HorizontalSplitter.PointerReleased += OnSplitterPointerReleased;
         VerticalSplitter.PointerReleased += OnSplitterPointerReleased;
     }
+
+    private MainViewModel? runIconSource;
+
+    private void AttachRunIconSource(MainViewModel? viewModel)
+    {
+        if (ReferenceEquals(runIconSource, viewModel)) return;
+        if (runIconSource is not null) runIconSource.PropertyChanged -= OnRunStateChanged;
+        runIconSource = viewModel;
+        if (runIconSource is not null) runIconSource.PropertyChanged += OnRunStateChanged;
+        UpdateRunIcon(viewModel?.IsPythonActive == true);
+    }
+
+    private void OnRunStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.IsPythonActive)) UpdateRunIcon(((MainViewModel)sender!).IsPythonActive);
+    }
+
+    private void UpdateRunIcon(bool running) => RunIcon.Content = CreateIcon(
+        running ? AntDesignIconKind.PauseOutlined : AntDesignIconKind.PlayCircleOutlined);
+
+    private void OnStageKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is not MainViewModel { IsPythonActive: true } viewModel) return;
+        if (StageKeyName(e.Key) is not { } key) return;
+        e.Handled = true;
+        _ = viewModel.DispatchStageKeyAsync(key);
+    }
+
+    /// <summary>Maps Avalonia keys to the lower-case names used by key event regions.</summary>
+    private static string? StageKeyName(Key key) => key switch
+    {
+        >= Key.A and <= Key.Z => ((char)('a' + (key - Key.A))).ToString(),
+        >= Key.D0 and <= Key.D9 => ((char)('0' + (key - Key.D0))).ToString(),
+        >= Key.NumPad0 and <= Key.NumPad9 => ((char)('0' + (key - Key.NumPad0))).ToString(),
+        Key.Space => "space",
+        Key.Enter => "enter",
+        Key.Escape => "escape",
+        Key.Back => "backspace",
+        Key.Delete => "delete",
+        Key.Insert => "insert",
+        Key.Left => "left",
+        Key.Right => "right",
+        Key.Up => "up",
+        Key.Down => "down",
+        Key.Home => "home",
+        Key.End => "end",
+        Key.PageUp => "pageup",
+        Key.PageDown => "pagedown",
+        _ => null,
+    };
 
     private static Control CreateIcon(AntDesignIconKind kind)
     {
@@ -197,8 +249,16 @@ public partial class WorkspaceView : UserControl
             return;
         if (DataContext is not MainViewModel viewModel)
             return;
+        if (!e.GetCurrentPoint(StageCanvas).Properties.IsLeftButtonPressed) return;
 
-        if (viewModel.IsPythonActive) return;
+        if (viewModel.IsPythonActive)
+        {
+            // No sprite intercepted the press, so the active backdrop handles it.
+            e.Handled = true;
+            StageFrame.Focus();
+            _ = viewModel.DispatchStageBackdropClickAsync();
+            return;
+        }
         if (viewModel.DisplayBackdrop is { } backdrop)
             viewModel.SelectStageObjectCommand.Execute(backdrop);
         else
@@ -216,6 +276,7 @@ public partial class WorkspaceView : UserControl
         if (viewModel.IsPythonActive)
         {
             e.Handled = true;
+            StageFrame.Focus();
             _ = viewModel.DispatchStageClickAsync(item);
             return;
         }

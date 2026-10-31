@@ -30,6 +30,51 @@ public sealed class RuntimeStageTests : IDisposable
     }
 
     [Fact]
+    public async Task DisablingClicksBeforeRunReachesTheRuntimeInsteadOfBeingReenabled()
+    {
+        var store = new JsonProjectStore();
+        var project = new ProjectService(store).Create(Path.Combine(root, "project"));
+        new ProjectService(store).CreateScript(project, ProjectScriptKind.Object, "actor");
+        await using var bridge = new PythonProcessBridge();
+        await using var vm = new MainViewModel(new JsonSettingsStore(Path.Combine(root, "settings.json")),
+            new InMemoryRecentProjectsStore(), new ProjectSession(), bridge);
+        await vm.OpenProject(project.RootPath);
+        var sprite = Assert.Single(vm.StageSprites);
+        Assert.True(sprite.InspectorClickEnabled);
+        sprite.InspectorClickEnabled = false;
+        Assert.False(sprite.ClickEnabled);
+        var run = vm.RunCommand.ExecuteAsync(null);
+        await TestMainViewModelFactory.WaitForInteractiveAsync(vm, run);
+        Assert.False(Assert.Single(vm.StageSprites).ClickEnabledRuntime);
+        await vm.StopPythonAsync();
+        await run;
+    }
+
+    [Fact]
+    public async Task StoppedRunKeepsPreviewWhileSelectingAnObjectOpensItsScript()
+    {
+        var store = new JsonProjectStore();
+        var project = new ProjectService(store).Create(Path.Combine(root, "project"));
+        new ProjectService(store).CreateScript(project, ProjectScriptKind.Object, "alpha");
+        new ProjectService(store).CreateScript(project, ProjectScriptKind.Object, "beta");
+        await using var bridge = new PythonProcessBridge();
+        await using var vm = new MainViewModel(new JsonSettingsStore(Path.Combine(root, "settings.json")),
+            new InMemoryRecentProjectsStore(), new ProjectSession(), bridge);
+        await vm.OpenProject(project.RootPath);
+        var beta = vm.StageSprites.Single(s => s.DisplayName == "beta");
+        var run = vm.RunCommand.ExecuteAsync(null);
+        await TestMainViewModelFactory.WaitForInteractiveAsync(vm, run);
+        await TestMainViewModelFactory.PumpUntilAsync(vm, () => vm.HasRuntimeStagePreview, run);
+        await vm.StopPythonAsync();
+        await run;
+        Assert.True(vm.HasRuntimeStagePreview);
+        Assert.False(vm.IsPythonActive);
+        await vm.SelectStageObjectCommand.ExecuteAsync(beta);
+        Assert.Equal(beta.ScriptId, vm.OpenScript?.Id);
+        Assert.True(vm.HasRuntimeStagePreview);
+    }
+
+    [Fact]
     public async Task ExplicitZeroFalseAndConstructorOverrideLayoutAndInitializationOverridesAll()
     {
         var request = Request("""

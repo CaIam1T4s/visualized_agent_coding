@@ -12,7 +12,7 @@ public partial class PythonEditorView
 {
     private bool showingMessages;
 
-    private async void EditMessage(string? id = null, bool delete = false, bool spriteClick = false)
+    private async void EditMessage(string? id = null, bool delete = false, bool spriteClick = false, bool stageClick = false, bool keyEvent = false)
     {
         editorMenu?.Hide();
         if (showingMessages || EditorTextBox.IsReadOnly || projection is not MultiRegionProjection multi
@@ -20,6 +20,7 @@ public partial class PythonEditorView
             || TopLevel.GetTopLevel(this) is not Window owner
             || owner.FindControl<Border>("WindowFrame")?.Child is not Grid host) return;
         if (spriteClick && viewModel.OpenScript?.Kind != ProjectScriptKind.Object) return;
+        if (stageClick && viewModel.OpenScript?.Kind != ProjectScriptKind.Backdrop) return;
         var current = viewModel;
         var original = multi.Document;
         StructuralEditorState before;
@@ -27,15 +28,18 @@ public partial class PythonEditorView
             EditorTextBox.SelectionLength, EditorTextBox.CaretOffset); }
         catch (InvalidOperationException ex) { SetProtectionStatus(ex.Message); return; }
         var selected = original.Regions!.FirstOrDefault(r => r.Id == id);
-        var name = MessageEvents.Name(selected?.EventName) ?? "";
+        var name = MessageEvents.Name(selected?.EventName) ?? KeyEvents.Name(selected?.EventName) ?? "";
         var preview = delete && selected is not null ? multi.ViewSource.Substring(
             multi.EditableRegions.First(r => r.Id == id).Span.Offset, multi.EditableRegions.First(r => r.Id == id).Span.Length) : null;
-        var title = spriteClick ? (delete ? "删除角色点击区域" : "添加角色点击事件") : delete ? "删除消息区域" : id is null ? "添加消息事件" : "修改消息名称";
+        var title = spriteClick ? (delete ? "删除角色点击区域" : "添加角色点击事件")
+            : stageClick ? (delete ? "删除舞台点击区域" : "添加背景点击事件")
+            : keyEvent ? (delete ? "删除按键事件区域" : "添加按键事件")
+            : delete ? "删除消息区域" : id is null ? "添加消息事件" : "修改消息名称";
         var dialog = new MessageEventView(title, name, value =>
         {
-            try { if (!delete) { if (spriteClick) ObjectScriptFeatures.ValidateSpriteClick(original); else ObjectScriptFeatures.ValidateMessage(original, value, id); } return null; }
+            try { if (!delete) { if (spriteClick) ObjectScriptFeatures.ValidateSpriteClick(original); else if (stageClick) ObjectScriptFeatures.ValidateStageClick(original); else if (keyEvent) ObjectScriptFeatures.ValidateKey(original, value, id); else ObjectScriptFeatures.ValidateMessage(original, value, id); } return null; }
             catch (ArgumentException ex) { return ex.Message; }
-        }, preview, renaming: id is not null && !delete, fixedEvent: spriteClick);
+        }, preview, renaming: id is not null && !delete, fixedEvent: spriteClick || stageClick, keyEvent: keyEvent);
         showingMessages = true;
         Grid.SetRowSpan(dialog, 2);
         host.Children.Add(dialog);
@@ -49,6 +53,10 @@ public partial class PythonEditorView
                 throw new InvalidOperationException("脚本已改变，请重新打开消息事件操作。");
             var updated = spriteClick
                 ? delete ? ObjectScriptFeatures.DeleteSpriteClick(original, id!) : ObjectScriptFeatures.AddSpriteClick(original)
+                : stageClick
+                ? delete ? ObjectScriptFeatures.DeleteStageClick(original, id!) : ObjectScriptFeatures.AddStageClick(original)
+                : keyEvent
+                ? delete ? ObjectScriptFeatures.DeleteKey(original, id!) : ObjectScriptFeatures.AddKey(original, result)
                 : delete ? ObjectScriptFeatures.DeleteMessage(original, id!)
                 : id is null ? ObjectScriptFeatures.AddMessage(original, result) : ObjectScriptFeatures.RenameMessage(original, id, result);
             if (ReferenceEquals(updated, original)) return;

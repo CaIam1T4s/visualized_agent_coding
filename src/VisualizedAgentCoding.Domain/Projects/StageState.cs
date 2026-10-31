@@ -9,7 +9,8 @@ public sealed record StageState
 }
 
 public sealed record StageObjectState(string ObjectId, double X = 0, double Y = 0,
-    double Size = 100, double Direction = 90, bool Visible = true, int Layer = 0, string? ImagePath = null, bool NormalizeImage = false);
+    double Size = 100, double Direction = 90, bool Visible = true, int Layer = 0, string? ImagePath = null, bool NormalizeImage = false,
+    bool ClickEnabled = true);
 
 public static class StageRules
 {

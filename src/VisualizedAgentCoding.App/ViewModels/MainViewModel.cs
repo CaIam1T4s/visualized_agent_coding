@@ -503,14 +503,17 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Inspects preview objects without changing initial layout; otherwise opens their scripts.</summary>
+    /// <summary>
+    /// While a run is active, inspects the selected object without navigating away from the preview.
+    /// Otherwise opens its script; a retained preview stays until an explicit edit or "返回初始布局".
+    /// </summary>
     [RelayCommand]
     private async Task SelectStageObject(StageObjectItem? item)
     {
         if (item is null)
             return;
 
-        if (IsPythonActive || hasRuntimePreview)
+        if (IsPythonActive)
         {
             foreach (var candidate in StageSprites.Concat(StageBackdrops)) candidate.IsSelected = candidate.ObjectId == item.ObjectId;
             if (item.IsSprite) SelectedSprite = item; else SelectedBackdrop = item;

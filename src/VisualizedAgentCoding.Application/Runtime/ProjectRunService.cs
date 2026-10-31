@@ -47,7 +47,7 @@ public sealed class ProjectRunService(IProjectStore store, IPythonBridge bridge)
                 if (document.HasRegions)
                 {
                     // Region source is authoritative; deleted regions cannot leave ghost bindings.
-                    handlers.RemoveAll(h => h.ScriptId == script.Id && h.Event is ProjectEventKinds.Broadcast or ProjectEventKinds.SpriteClick);
+                    handlers.RemoveAll(h => h.ScriptId == script.Id && h.Event is ProjectEventKinds.Broadcast or ProjectEventKinds.SpriteClick or ProjectEventKinds.StageClick or ProjectEventKinds.Key);
                     foreach (var region in document.Regions!)
                     {
                         if (region.Kind == "event" && MessageEvents.Name(region.EventName) is { } message)
@@ -56,6 +56,15 @@ public sealed class ProjectRunService(IProjectStore store, IPythonBridge bridge)
                         {
                             if (script.Kind != ProjectScriptKind.Object) throw new ProjectOperationException("角色点击事件只能用于角色脚本。");
                             handlers.Add(new(script.Id, ProjectEventKinds.SpriteClick, null, "_vac_event_" + region.Id));
+                        }
+                        else if (region.Kind == "event" && region.EventName == ProjectEventKinds.StageClick)
+                        {
+                            if (script.Kind != ProjectScriptKind.Backdrop) throw new ProjectOperationException("背景点击事件只能用于背景脚本。");
+                            handlers.Add(new(script.Id, ProjectEventKinds.StageClick, null, "_vac_event_" + region.Id));
+                        }
+                        else if (region.Kind == "event" && KeyEvents.Name(region.EventName) is { } key)
+                        {
+                            handlers.Add(new(script.Id, ProjectEventKinds.Key, KeyEvents.ValidateName(key), "_vac_event_" + region.Id));
                         }
                     }
                 }

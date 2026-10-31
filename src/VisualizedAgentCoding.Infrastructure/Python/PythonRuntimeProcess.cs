@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using VisualizedAgentCoding.Application.Ports;
 using VisualizedAgentCoding.Application.Runtime;
+using VisualizedAgentCoding.Domain.Projects;
 
 namespace VisualizedAgentCoding.Infrastructure.Python;
 
@@ -19,6 +20,8 @@ public sealed class PythonRuntimeProcess(string? runtimeDirectory = null) : IPyt
     private string? sessionId;
     private HashSet<string> clickObjects = [];
     private volatile bool acceptsClicks;
+    private volatile bool hasStageClick;
+    private volatile bool hasKeyEvents;
     private Process? process;
     private int running;
     private bool ready;
@@ -64,6 +67,8 @@ public sealed class PythonRuntimeProcess(string? runtimeDirectory = null) : IPyt
             {
                 liveControl = control; sessionId = request.SessionId;
                 clickObjects = request.Scripts.Where(s => s.Kind == "object" && s.ObjectId is not null).Select(s => s.ObjectId!).ToHashSet(StringComparer.Ordinal);
+                hasStageClick = request.Handlers.Any(h => h.Event == ProjectEventKinds.StageClick);
+                hasKeyEvents = request.Handlers.Any(h => h.Event == ProjectEventKinds.Key);
             }
             finally { commandGate.Release(); }
             events = ReadEventsAsync(reader, publish);
@@ -78,7 +83,7 @@ public sealed class PythonRuntimeProcess(string? runtimeDirectory = null) : IPyt
         {
             ready = false; acceptsClicks = false;
             await commandGate.WaitAsync();
-            try { liveControl = null; sessionId = null; clickObjects.Clear(); }
+            try { liveControl = null; sessionId = null; clickObjects.Clear(); hasStageClick = false; hasKeyEvents = false; }
             finally { commandGate.Release(); }
             listener.Stop();
             if (child is not null && !child.HasExited)
@@ -145,6 +150,34 @@ public sealed class PythonRuntimeProcess(string? runtimeDirectory = null) : IPyt
                 || liveControl is null || process is not { HasExited: false })
                 throw new IOException("当前运行会话无法接收该角色的点击。");
             var command = JsonSerializer.Serialize(new { kind = "sprite-click", sessionId = requestedSession, objectId }, Json) + "\n";
+            await liveControl.GetStream().WriteAsync(Encoding.UTF8.GetBytes(command), token);
+        }
+        finally { commandGate.Release(); }
+    }
+
+    public async Task SendStageClickAsync(string requestedSession, CancellationToken token = default)
+    {
+        await commandGate.WaitAsync(token);
+        try
+        {
+            if (!acceptsClicks || sessionId != requestedSession || !hasStageClick
+                || liveControl is null || process is not { HasExited: false })
+                throw new IOException("当前运行会话无法接收背景点击。");
+            var command = JsonSerializer.Serialize(new { kind = "stage-click", sessionId = requestedSession }, Json) + "\n";
+            await liveControl.GetStream().WriteAsync(Encoding.UTF8.GetBytes(command), token);
+        }
+        finally { commandGate.Release(); }
+    }
+
+    public async Task SendKeyAsync(string requestedSession, string key, CancellationToken token = default)
+    {
+        await commandGate.WaitAsync(token);
+        try
+        {
+            if (!acceptsClicks || sessionId != requestedSession || !hasKeyEvents
+                || liveControl is null || process is not { HasExited: false })
+                throw new IOException("当前运行会话无法接收按键事件。");
+            var command = JsonSerializer.Serialize(new { kind = "key", sessionId = requestedSession, key }, Json) + "\n";
             await liveControl.GetStream().WriteAsync(Encoding.UTF8.GetBytes(command), token);
         }
         finally { commandGate.Release(); }

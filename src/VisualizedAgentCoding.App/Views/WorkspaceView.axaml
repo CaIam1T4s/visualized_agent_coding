@@ -53,6 +53,8 @@
                            Grid.Row="1">
                         <Border x:Name="StageFrame" IsVisible="{Binding IsStageVisible}"
                                 Background="Transparent"
+                                Focusable="True"
+                                KeyDown="OnStageKeyDown"
                                 CornerRadius="8"
                                 MinWidth="360"
                                 MinHeight="270"
@@ -131,7 +133,7 @@
                                                                 BorderThickness="0"
                                                                 Classes.has-image="{Binding HasImage}"
                                                                 Classes.selected="{Binding IsSelected}"
-                                                                IsHitTestVisible="{Binding RenderVisible}"
+                                                                IsHitTestVisible="{Binding StageHitTestVisible}"
                                                                 Width="{Binding SpriteWidth}"
                                                                 Height="{Binding SpriteHeight}"
                                                                 Opacity="{Binding StageOpacity}"

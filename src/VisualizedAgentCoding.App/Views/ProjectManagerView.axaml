@@ -4,6 +4,19 @@
              xmlns:project="using:VisualizedAgentCoding.Application.Projects"
              x:Class="happy_agent_coding.Views.ProjectManagerView"
              x:DataType="vm:MainViewModel">
+    <UserControl.Resources>
+        <DataTemplate x:Key="RecentProjectTemplate" x:DataType="project:RecentProjectEntry">
+            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                    Click="OnRecentProjectClicked"
+                    Tag="{Binding Path}">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Path}" FontSize="12" TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </Button>
+        </DataTemplate>
+    </UserControl.Resources>
     <Grid Background="#99000000"
           ColumnDefinitions="0.08*,0.84*,0.08*"
           RowDefinitions="0.08*,0.84*,0.08*">
@@ -77,30 +90,20 @@
                                 <ScrollViewer IsVisible="{Binding HasRecentProjects}">
                                     <StackPanel Spacing="8">
                                         <Expander Header="一天内" IsExpanded="True">
-                                            <ItemsControl ItemsSource="{Binding RecentProjectsToday}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate x:DataType="project:RecentProjectEntry">
-                                                        <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                                                Click="OnRecentProjectClicked"
-                                                                Tag="{Binding Path}">
-                                                            <StackPanel Spacing="2">
-                                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                                                <TextBlock Text="{Binding Path}" FontSize="12" TextTrimming="CharacterEllipsis"
-                                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                                            </StackPanel>
-                                                        </Button>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
+                                            <ItemsControl ItemsSource="{Binding RecentProjectsToday}"
+                                                          ItemTemplate="{StaticResource RecentProjectTemplate}" />
                                         </Expander>
                                         <Expander Header="一周内">
-                                            <ItemsControl ItemsSource="{Binding RecentProjectsThisWeek}" />
+                                            <ItemsControl ItemsSource="{Binding RecentProjectsThisWeek}"
+                                                          ItemTemplate="{StaticResource RecentProjectTemplate}" />
                                         </Expander>
                                         <Expander Header="一个月内">
-                                            <ItemsControl ItemsSource="{Binding RecentProjectsThisMonth}" />
+                                            <ItemsControl ItemsSource="{Binding RecentProjectsThisMonth}"
+                                                          ItemTemplate="{StaticResource RecentProjectTemplate}" />
                                         </Expander>
                                         <Expander Header="很久以前">
-                                            <ItemsControl ItemsSource="{Binding RecentProjectsOlder}" />
+                                            <ItemsControl ItemsSource="{Binding RecentProjectsOlder}"
+                                                          ItemTemplate="{StaticResource RecentProjectTemplate}" />
                                         </Expander>
                                     </StackPanel>
                                 </ScrollViewer>

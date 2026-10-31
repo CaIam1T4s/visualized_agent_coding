@@ -26,3 +26,29 @@ class EventInboxTests(unittest.TestCase):
         inbox = EventInbox('run')
         inbox.stop()
         self.assertFalse(inbox.stop_requested.is_set())
+
+
+class StageClickTests(unittest.TestCase):
+    def _inbox(self):
+        inbox = EventInbox('run')
+        inbox.accepting = True
+        return inbox
+
+    def test_stage_click_requires_no_object_id(self):
+        inbox = self._inbox()
+        self.assertTrue(inbox.offer(dict(kind='stage-click', sessionId='run')))
+        self.assertEqual(('stage-click', None), inbox.pending.get_nowait())
+
+    def test_stage_click_rejects_other_session(self):
+        inbox = self._inbox()
+        self.assertFalse(inbox.offer(dict(kind='stage-click', sessionId='other')))
+
+    def test_unknown_kind_is_still_rejected(self):
+        inbox = self._inbox()
+        self.assertFalse(inbox.offer(dict(kind='unknown', sessionId='run')))
+
+    def test_key_commands_are_queued_by_name(self):
+        inbox = self._inbox()
+        self.assertTrue(inbox.offer(dict(kind='key', sessionId='run', key='a')))
+        self.assertEqual(('key', 'a'), inbox.pending.get_nowait())
+        self.assertFalse(inbox.offer(dict(kind='key', sessionId='run', key=1)))

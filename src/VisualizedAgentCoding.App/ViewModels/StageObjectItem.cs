@@ -33,6 +33,9 @@ public partial class StageObjectItem : ObservableObject, IDisposable
     public double RenderSize => runtimeState?.Size ?? Size;
     public double RenderDirection => runtimeState?.Direction ?? Direction;
     public bool RenderVisible => runtimeState?.Visible ?? IsVisible;
+    public bool ClickEnabledRuntime => runtimeState?.ClickEnabled ?? ClickEnabled;
+    /// <summary>Running: clicks follow ClickEnabled. Editing: only visible sprites can be picked.</summary>
+    public bool StageHitTestVisible => IsStageReadOnly ? ClickEnabledRuntime : RenderVisible;
     public int RenderLayer => runtimeState?.Layer ?? Layer;
     public void ApplyRuntimeState(StageObjectState? state)
     {
@@ -41,12 +44,12 @@ public partial class StageObjectItem : ObservableObject, IDisposable
         foreach (var name in new[] { nameof(RenderX), nameof(RenderY), nameof(RenderSize), nameof(RenderDirection),
             nameof(RenderVisible), nameof(RenderLayer), nameof(SpriteWidth), nameof(SpriteHeight), nameof(CanvasLeft),
             nameof(CanvasTop), nameof(Rotation), nameof(StageOpacity), nameof(BackdropImageWidth), nameof(BackdropImageHeight), nameof(InspectorX), nameof(InspectorY),
-            nameof(InspectorSize), nameof(InspectorDirection), nameof(InspectorLayer), nameof(InspectorVisible), nameof(InspectorHidden), nameof(InspectorVisibilityText) })
+            nameof(InspectorSize), nameof(InspectorDirection), nameof(InspectorLayer), nameof(InspectorVisible), nameof(InspectorHidden), nameof(InspectorVisibilityText), nameof(ClickEnabledRuntime), nameof(InspectorClickEnabled), nameof(StageHitTestVisible) })
             OnPropertyChanged(name);
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanEditProperties))]
+    [NotifyPropertyChangedFor(nameof(CanEditProperties), nameof(StageHitTestVisible))]
     private bool isStageReadOnly;
     public bool CanEditProperties => !IsStageReadOnly;
     public bool InspectorVisible => RenderVisible;
@@ -64,6 +67,7 @@ public partial class StageObjectItem : ObservableObject, IDisposable
     public double InspectorSize { get => RenderSize; set { if (value != RenderSize && PrepareInitialEdit()) Size = value; } }
     public double InspectorDirection { get => RenderDirection; set { if (value != RenderDirection && PrepareInitialEdit()) Direction = value; } }
     public int InspectorLayer { get => RenderLayer; set { if (value != RenderLayer && PrepareInitialEdit()) Layer = value; } }
+    public bool InspectorClickEnabled { get => ClickEnabledRuntime; set { if (value != ClickEnabledRuntime && PrepareInitialEdit()) ClickEnabled = value; } }
 
     public string ScriptId { get; private set; }
 
@@ -101,8 +105,8 @@ public partial class StageObjectItem : ObservableObject, IDisposable
     }
 
     public void Restore(StageObjectState state)
-    { X = state.X; Y = state.Y; Size = state.Size; Direction = state.Direction; IsVisible = state.Visible; Layer = state.Layer; ImagePath = state.ImagePath; normalizeImage = state.NormalizeImage; }
-    public StageObjectState Snapshot() => new(ObjectId, X, Y, Size, Direction, IsVisible, Layer, ImagePath, normalizeImage);
+    { X = state.X; Y = state.Y; Size = state.Size; Direction = state.Direction; IsVisible = state.Visible; Layer = state.Layer; ImagePath = state.ImagePath; normalizeImage = state.NormalizeImage; ClickEnabled = state.ClickEnabled; }
+    public StageObjectState Snapshot() => new(ObjectId, X, Y, Size, Direction, IsVisible, Layer, ImagePath, normalizeImage, ClickEnabled);
     public void SetImage(string? path, Bitmap? bitmap, string status, bool? normalize = null)
     {
         var old = Picture;
@@ -160,10 +164,14 @@ public partial class StageObjectItem : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsHidden))]
     [NotifyPropertyChangedFor(nameof(StageOpacity))]
-    [NotifyPropertyChangedFor(nameof(RenderVisible), nameof(InspectorVisible), nameof(InspectorHidden), nameof(InspectorVisibilityText))]
+    [NotifyPropertyChangedFor(nameof(RenderVisible), nameof(InspectorVisible), nameof(InspectorHidden), nameof(InspectorVisibilityText), nameof(StageHitTestVisible))]
     private bool isVisible = true;
 
     public bool IsHidden => !IsVisible;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ClickEnabledRuntime), nameof(InspectorClickEnabled), nameof(StageHitTestVisible))]
+    private bool clickEnabled = true;
 
     /// <summary>Placeholder costume size on the 480×360 canvas.</summary>
     public double SpriteWidth => (Picture?.PixelSize.Width ?? BaseSpriteSize) * ImageScale * RenderSize / 100.0;

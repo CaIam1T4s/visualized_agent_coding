@@ -81,6 +81,45 @@ public static partial class ObjectScriptFeatures
         return DeleteEventRegion(document, region);
     }
 
+    public static void ValidateStageClick(ObjectScriptDocument document)
+    {
+        RequireMessageDocument(document);
+        if (document.Regions!.Any(r => r.Kind == "event" && r.EventName == ProjectEventKinds.StageClick))
+            throw new ArgumentException("该背景已经有舞台点击事件区域。");
+    }
+    public static ObjectScriptDocument AddStageClick(ObjectScriptDocument document)
+    {
+        ValidateStageClick(document);
+        return AddEventRegion(document, ProjectEventKinds.StageClick, "stage_click_");
+    }
+    public static ObjectScriptDocument DeleteStageClick(ObjectScriptDocument document, string id)
+    {
+        RequireMessageDocument(document);
+        var region = document.Regions!.SingleOrDefault(r => r.Id == id && r.Kind == "event" && r.EventName == ProjectEventKinds.StageClick)
+            ?? throw new ArgumentException("请选择舞台点击区域。");
+        return DeleteEventRegion(document, region);
+    }
+
+    public static void ValidateKey(ObjectScriptDocument document, string name, string? excludingId = null)
+    {
+        RequireMessageDocument(document);
+        KeyEvents.ValidateName(name);
+        if (document.Regions!.Any(r => r.Id != excludingId && r.Kind == "event" && KeyEvents.Name(r.EventName) == name))
+            throw new ArgumentException("当前对象已经有同名按键事件。");
+    }
+    public static ObjectScriptDocument AddKey(ObjectScriptDocument document, string name)
+    {
+        ValidateKey(document, name);
+        return AddEventRegion(document, KeyEvents.Prefix + name, "key_");
+    }
+    public static ObjectScriptDocument DeleteKey(ObjectScriptDocument document, string id)
+    {
+        RequireMessageDocument(document);
+        var region = document.Regions!.SingleOrDefault(r => r.Id == id && r.Kind == "event" && KeyEvents.Name(r.EventName) is not null)
+            ?? throw new ArgumentException("请选择按键事件区域。");
+        return DeleteEventRegion(document, region);
+    }
+
     private static ObjectScriptDocument ReplaceShell(ObjectScriptDocument document, int offset, int length, string replacement)
     {
         var delta = replacement.Length - length;

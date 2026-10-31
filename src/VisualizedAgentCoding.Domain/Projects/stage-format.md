@@ -14,7 +14,7 @@ rotation is `direction - 90`. Viewport resizing scales uniformly without changin
     {
       "objectId": "object_sprite_id",
       "x": 40, "y": 20, "size": 100, "direction": 90,
-      "visible": true, "layer": 0,
+      "visible": true, "layer": 0, "clickEnabled": true,
       "imagePath": "assets/images/unique-name.png"
     }
   ]
@@ -22,7 +22,7 @@ rotation is `direction - 90`. Viewport resizing scales uniformly without changin
 ```
 
 Object identity comes from `project.json`. An absent scene means defaults: centered,
-size 100%, direction 90, visible, layer 0, no image, first backdrop. A scene is written
+size 100%, direction 90, visible, layer 0, clickEnabled true, no image, first backdrop. A scene is written
 after layout changes on save/navigation/project close/exit. Opening an unchanged legacy
 project does not create a scene. Unknown versions/fields, duplicate identities, nonfinite
 transforms, and external image paths are rejected. Removed objects are omitted on the next
@@ -74,7 +74,7 @@ handlers. Assignments in start/message handlers update the runtime instance.
 
 `stage` events on the authenticated protocol-v2 channel carry a `stage` object with
 `sessionId`, monotonically increasing `sequence`, `objects` (stable `objectId` plus x/y/size/
-direction/visible/layer), and `currentBackdropId`. Changed snapshots are sampled at 30 Hz;
+direction/visible/layer/clickEnabled), and `currentBackdropId`. Changed snapshots are sampled at 30 Hz;
 initialization completion and exit flush immediately. The host retains at most one pending
 stage frame, validates object membership/values/session/sequence, and updates UI bindings on
 its normal 50 ms dispatch timer. No user stdout parsing is involved. Multiple assignments
@@ -92,13 +92,21 @@ After stop, completion or failure, direct property edits are enabled. The first 
 clears the transient preview and applies only that requested property to the initial layout;
 other runtime values are never promoted. A binding echo of the current display value does
 not count as an edit. Visibility/layer commands use the same transition. Tiles and tabs remain available to inspect other objects/backgrounds;
-this selection does not open scripts or change the active background during a preview.
+while a run is active this selection does not open scripts or change the active background. Once the run has
+stopped, selecting an object opens its script while the retained preview stays visible until an explicit edit or
+"返回初始布局".
 The "返回初始布局" button is available after execution ends, clears all transient transforms
 and restores the initial background and initial inspector values together. It does not reread disk,
 write files, or discard unsaved initial layout edits. Another run or changing projects also
 clears the preview. The next run creates
 fresh instances and merges initial values again. A managed-main event loop now keeps desktop
 runs active after startup, dispatching role clicks on the main thread until Stop or error.
-Role click events use stable object identities and a bounded per-session queue. Background
-click events remain unimplemented. See the Python runtime README for the control protocol. Existing custom project-local bases are not overwritten; to opt into
+Role click events use stable object identities and a bounded per-session queue. A press that
+misses every `clickEnabled` role is sent as one `stage-click` command and dispatched to the
+backdrop that is active at dispatch time; hidden roles still intercept when `clickEnabled` is
+true. The winning backdrop decides `clickEnabled` gating, and a missing handler is ignored.
+Key events use `eventName=key:<name>` with lower-case letters, digits, or preset names such as
+`space`/`up`/`any`; one keystroke runs every object bound to that key, in binding order, and
+`any` matches every key.
+See the Python runtime README for the control protocol. Existing custom project-local bases are not overwritten; to opt into
 desktop stage synchronization they must inherit the product bases.

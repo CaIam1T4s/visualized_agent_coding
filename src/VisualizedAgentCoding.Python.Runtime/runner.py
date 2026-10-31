@@ -176,6 +176,7 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
     # Resolve every start binding before executing any initialization or start body.
     starts = []
     clicks = {}
+    keys = {}
     router = MessageRouter()
     for script, instance in instances:
         bindings = [h for h in request['handlers'] if h['scriptId'] == script['id'] and h['event'] == 'start']
@@ -194,6 +195,21 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
             if not callable(callback):
                 raise RuntimeError('Sprite click handler is missing.')
             clicks[script['objectId']] = (instance, callback)
+        stage_bindings = [h for h in request['handlers'] if h['scriptId'] == script['id'] and h['event'] == 'stage-click']
+        if stage_bindings:
+            if script['kind'] != 'backdrop' or len(stage_bindings) != 1:
+                raise RuntimeError('Invalid stage click binding.')
+            callback = getattr(instance, stage_bindings[0]['handler'], None)
+            if not callable(callback):
+                raise RuntimeError('Stage click handler is missing.')
+            clicks[script['objectId']] = (instance, callback)
+        for binding in request['handlers']:
+            if binding['scriptId'] != script['id'] or binding['event'] != 'key':
+                continue
+            callback = getattr(instance, binding['handler'], None)
+            if not callable(callback):
+                raise RuntimeError(f"{script['path']}：按键处理器不存在")
+            keys.setdefault(binding['argument'], []).append((instance, callback))
         seen = set()
         for binding in request['handlers']:
             if binding['scriptId'] != script['id'] or binding['event'] != 'broadcast':
@@ -225,7 +241,7 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
         if request.get('keepAlive'):
             if legacy_main is not None or inbox is None:
                 raise RuntimeError('Interactive execution requires the managed project entry.')
-            inbox.run(clicks, emit, stage)
+            inbox.run(clicks, emit, stage, keys)
         # Keep publication alive for user-created non-daemon workers as well.
         while stage:
             workers = [t for t in threading.enumerate() if not t.daemon and t is not threading.current_thread()]

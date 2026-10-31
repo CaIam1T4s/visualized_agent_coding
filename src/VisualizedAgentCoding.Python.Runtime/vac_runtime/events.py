@@ -15,11 +15,19 @@ class EventInbox:
     def offer(self, command):
         with self.lock:
             if (not self.accepting or self.stopped.is_set() or not isinstance(command, dict)
-                    or command.get('sessionId') != self.session_id or command.get('kind') != 'sprite-click'
-                    or not isinstance(command.get('objectId'), str)):
+                    or command.get('sessionId') != self.session_id):
+                return False
+            kind = command.get('kind')
+            if kind == 'sprite-click' and isinstance(command.get('objectId'), str):
+                item = ('sprite-click', command['objectId'])
+            elif kind == 'stage-click':
+                item = ('stage-click', None)
+            elif kind == 'key' and isinstance(command.get('key'), str):
+                item = ('key', command['key'])
+            else:
                 return False
             try:
-                self.pending.put_nowait(command['objectId'])
+                self.pending.put_nowait(item)
                 return True
             except queue.Full:
                 return False
@@ -36,7 +44,7 @@ class EventInbox:
                 except queue.Empty:
                     break
 
-    def run(self, handlers, emit, stage):
+    def run(self, handlers, emit, stage, keys=None):
         with self.lock:
             if self.stopped.is_set():
                 return
@@ -45,15 +53,30 @@ class EventInbox:
         try:
             while not self.stopped.is_set():
                 try:
-                    identity = self.pending.get(timeout=0.05)
+                    kind, identity = self.pending.get(timeout=0.05)
                 except queue.Empty:
                     continue
                 if self.stopped.is_set():
                     break
+                if kind == 'key':
+                    # Key events are global: every object bound to the key runs, in binding order.
+                    targets = list((keys or {}).get(identity, ()))
+                    if identity != 'any':
+                        targets.extend((keys or {}).get('any', ()))
+                    for target in targets:
+                        target[1]()
+                    if stage:
+                        stage.publish()
+                    continue
+                if kind == 'stage-click':
+                    # Background clicks target whichever backdrop is active at dispatch time.
+                    if stage is None or stage.backdrop is None:
+                        continue
+                    identity = stage.backdrop
                 target = handlers.get(identity)
                 if target is not None:
                     instance, callback = target
-                    if instance.visible:
+                    if instance.click_enabled:
                         callback()
                         if stage:
                             stage.publish()

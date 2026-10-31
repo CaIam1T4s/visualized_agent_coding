@@ -2,15 +2,18 @@
 import math
 import threading
 
-_DEFAULTS = dict(x=0, y=0, size=100, direction=90, visible=True, layer=0)
+_DEFAULTS = dict(x=0, y=0, size=100, direction=90, visible=True, layer=0, click_enabled=True)
 _LIMITS = dict(x=(-10000, 10000), y=(-10000, 10000), size=(1, 1000), direction=(-180, 180), layer=(-10000, 10000))
 _MISSING = object()
+# Python attribute names stay snake_case; the wire protocol is camelCase.
+_WIRE = dict(click_enabled='clickEnabled')
+_WIRE_REVERSE = {wire: name for name, wire in _WIRE.items()}
 
 
 def validate(name, value):
-    if name == 'visible':
+    if name in ('visible', 'click_enabled'):
         if type(value) is not bool:
-            raise ValueError('visible 必须为布尔值。')
+            raise ValueError(name + ' 必须为布尔值。')
     elif (type(value) not in (int, float) or not math.isfinite(value)
           or not _LIMITS[name][0] <= value <= _LIMITS[name][1]
           or name == 'layer' and type(value) is not int):
@@ -33,6 +36,7 @@ class StageBase:
     direction = stage_property('direction')
     visible = stage_property('visible')
     layer = stage_property('layer')
+    click_enabled = stage_property('click_enabled')
     # Class declarations are explicit parameters too, including zero and False.
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -53,7 +57,7 @@ class StageBase:
 
     def _vac_bind(self, layout, activate):
         values = dict(_DEFAULTS)
-        values.update({k: validate(k, layout[k]) for k in _DEFAULTS if k in layout})
+        values.update({k: validate(k, layout[_WIRE.get(k, k)]) for k in _DEFAULTS if _WIRE.get(k, k) in layout})
         values.update(getattr(type(self), '_vac_initial', {}))
         values.update(self.__dict__.get('_vac_values', {}))
         self.__dict__['_vac_values'] = values
@@ -100,7 +104,8 @@ class StageSession:
 
     def publish(self):
         with self.lock:
-            objects = [dict(objectId=s['objectId'], **{k: getattr(o, k) for k in _DEFAULTS}) for s, o in self.instances]
+            # Wire fields are camelCase like objectId/currentBackdropId.
+            objects = [dict(objectId=s['objectId'], **{_WIRE.get(k, k): getattr(o, k) for k in _DEFAULTS}) for s, o in self.instances]
             state = (objects, self.backdrop)
             if state == self.previous:
                 return

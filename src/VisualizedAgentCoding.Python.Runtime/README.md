@@ -145,7 +145,7 @@ Runtime sampling continues through non-daemon workers and flushes at exit (inclu
 Low-level callers may omit `initialStage` for legacy execution without stage binding.
 Desktop runs include it; custom local bases must inherit the product bases, and are never
 rewritten automatically. See [scene and runtime wire contract](../VisualizedAgentCoding.Domain/Projects/stage-format.md).
-Sprite clicks and a persistent project event loop are implemented; stage-background, keyboard and timer events remain future work.
+Role clicks, backdrop (`stage-click`) clicks, key events and a persistent project event loop are implemented; timer events remain future work.
 
 
 ## Persistent execution and sprite clicks
@@ -157,7 +157,11 @@ requests default to `keepAlive: false` to retain finite batch execution compatib
 
 The runner emits `interactive-ready` only after all start handlers return. Click input before
 that point is ignored. Host-to-runtime commands on the existing authenticated control socket
-are newline-delimited JSON: `{"kind":"sprite-click","sessionId":"...","objectId":"..."}`.
+are newline-delimited JSON: `{"kind":"sprite-click","sessionId":"...","objectId":"..."}` and
+`{"kind":"stage-click","sessionId":"..."}` and `{"kind":"key","sessionId":"...","key":"a"}`. The
+stage click carries no object identity; the runtime dispatches it to the backdrop that is active
+when the queue item is processed. A key event runs every object bound to that key, plus `any`
+bindings, in binding order.
 The existing `stop` line remains supported and is parsed independently of user stdin. Commands
 are limited to 8192 bytes; malformed commands, wrong sessions and unsupported kinds are ignored.
 The host serializes writes, checks the current session and known role identity, and disables
@@ -166,21 +170,28 @@ click submission during preparation/stopping. No user stdout parsing or main.py 
 Each role may have one source region with `kind=event`, `eventName=sprite-click`, and a stable
 region ID; its generated handler is `_vac_event_<id>`. Preparation derives click bindings from
 verified source regions and replaces manifest click bindings for v2/v3 objects. Backgrounds
-cannot own role-click regions. Click callbacks run sequentially on the main thread, through the
+cannot own role-click regions, and roles cannot own `stage-click` regions; each backdrop may
+own one `kind=event` region with `eventName=stage-click`. Any object may own `eventName=key:<name>`
+regions for lower-case letters, digits, or preset names such as `space`/`up`/`any`.
+Click callbacks run sequentially on the main thread, through the
 managed-entry lifecycle; synchronous broadcast within them keeps its existing nested ordering.
 Uncaught callback errors terminate the session and use the frozen source/user-region error maps.
 
 The input queue holds at most 64 pending clicks; excess clicks are discarded. Input or long
 handlers block following callbacks, while stage publication and Stop remain separate. Dispatch
-rechecks target identity and `click_enabled`, ignoring disabled/deleted/unknown recipients. Stop clears
+rechecks target identity and `click_enabled`, ignoring disabled/deleted/unknown recipients. A
+`stage-click` resolves the active backdrop at dispatch time and is dropped when no backdrop is
+active or the recipient has no handler. Stop clears
 the queue and interrupts the main thread; forced process-tree cleanup remains the fallback for
 non-cooperative Python. Restarts create a fresh inbox and session. The latest preview remains
 separate from saved initial state.
 
 The UI routes a left press to the topmost role with `click_enabled` true in render layer order, using
 its transformed rectangular bounds (transparent image pixels are not an alpha mask). Editing
-continues to use selection/dragging; running uses clicks, and empty-stage presses have no event.
-The inspector tiles remain available for browsing. No concurrent callback execution, stage-click,
+continues to use selection/dragging; running uses clicks, and an empty-stage press dispatches a
+`stage-click` to the active backdrop instead of selecting. Hidden roles keep intercepting when
+`click_enabled` is true, because a hidden element still hit-tests.
+The inspector tiles remain available for browsing. No concurrent callback execution,
 keyboard, timer event, or dedicated animation API is added.
 
 Runtime inbox checks: `python -B -m unittest discover -s tests/python-runtime -v`.

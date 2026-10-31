@@ -114,7 +114,8 @@ public partial class MainViewModel
     private void OnStageItemChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (!restoringStage && e.PropertyName is nameof(StageObjectItem.X) or nameof(StageObjectItem.Y) or nameof(StageObjectItem.Size)
-            or nameof(StageObjectItem.Direction) or nameof(StageObjectItem.IsVisible) or nameof(StageObjectItem.Layer) or nameof(StageObjectItem.ImagePath))
+            or nameof(StageObjectItem.Direction) or nameof(StageObjectItem.IsVisible) or nameof(StageObjectItem.Layer) or nameof(StageObjectItem.ImagePath)
+            or nameof(StageObjectItem.ClickEnabled))
         {
             if (hasRuntimePreview && !IsPythonActive) ClearRuntimeStage();
             stageDirty = true;

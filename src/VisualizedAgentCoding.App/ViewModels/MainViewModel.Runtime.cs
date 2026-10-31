@@ -195,12 +195,30 @@ public partial class MainViewModel
 
     public async Task DispatchStageClickAsync(StageObjectItem item)
     {
-        if (!IsPythonActive || !CanDispatchStageClicks || !item.IsSprite || !item.RenderVisible
+        if (!IsPythonActive || !CanDispatchStageClicks || !item.IsSprite || !item.ClickEnabledRuntime
             || !StageSprites.Contains(item) || lastRun is null || runWorkspace != runtimeWorkspace) return;
         var generation = runGeneration;
         try { await runtime.SendSpriteClickAsync(lastRun.SessionId, item.ObjectId, runCancellation!.Token); }
         catch (OperationCanceledException) { }
         catch (IOException) { if (generation == runGeneration && IsPythonActive) RuntimeStatus = "当前无法发送舞台点击，请重新运行。"; }
+    }
+
+    public async Task DispatchStageBackdropClickAsync()
+    {
+        if (!IsPythonActive || !CanDispatchStageClicks || lastRun is null || runWorkspace != runtimeWorkspace) return;
+        var generation = runGeneration;
+        try { await runtime.SendStageClickAsync(lastRun.SessionId, runCancellation!.Token); }
+        catch (OperationCanceledException) { }
+        catch (IOException) { if (generation == runGeneration && IsPythonActive) RuntimeStatus = "当前无法发送舞台点击，请重新运行。"; }
+    }
+
+    public async Task DispatchStageKeyAsync(string key)
+    {
+        if (!IsPythonActive || !CanDispatchStageClicks || lastRun is null || runWorkspace != runtimeWorkspace) return;
+        var generation = runGeneration;
+        try { await runtime.SendKeyAsync(lastRun.SessionId, key, runCancellation!.Token); }
+        catch (OperationCanceledException) { }
+        catch (IOException) { if (generation == runGeneration && IsPythonActive) RuntimeStatus = "当前无法发送按键事件，请重新运行。"; }
     }
 
     private void AppendTerminal(string text)

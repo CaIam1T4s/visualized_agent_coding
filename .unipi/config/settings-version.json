@@ -1,0 +1,19 @@
+{
+  "migrated_version": "3.0.0",
+  "finalized": false,
+  "appliedAt": "2026-10-31T08:15:19.220Z",
+  "log": [
+    {
+      "action": "skipped:missing",
+      "from": "D:\\document\\Repositories\\visualized_agent_coding\\.unipi\\config\\compactor.json"
+    },
+    {
+      "action": "skipped:missing",
+      "from": "D:\\document\\Repositories\\visualized_agent_coding\\.unipi\\fusion-preset.json"
+    },
+    {
+      "action": "skipped:missing",
+      "from": "D:\\document\\Repositories\\visualized_agent_coding\\.unipi\\config\\background-tasks.json"
+    }
+  ]
+}

@@ -74,14 +74,14 @@ public sealed class ClickEventsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task PersistentClicksUseMainThreadAndSynchronousBroadcastAndIgnoreHiddenTargets()
+    public async Task PersistentClicksUseMainThreadAndSynchronousBroadcastAndIgnoreDisabledTargets()
     {
         var doc = ObjectScriptFeatures.AddInitialize(await Actor("cat"));
         doc = Body(doc, "initialize", "self.owner = __import__('threading').get_ident()\n");
         doc = ObjectScriptFeatures.AddMessage(doc, "echo");
         doc = Body(doc, doc.Regions!.Last().Id, "print('message', self.x)\n");
         doc = ObjectScriptFeatures.AddSpriteClick(doc);
-        Save(Body(doc, doc.Regions!.Last().Id, "assert self.owner == __import__('threading').get_ident()\nself.x += 10\nbroadcast('echo')\nprint('click', self.x)\nif self.x >= 20:\n    self.visible = False\n"));
+        Save(Body(doc, doc.Regions!.Last().Id, "assert self.owner == __import__('threading').get_ident()\nself.x += 10\nbroadcast('echo')\nprint('click', self.x)\nif self.x >= 20:\n    self.click_enabled = False\n"));
         var barrier = ObjectScriptFeatures.AddSpriteClick(await Actor("barrier"));
         Save(Body(barrier, barrier.Regions!.Last().Id, "print('barrier')\n"));
         var request = await Request();
@@ -97,7 +97,7 @@ public sealed class ClickEventsTests : IAsyncLifetime
         await runtime.SendSpriteClickAsync(request.SessionId, catId, timeout.Token);
         await WaitUntil(() => events.Any(e => e.Stage?.Objects.Any(o => o.ObjectId == catId && o.X == 10) == true), timeout.Token);
         await runtime.SendSpriteClickAsync(request.SessionId, catId, timeout.Token);
-        await WaitUntil(() => events.Any(e => e.Stage?.Objects.Any(o => o.ObjectId == catId && !o.Visible) == true), timeout.Token);
+        await WaitUntil(() => events.Any(e => e.Stage?.Objects.Any(o => o.ObjectId == catId && !o.ClickEnabled) == true), timeout.Token);
         await runtime.SendSpriteClickAsync(request.SessionId, catId, timeout.Token);
         await runtime.SendSpriteClickAsync(request.SessionId, barrierId, timeout.Token);
         await WaitUntil(() => Output(events).Contains("barrier"), timeout.Token);
@@ -163,5 +163,68 @@ public sealed class ClickEventsTests : IAsyncLifetime
         var report = new RuntimeErrorPresentationService().Present(error, request.PresentationSources!);
         Assert.Contains(MessageEvents.Title(ProjectEventKinds.SpriteClick), report.UserText);
         Assert.Equal(80, events.Last(e => e.Kind == "stage").Stage!.Objects.Single().X);
+    }
+
+    [Fact]
+    public async Task BackdropClickReachesOnlyTheActiveBackdropAndHonorsClickEnabled()
+    {
+        var day = new ProjectService(store).CreateScript(project, ProjectScriptKind.Backdrop, "day");
+        project = day.Project;
+        var dayDoc = ObjectScriptFeatures.AddStageClick(await Inspect(day.Script.Id, store.ReadScript(root, day.Script.Path)));
+        Save(Body(dayDoc, dayDoc.Regions!.Last().Id, "self.x += 1\nprint('day', self.x)\n"));
+        var night = new ProjectService(store).CreateScript(project, ProjectScriptKind.Backdrop, "night");
+        project = night.Project;
+        var nightDoc = ObjectScriptFeatures.AddStageClick(await Inspect(night.Script.Id, store.ReadScript(root, night.Script.Path)));
+        Save(Body(nightDoc, nightDoc.Regions!.Last().Id, "print('night')\n"));
+        var dayId = project.FindScript(dayDoc.ScriptId)!.ObjectId!;
+        var nightId = project.FindScript(nightDoc.ScriptId)!.ObjectId!;
+        var initial = new StageState { CurrentBackdropId = dayId, Objects = [new(dayId), new(nightId)] };
+        var request = (await Request()) with { InitialStage = initial };
+        Assert.Contains(request.Handlers, h => h.Event == ProjectEventKinds.StageClick);
+        await using var runtime = new PythonRuntimeProcess(RuntimePath);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, timeout.Token);
+        await WaitUntil(() => events.Any(e => e.Kind == "interactive-ready"), timeout.Token);
+        await runtime.SendStageClickAsync(request.SessionId, timeout.Token);
+        await WaitUntil(() => Output(events).Contains("day"), timeout.Token);
+        Assert.DoesNotContain("night", Output(events));
+        await Stop(run, timeout);
+    }
+
+    [Fact]
+    public async Task KeyEventsDispatchToEveryBoundObjectOnTheMainThread()
+    {
+        var cat = ObjectScriptFeatures.AddKey(await Actor("cat"), "a");
+        Save(Body(cat, cat.Regions!.Last().Id, "print('cat-key')\n"));
+        var dog = ObjectScriptFeatures.AddKey(await Actor("dog"), "a");
+        Save(Body(dog, dog.Regions!.Last().Id, "print('dog-key')\n"));
+        var bird = ObjectScriptFeatures.AddKey(await Actor("bird"), "any");
+        Save(Body(bird, bird.Regions!.Last().Id, "print('any-key')\n"));
+        var request = await Request();
+        Assert.Equal(3, request.Handlers.Count(h => h.Event == ProjectEventKinds.Key));
+        await using var runtime = new PythonRuntimeProcess(RuntimePath);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, timeout.Token);
+        await WaitUntil(() => events.Any(e => e.Kind == "interactive-ready"), timeout.Token);
+        await runtime.SendKeyAsync(request.SessionId, "a", timeout.Token);
+        await WaitUntil(() => Output(events).Contains("any-key"), timeout.Token);
+        var text = Output(events);
+        Assert.Contains("cat-key", text);
+        Assert.Contains("dog-key", text);
+        await Stop(run, timeout);
+    }
+
+    [Fact]
+    public void KeyNamesRejectUnknownAndUppercaseForms()
+    {
+        Assert.Equal("a", KeyEvents.ValidateName("a"));
+        Assert.Equal("space", KeyEvents.ValidateName("space"));
+        Assert.Throws<ArgumentException>(() => KeyEvents.ValidateName("A"));
+        Assert.Throws<ArgumentException>(() => KeyEvents.ValidateName("ctrl+a"));
+        Assert.Throws<ArgumentException>(() => KeyEvents.ValidateName(""));
+        Assert.Null(KeyEvents.Name("message:x"));
+        Assert.Equal("up", KeyEvents.Name("key:up"));
     }
 }

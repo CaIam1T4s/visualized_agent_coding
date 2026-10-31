@@ -118,6 +118,14 @@ public partial class PythonEditorView : UserControl
             && viewModel.OpenScript.Kind == ProjectScriptKind.Object && clickRegion is null };
         click.Click += (_, _) => EditMessage(spriteClick: true);
         add.Items.Add(click);
+        var stageClickRegion = projection?.Document.Regions?.FirstOrDefault(r => r.Kind == "event" && r.EventName == ProjectEventKinds.StageClick);
+        var stageClick = new MenuItem { Header = "当背景被点击…", IsEnabled = messagesEnabled
+            && viewModel.OpenScript.Kind == ProjectScriptKind.Backdrop && stageClickRegion is null };
+        stageClick.Click += (_, _) => EditMessage(stageClick: true);
+        add.Items.Add(stageClick);
+        var keyAdd = new MenuItem { Header = "当按下按键…", IsEnabled = messagesEnabled };
+        keyAdd.Click += (_, _) => EditMessage(keyEvent: true);
+        add.Items.Add(keyAdd);
         var canManageImports = !EditorTextBox.IsReadOnly && (viewModel.OpenScript.Kind == ProjectScriptKind.User || projection?.Document.TemplateVersion == 3);
         var imports = new MenuItem { Header = "导入脚本…", IsEnabled = canManageImports };
         ToolTip.SetTip(imports, canManageImports ? "导入其他用户脚本或标准库" : "旧版角色或背景脚本需先升级模板");
@@ -142,6 +150,22 @@ public partial class PythonEditorView : UserControl
             && viewModel.OpenScript.Kind == ProjectScriptKind.Object && clickRegion is not null };
         deleteClick.Click += (_, _) => EditMessage(clickRegion?.Id, delete: true, spriteClick: true);
         editorMenu.Items.Add(deleteClick);
+        var deleteStageClick = new MenuItem { Header = "删除舞台点击区域…", IsEnabled = messagesEnabled
+            && viewModel.OpenScript.Kind == ProjectScriptKind.Backdrop && stageClickRegion is not null };
+        deleteStageClick.Click += (_, _) => EditMessage(stageClickRegion?.Id, delete: true, stageClick: true);
+        editorMenu.Items.Add(deleteStageClick);
+        var keyRegions = new MenuItem { Header = "管理按键事件", IsEnabled = messagesEnabled };
+        foreach (var region in projection?.Document.Regions ?? [])
+        {
+            if (region.Kind != "event" || KeyEvents.Name(region.EventName) is not { } keyName) continue;
+            var entry = new MenuItem { Header = KeyEvents.Display(keyName) };
+            var deleteKey = new MenuItem { Header = "删除按键区域…" };
+            deleteKey.Click += (_, _) => EditMessage(region.Id, delete: true, keyEvent: true);
+            entry.Items.Add(deleteKey);
+            keyRegions.Items.Add(entry);
+        }
+        keyRegions.IsEnabled &= keyRegions.Items.Count > 0;
+        editorMenu.Items.Add(keyRegions);
         editorMenu.Items.Add(new Separator());
         editorMenu.Items.Add(references);
         editorMenu.Items.Add(new MenuItem { Header = "重新加载磁盘文件…", Command = viewModel.RequestReloadScriptCommand });

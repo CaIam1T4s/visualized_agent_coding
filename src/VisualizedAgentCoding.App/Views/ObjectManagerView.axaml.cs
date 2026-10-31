@@ -1,4 +1,7 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
+using AtomUI.Icons.AntDesign;
 using happy_agent_coding.ViewModels;
 using Avalonia.Platform.Storage;
 using System;
@@ -11,6 +14,19 @@ public partial class ObjectManagerView : UserControl
     public ObjectManagerView()
     {
         InitializeComponent();
+    }
+
+    private void OnHideIconAttached(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (sender is ContentControl host) host.Content = CreateIcon(AntDesignIconKind.EyeInvisibleOutlined);
+    }
+
+    private static Control CreateIcon(AntDesignIconKind kind)
+    {
+        var icon = (Control)new AntDesignIconProvider(kind).ProvideValue(null!);
+        icon.Width = 14;
+        icon.Height = 14;
+        return icon;
     }
 
     private async void OnImportImageClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

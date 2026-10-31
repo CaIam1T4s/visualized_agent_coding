@@ -311,6 +311,8 @@ public sealed class ProjectService : IProjectValidityChecker
         if (string.Equals(registration.Event, ProjectEventKinds.BackdropSwitch, StringComparison.Ordinal)
             && owner.Kind != ProjectScriptKind.Backdrop)
             throw new ProjectOperationException("背景切换处理器必须绑定到背景脚本。");
+        if (string.Equals(registration.Event, ProjectEventKinds.Key, StringComparison.Ordinal) && argument is not null)
+            KeyEvents.ValidateName(argument);
 
         var newHandler = new ProjectEventHandler(owner.Id, registration.Event, argument, handlerName);
         var key = ProjectManifestValidator.HandlerKey(owner.Id, registration.Event, argument);

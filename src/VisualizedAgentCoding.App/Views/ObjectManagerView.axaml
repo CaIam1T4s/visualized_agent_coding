@@ -103,10 +103,15 @@
                                     Command="{Binding HideObjectCommand}" IsEnabled="{Binding CanEditProperties}"
                                     ToolTip.Tip="隐藏"
                                     AutomationProperties.Name="隐藏">
-                                <TextBlock Classes="explorer-glyph" Text="&#xED1A;" FontSize="14" />
+                                <ContentControl Width="14" Height="14"
+                                                AttachedToVisualTree="OnHideIconAttached" />
                             </Button>
                         </StackPanel>
                     </StackPanel>
+                    <CheckBox Content="接收点击事件"
+                              IsChecked="{Binding InspectorClickEnabled}"
+                              IsEnabled="{Binding CanEditProperties}"
+                              ToolTip.Tip="关闭后该对象不再拦截舞台点击，与显示/隐藏无关" />
                 </StackPanel>
             </ScrollViewer>
         </DataTemplate>
