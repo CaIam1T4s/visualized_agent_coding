@@ -14,7 +14,7 @@ import threading
 import traceback
 import types
 from vac_runtime import clock
-from vac_runtime._entry import entry_session, install_router, install_stage, open_messages
+from vac_runtime._entry import entry_session, install_router, install_stage, install_inbox, set_phase, open_messages
 from vac_runtime.messages import MessageRouter
 from vac_runtime.stage import StageSession
 from vac_runtime.events import EventInbox
@@ -159,6 +159,8 @@ def run(request, emit, inbox=None):
 
 def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=None):
     clock.ensure_started()
+    if legacy_main is None:
+        set_phase('class-definition')
     instances = []
     for script in request['scripts']:
         if script['kind'] not in ('object', 'backdrop'):
@@ -175,6 +177,8 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
         instance._vac_context = {'object_id': script['objectId'], 'script_id': script['id'],
                                  'project_root': str(root), 'runtime_api': 1}
         instances.append((script, instance))
+    if legacy_main is None:
+        set_phase('initialize')
     # Resolve every start binding before executing any initialization or start body.
     starts = []
     clicks = {}
@@ -247,7 +251,7 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
             router.register(name, handler)
     if legacy_main is None:
         install_router(router)
-    stage = StageSession(request, instances, emit) if request.get('initialStage') is not None else None
+    stage = StageSession(request, instances, emit, router.broadcast) if request.get('initialStage') is not None else None
     if stage:
         install_stage(stage)
         if inbox is not None:
@@ -261,6 +265,12 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
             stage.start()
         if legacy_main is None:
             open_messages()
+            if request.get('keepAlive'):
+                if inbox is None:
+                    raise RuntimeError('Interactive execution requires the managed project entry.')
+                inbox.prepare(clicks, emit, stage, keys, timers, backdrops)
+                install_inbox(inbox)
+                set_phase('start')
         if legacy_main is not None:
             legacy_main()
         for method in starts:
@@ -268,6 +278,8 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
         if request.get('keepAlive'):
             if legacy_main is not None or inbox is None:
                 raise RuntimeError('Interactive execution requires the managed project entry.')
+            if legacy_main is None:
+                set_phase('events')
             inbox.run(clicks, emit, stage, keys, timers, backdrops)
         # Keep publication alive for user-created non-daemon workers as well.
         while stage:

@@ -45,9 +45,10 @@ public partial class ManageImportsView : UserControl
                 new Target("消息广播 broadcast", new ScriptImport("vac_runtime", Name: "broadcast", Source: "runtime")),
                 new Target("运行计时器 timer", new ScriptImport("vac_runtime", Name: "timer", Source: "runtime")),
                 new Target("切换背景 switch_backdrop", new ScriptImport("vac_runtime", Name: "switch_backdrop", Source: "runtime")),
+                new Target("等待 wait", new ScriptImport("vac_runtime", Name: "wait", Source: "runtime")),
             },
         };
-        SourceHint.Text = SourceKind.SelectedIndex == 2 ? "broadcast(消息名称)：同步广播；timer()：本次运行秒数；switch_backdrop(背景名)：切换当前背景。"
+        SourceHint.Text = SourceKind.SelectedIndex == 2 ? "broadcast：同步广播；timer()/self.timer：运行秒数；switch_backdrop：切换背景；wait(秒)：等待并继续处理事件。"
             : SourceKind.SelectedIndex == 0 ? "仅列出其他普通用户脚本；角色、背景和当前脚本不能导入。" : "可用模块来自当前 Python 环境，不自动安装包。";
         TargetModule.SelectedIndex = -1;
     }

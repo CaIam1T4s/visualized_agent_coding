@@ -1,5 +1,6 @@
 """Private project-entry bridge and session boundary for public message requests."""
 from contextlib import contextmanager
+import math
 import threading
 
 from . import clock
@@ -14,7 +15,8 @@ def entry_session(execute):
     if _active is not None:
         raise RuntimeError('A project entry session is already active')
     session = {'execute': execute, 'thread': threading.get_ident(), 'started': False,
-               'router': None, 'messages_open': False, 'stage': None}
+               'router': None, 'messages_open': False, 'stage': None, 'inbox': None,
+               'phase': 'entry'}
     _active = session
     clock.ensure_started()
     try:
@@ -25,6 +27,8 @@ def entry_session(execute):
         session['router'] = None
         session['messages_open'] = False
         session['stage'] = None
+        session['inbox'] = None
+        session['phase'] = 'closed'
         _active = None
         clock.stop()
 
@@ -51,6 +55,34 @@ def install_stage(stage):
     if _active is None:
         raise RuntimeError('舞台切换需要系统项目入口。')
     _active['stage'] = stage
+
+
+def install_inbox(inbox):
+    if _active is None:
+        raise RuntimeError('事件循环需要系统项目入口。')
+    _active['inbox'] = inbox
+
+
+def set_phase(phase):
+    if _active is None:
+        raise RuntimeError('运行阶段需要系统项目入口。')
+    _active['phase'] = phase
+
+
+def wait(seconds):
+    """Suspend the current handler while the project event pump continues."""
+    if type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds < 0:
+        raise ValueError('等待时间必须是非负有限数值。')
+    session = _active
+    if session is None or session['thread'] != threading.get_ident():
+        raise RuntimeError('wait 只能从项目运行主线程调用。')
+    if session['phase'] not in ('start', 'events'):
+        raise RuntimeError('wait 不能在类定义或初始化阶段调用。')
+    if session['inbox'] is None:
+        raise RuntimeError('事件循环尚未就绪，不能调用 wait。')
+    if seconds == 0:
+        return
+    session['inbox'].wait(seconds)
 
 
 def switch_backdrop(name):

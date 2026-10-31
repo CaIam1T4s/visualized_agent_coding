@@ -164,6 +164,20 @@ Coordinates may leave the 480x360 stage but are clipped when drawn; the accepted
 if no position has ever been received, both pointer methods leave the role unchanged.
 `BackdropBase` does not expose motion methods.
 
+## Cooperative wait
+
+```python
+from vac_runtime import wait
+
+wait(seconds)
+```
+
+`wait` suspends only the current handler and keeps the main-thread event pump running:
+animations, timers, backdrop switches, clicks, keys and messages continue during the wait.
+It is allowed in `start` and event handlers (and functions called from them), but rejected in
+class-definition/module-level code and `initialize()`. Worker threads and Stop are rejected or
+interrupted explicitly. Nested waits are limited to 32 levels. `wait(0)` returns immediately.
+
 Non-blocking position animations are also available:
 
 ```python
@@ -172,10 +186,23 @@ self.glide_by(dx, dy, seconds)
 ```
 
 `glide_to` interpolates from the current position to the target; `glide_by` adds the delta to
-the current position first. `seconds <= 0` applies the position immediately. Only one position
-animation is kept per role; a new glide replaces the old one. A direct `self.x`/`self.y`
-assignment cancels the active animation. Animations advance on the main-thread event loop and
-publish through the normal stage sampler; they do not block clicks, keys, timers, or broadcasts.
+the current position first. Direction and size use the same non-blocking tween model:
+
+```python
+self.rotate_to(angle, seconds)
+self.rotate_by(degrees, seconds)
+self.glide_size_to(percent, seconds)
+self.glide_size_by(delta, seconds)
+```
+
+`seconds <= 0` applies the value immediately. Position, direction, and size animations are
+independent and may run together; a new animation for one property replaces the old one for
+that property. A direct assignment to `x`/`y`, `direction`, or `size` cancels only that
+property animation. Direction animations take the shortest signed path. Animations advance on
+the main-thread event loop and publish through the normal stage sampler; they do not block
+clicks, keys, timers, or broadcasts. Every animation method accepts an optional
+`on_finish="message"`; the message is broadcast once after natural completion, after the final
+value is applied. Replacement, direct-assignment cancellation, and Stop do not broadcast it.
 
 For a full ordinary Python subclass, `super().__init__(x=0, visible=False)` supplies explicit
 constructor parameters. Layout is fallback only; initialize assignments take final priority.

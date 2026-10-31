@@ -326,6 +326,89 @@ public sealed class ClickEventsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AnimationFinishBroadcastsMessage()
+    {
+        var cat = ObjectScriptFeatures.AddKey(await Actor("cat"), "a");
+        cat = Body(cat, "start", "self.goto(0, 0)\n");
+        Save(Body(cat, cat.Regions!.Last().Id,
+            "self.glide_to(10, 0, 0.1, on_finish='animation-done')\n"));
+        var listener = ObjectScriptFeatures.AddMessage(await Actor("listener"), "animation-done");
+        Save(Body(listener, listener.Regions!.Last().Id, "print('animation-done')\n"));
+        var request = await Request();
+        await using var runtime = new PythonRuntimeProcess(RuntimePath);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, timeout.Token);
+        await WaitUntil(() => events.Any(e => e.Kind == "interactive-ready"), timeout.Token);
+        await runtime.SendKeyAsync(request.SessionId, "a", timeout.Token);
+        await WaitUntil(() => Output(events).Contains("animation-done"), timeout.Token);
+        await Stop(run, timeout);
+    }
+
+    [Fact]
+    public async Task WaitPumpsAnimationsAndResumesTheCurrentHandler()
+    {
+        var cat = ObjectScriptFeatures.AddKey(await Actor("cat"), "a");
+        var imported = await new ScriptImportService(bridge).InspectAsync(project,
+            project.FindScript(cat.ScriptId)!, 0, cat.FullSource, cat,
+            [new("vac_runtime", Name: "broadcast", Source: "runtime"),
+             new("vac_runtime", Name: "wait", Source: "runtime")]);
+        cat = await Inspect(cat.ScriptId, imported.Source);
+        cat = Body(cat, "start", "self.goto(0, 0)\n");
+        Save(Body(cat, cat.Regions!.Last().Id,
+            "self.glide_to(100, 0, 0.4)\nwait(0.2)\nprint('wait-progress', self.x > 0)\n"));
+        var request = await Request();
+        await using var runtime = new PythonRuntimeProcess(RuntimePath);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, timeout.Token);
+        await WaitUntil(() => events.Any(e => e.Kind == "interactive-ready"), timeout.Token);
+        await runtime.SendKeyAsync(request.SessionId, "a", timeout.Token);
+        await WaitUntil(() => Output(events).Contains("wait-progress True"), timeout.Token);
+        await Stop(run, timeout);
+    }
+
+    [Fact]
+    public async Task WaitInStartIsAllowed()
+    {
+        var cat = await Actor("cat");
+        var imported = await new ScriptImportService(bridge).InspectAsync(project,
+            project.FindScript(cat.ScriptId)!, 0, cat.FullSource, cat,
+            [new("vac_runtime", Name: "broadcast", Source: "runtime"),
+             new("vac_runtime", Name: "wait", Source: "runtime")]);
+        cat = await Inspect(cat.ScriptId, imported.Source);
+        Save(Body(cat, "start", "wait(0.05)\nprint('start-wait-done')\n"));
+        var request = await Request();
+        await using var runtime = new PythonRuntimeProcess(RuntimePath);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, timeout.Token);
+        await WaitUntil(() => Output(events).Contains("start-wait-done"), timeout.Token);
+        await Stop(run, timeout);
+    }
+
+    [Fact]
+    public async Task WaitInInitializeIsRejected()
+    {
+        var cat = ObjectScriptFeatures.AddInitialize(await Actor("cat"));
+        var imported = await new ScriptImportService(bridge).InspectAsync(project,
+            project.FindScript(cat.ScriptId)!, 0, cat.FullSource, cat,
+            [new("vac_runtime", Name: "broadcast", Source: "runtime"),
+             new("vac_runtime", Name: "wait", Source: "runtime")]);
+        cat = await Inspect(cat.ScriptId, imported.Source);
+        Save(Body(cat, "initialize", "wait(0.1)\n"));
+        var request = await Request();
+        await using var runtime = new PythonRuntimeProcess(RuntimePath);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, timeout.Token);
+        await WaitUntil(() => events.Any(e => e.Kind == "exception"), timeout.Token);
+        var error = Assert.Single(events, e => e.Kind == "exception");
+        Assert.Contains("wait", error.Exception?.Message ?? "");
+        await Stop(run, timeout);
+    }
+
+    [Fact]
     public void TimerIdentitiesValidateAndDisplay()
     {
         Assert.Equal("timer:1.5", TimerEvents.FormatIdentity(new(1.5, false)));

@@ -4,6 +4,7 @@ from pathlib import Path
 import threading
 
 from . import clock
+from .messages import validate_name
 
 _DEFAULTS = dict(x=0, y=0, size=100, direction=90, visible=True, layer=0, click_enabled=True)
 _LIMITS = dict(x=(-100000, 100000), y=(-100000, 100000), size=(1, 1000), direction=(-180, 180), layer=(-10000, 10000))
@@ -77,7 +78,7 @@ class StageBase:
             if name in _DEFAULTS and value is not _MISSING:
                 setattr(self, name, value)
 
-    def _vac_bind(self, layout, activate, pointer=None, animate=None):
+    def _vac_bind(self, layout, activate, pointer=None, animate=None, animate_direction=None, animate_size=None):
         values = dict(_DEFAULTS)
         values.update({k: validate(k, layout[_WIRE.get(k, k)]) for k in _DEFAULTS if _WIRE.get(k, k) in layout})
         values.update(getattr(type(self), '_vac_initial', {}))
@@ -86,6 +87,8 @@ class StageBase:
         self.__dict__['_vac_activate'] = activate
         self.__dict__['_vac_pointer'] = pointer
         self.__dict__['_vac_animate'] = animate
+        self.__dict__['_vac_animate_direction'] = animate_direction
+        self.__dict__['_vac_animate_size'] = animate_size
 
 
 
@@ -138,10 +141,12 @@ class ElementBase(StageBase):
         if seen:
             self.goto(x, y)
 
-    def glide_to(self, x, y, seconds):
+    def glide_to(self, x, y, seconds, on_finish=None):
         validate('x', x)
         validate('y', y)
         duration = finite_number('动画时长', seconds)
+        if on_finish is not None:
+            validate_name(on_finish)
         if duration <= 0:
             self.goto(x, y)
             return
@@ -149,11 +154,45 @@ class ElementBase(StageBase):
         if animate is None:
             self.goto(x, y)
             return
-        animate(x, y, duration)
+        animate(x, y, duration, on_finish)
 
-    def glide_by(self, dx, dy, seconds):
+    def glide_by(self, dx, dy, seconds, on_finish=None):
         self.glide_to(self.x + finite_number('X 变化量', dx),
-                      self.y + finite_number('Y 变化量', dy), seconds)
+                      self.y + finite_number('Y 变化量', dy), seconds, on_finish)
+
+    def rotate_to(self, angle, seconds, on_finish=None):
+        target = normalize_direction(finite_number('方向', angle))
+        duration = finite_number('动画时长', seconds)
+        if on_finish is not None:
+            validate_name(on_finish)
+        if duration <= 0:
+            self.direction = target
+            return
+        animate = self.__dict__.get('_vac_animate_direction')
+        if animate is None:
+            self.direction = target
+            return
+        animate(target, duration, on_finish)
+
+    def rotate_by(self, degrees, seconds, on_finish=None):
+        self.rotate_to(self.direction + finite_number('旋转角度', degrees), seconds, on_finish)
+
+    def glide_size_to(self, percent, seconds, on_finish=None):
+        validate('size', percent)
+        duration = finite_number('动画时长', seconds)
+        if on_finish is not None:
+            validate_name(on_finish)
+        if duration <= 0:
+            self.size = percent
+            return
+        animate = self.__dict__.get('_vac_animate_size')
+        if animate is None:
+            self.size = percent
+            return
+        animate(percent, duration, on_finish)
+
+    def glide_size_by(self, delta, seconds, on_finish=None):
+        self.glide_size_to(self.size + finite_number('大小变化量', delta), seconds, on_finish)
 
 
 
@@ -167,8 +206,9 @@ class BackdropBase(StageBase):
 
 
 class StageSession:
-    def __init__(self, request, instances, emit):
+    def __init__(self, request, instances, emit, broadcast=None):
         self.request, self.instances, self.emit = request, instances, emit
+        self.broadcast = broadcast
         initial = request.get('initialStage') or {}
         self.backdrop = initial.get('currentBackdropId')
         self.sequence = 0
@@ -202,45 +242,117 @@ class StageSession:
             def activate(identity=script['objectId']):
                 self.switch_backdrop_id(identity)
             instance._vac_bind(layouts.get(script['objectId'], {}), activate, self.pointer_position,
-                lambda x, y, seconds, identity=script['objectId']: self.start_animation(identity, x, y, seconds))
+                lambda x, y, seconds, on_finish, identity=script['objectId']: self.start_position_animation(identity, x, y, seconds, on_finish),
+                lambda angle, seconds, on_finish, identity=script['objectId']: self.start_direction_animation(identity, angle, seconds, on_finish),
+                lambda value, seconds, on_finish, identity=script['objectId']: self.start_size_animation(identity, value, seconds, on_finish))
         self.thread = threading.Thread(target=self._sample, daemon=True)
 
-    def start_animation(self, identity, target_x, target_y, seconds):
-        instance = self.instances_by_id.get(identity)
-        if not isinstance(instance, ElementBase):
-            raise RuntimeError('仅角色可播放位移动画。')
+    def start_position_animation(self, identity, target_x, target_y, seconds, on_finish=None):
+        instance = self._animation_instance(identity)
         validate('x', target_x)
         validate('y', target_y)
+        key = (identity, 'position')
         if seconds <= 0 or (target_x == instance.x and target_y == instance.y):
-            self.animations.pop(identity, None)
+            self.animations.pop(key, None)
             instance.goto(target_x, target_y)
             return
-        self.animations[identity] = dict(start_x=instance.x, start_y=instance.y,
-            target_x=target_x, target_y=target_y, started=clock.seconds(),
-            duration=seconds, last_x=instance.x, last_y=instance.y)
+        if on_finish is not None:
+            validate_name(on_finish)
+        self.animations[key] = dict(kind='position', start=(instance.x, instance.y),
+            target=(target_x, target_y), started=clock.seconds(), duration=seconds,
+            last=(instance.x, instance.y), on_finish=on_finish)
+
+    def start_direction_animation(self, identity, target, seconds, on_finish=None):
+        instance = self._animation_instance(identity)
+        target = normalize_direction(target)
+        key = (identity, 'direction')
+        delta = normalize_direction(target - instance.direction)
+        if seconds <= 0 or delta == 0:
+            self.animations.pop(key, None)
+            instance.direction = target
+            return
+        if on_finish is not None:
+            validate_name(on_finish)
+        self.animations[key] = dict(kind='direction', start=instance.direction,
+            target=target, delta=delta, started=clock.seconds(), duration=seconds,
+            last=instance.direction, on_finish=on_finish)
+
+    def start_size_animation(self, identity, target, seconds, on_finish=None):
+        instance = self._animation_instance(identity)
+        validate('size', target)
+        key = (identity, 'size')
+        if seconds <= 0 or target == instance.size:
+            self.animations.pop(key, None)
+            instance.size = target
+            return
+        if on_finish is not None:
+            validate_name(on_finish)
+        self.animations[key] = dict(kind='size', start=instance.size, target=target,
+            started=clock.seconds(), duration=seconds, last=instance.size, on_finish=on_finish)
+
+    def _animation_instance(self, identity):
+        instance = self.instances_by_id.get(identity)
+        if not isinstance(instance, ElementBase):
+            raise RuntimeError('仅角色可播放动画。')
+        return instance
 
     def advance_animations(self):
         changed = False
+        finished = []
         now = clock.seconds()
-        for identity, tween in list(self.animations.items()):
+        for key, tween in list(self.animations.items()):
+            identity, _ = key
             instance = self.instances_by_id.get(identity)
-            if not isinstance(instance, ElementBase) or abs(instance.x - tween['last_x']) > 1e-6                     or abs(instance.y - tween['last_y']) > 1e-6:
-                del self.animations[identity]
+            if not isinstance(instance, ElementBase):
+                del self.animations[key]
                 continue
+            kind = tween['kind']
+            if kind == 'position':
+                current = (instance.x, instance.y)
+                last = tween['last']
+                if abs(current[0] - last[0]) > 1e-6 or abs(current[1] - last[1]) > 1e-6:
+                    del self.animations[key]
+                    continue
+            elif kind == 'direction':
+                if abs(instance.direction - tween['last']) > 1e-6:
+                    del self.animations[key]
+                    continue
+            else:
+                if abs(instance.size - tween['last']) > 1e-6:
+                    del self.animations[key]
+                    continue
             progress = min(1.0, max(0.0, (now - tween['started']) / tween['duration']))
-            x = tween['start_x'] + (tween['target_x'] - tween['start_x']) * progress
-            y = tween['start_y'] + (tween['target_y'] - tween['start_y']) * progress
-            instance.x = x
-            instance.y = y
-            tween['last_x'] = x
-            tween['last_y'] = y
+            if kind == 'position':
+                start, target = tween['start'], tween['target']
+                x = start[0] + (target[0] - start[0]) * progress
+                y = start[1] + (target[1] - start[1]) * progress
+                instance.x = x
+                instance.y = y
+                tween['last'] = (x, y)
+            elif kind == 'direction':
+                value = normalize_direction(tween['start'] + tween['delta'] * progress)
+                instance.direction = value
+                tween['last'] = value
+            else:
+                value = tween['start'] + (tween['target'] - tween['start']) * progress
+                instance.size = value
+                tween['last'] = value
             changed = True
             if progress >= 1.0:
-                instance.x = tween['target_x']
-                instance.y = tween['target_y']
-                del self.animations[identity]
+                if kind == 'position':
+                    instance.x, instance.y = tween['target']
+                elif kind == 'direction':
+                    instance.direction = tween['target']
+                else:
+                    instance.size = tween['target']
+                if tween.get('on_finish') is not None:
+                    finished.append(tween['on_finish'])
+                del self.animations[key]
         if changed:
             self.publish()
+        for message in finished:
+            if self.broadcast is not None:
+                self.broadcast(message)
 
     def clear_animations(self):
         self.animations.clear()

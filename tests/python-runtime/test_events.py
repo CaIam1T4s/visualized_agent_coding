@@ -30,6 +30,39 @@ class EventInboxTests(unittest.TestCase):
         self.assertFalse(inbox.stop_requested.is_set())
 
 
+class WaitTests(unittest.TestCase):
+    def _inbox(self):
+        inbox = EventInbox('run')
+        inbox.prepare({}, lambda kind, text='', stage=None: None, None)
+        return inbox
+
+    def tearDown(self):
+        clock.stop()
+
+    def test_wait_requires_prepared_event_loop(self):
+        inbox = EventInbox('run')
+        with self.assertRaises(RuntimeError):
+            inbox.wait(0.01)
+
+    def test_wait_keeps_the_deadline(self):
+        clock.ensure_started()
+        inbox = self._inbox()
+        started = clock.timer()
+        inbox.wait(0.06)
+        self.assertGreaterEqual(clock.timer() - started, 0.05)
+        inbox.stop()
+
+    def test_stop_interrupts_wait(self):
+        import threading
+        clock.ensure_started()
+        inbox = self._inbox()
+        stopper = threading.Thread(target=lambda: (time.sleep(0.03), inbox.stop(True)))
+        stopper.start()
+        with self.assertRaises(KeyboardInterrupt):
+            inbox.wait(2.0)
+        stopper.join()
+
+
 class StageClickTests(unittest.TestCase):
     def _inbox(self):
         inbox = EventInbox('run')

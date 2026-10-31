@@ -1,4 +1,4 @@
-"""Session-scoped bounded input queue; dispatch belongs to the project main thread."""
+"""Session-scoped bounded input queue and main-thread event pump."""
 import math
 import queue
 import threading
@@ -7,6 +7,8 @@ from . import clock
 
 
 class EventInbox:
+    MAX_WAIT_DEPTH = 32
+
     def __init__(self, session_id):
         self.session_id = session_id
         self.pending = queue.Queue(maxsize=64)
@@ -15,6 +17,17 @@ class EventInbox:
         self.accepting = False
         self.lock = threading.Lock()
         self.pointer_handler = None
+        self.context = None
+        self.owner_thread = threading.get_ident()
+        self.wait_depth = 0
+
+    def prepare(self, handlers, emit, stage, keys=None, timers=None, backdrops=None):
+        with self.lock:
+            if self.stopped.is_set():
+                return False
+            self.context = (handlers, emit, stage, keys or {}, timers or [], backdrops or {})
+            self.accepting = True
+            return True
 
     def offer(self, command):
         with self.lock:
@@ -59,7 +72,12 @@ class EventInbox:
                 except queue.Empty:
                     break
 
-    def run(self, handlers, emit, stage, keys=None, timers=None, backdrops=None):
+    def run(self, handlers=None, emit=None, stage=None, keys=None, timers=None, backdrops=None):
+        if handlers is not None:
+            self.prepare(handlers, emit, stage, keys, timers, backdrops)
+        if self.context is None:
+            raise RuntimeError('事件循环尚未准备。')
+        _, emit, stage, _, _, _ = self.context
         with self.lock:
             if self.stopped.is_set():
                 return
@@ -67,42 +85,75 @@ class EventInbox:
         emit('interactive-ready')
         try:
             while not self.stopped.is_set():
-                self._run_backdrops(stage, backdrops)
-                self._run_timers(timers, stage)
-                if stage:
-                    stage.advance_animations()
-                try:
-                    kind, identity = self.pending.get(timeout=0.05)
-                except queue.Empty:
-                    continue
-                if self.stopped.is_set():
-                    break
-                if kind == 'key':
-                    # Key events are global: every object bound to the key runs, in binding order.
-                    targets = list((keys or {}).get(identity, ()))
-                    if identity != 'any':
-                        targets.extend((keys or {}).get('any', ()))
-                    for target in targets:
-                        target[1]()
-                    if stage:
-                        stage.publish()
-                    continue
-                if kind == 'stage-click':
-                    # Background clicks target whichever backdrop is active at dispatch time.
-                    if stage is None or stage.backdrop is None:
-                        continue
-                    identity = stage.backdrop
-                target = handlers.get(identity)
-                if target is not None:
-                    instance, callback = target
-                    if instance.click_enabled:
-                        callback()
-                        if stage:
-                            stage.publish()
+                self._pump_once(0.05)
         finally:
             if stage:
                 stage.clear_animations()
             self.stop()
+
+    def wait(self, seconds):
+        if threading.get_ident() != self.owner_thread:
+            raise RuntimeError('wait 只能从项目运行主线程调用。')
+        if self.context is None:
+            raise RuntimeError('事件循环尚未启动，不能调用 wait。')
+        if self.stopped.is_set():
+            raise KeyboardInterrupt
+        if not self.accepting:
+            raise RuntimeError('当前会话不能等待。')
+        if self.wait_depth >= self.MAX_WAIT_DEPTH:
+            raise RuntimeError('wait 嵌套过深，请检查递归调用。')
+        deadline = clock.seconds() + seconds
+        self.wait_depth += 1
+        try:
+            while not self.stopped.is_set():
+                remaining = deadline - clock.seconds()
+                if remaining <= 0:
+                    return
+                self._pump_once(min(0.05, remaining))
+            raise KeyboardInterrupt
+        finally:
+            self.wait_depth -= 1
+
+    def _pump_once(self, timeout):
+        handlers, emit, stage, keys, timers, backdrops = self.context
+        self._run_backdrops(stage, backdrops)
+        self._run_timers(timers, stage)
+        if stage:
+            stage.advance_animations()
+        if self.stopped.is_set():
+            return
+        try:
+            item = self.pending.get(timeout=max(0.0, timeout))
+        except queue.Empty:
+            return
+        if self.stopped.is_set():
+            return
+        self._dispatch(item, handlers, keys, stage)
+
+    def _dispatch(self, item, handlers, keys, stage):
+        kind, identity = item
+        if kind == 'key':
+            # Key events are global: every object bound to the key runs, in binding order.
+            targets = list((keys or {}).get(identity, ()))
+            if identity != 'any':
+                targets.extend((keys or {}).get('any', ()))
+            for target in targets:
+                target[1]()
+            if stage:
+                stage.publish()
+            return
+        if kind == 'stage-click':
+            # Background clicks target whichever backdrop is active at dispatch time.
+            if stage is None or stage.backdrop is None:
+                return
+            identity = stage.backdrop
+        target = handlers.get(identity)
+        if target is not None:
+            instance, callback = target
+            if instance.click_enabled:
+                callback()
+                if stage:
+                    stage.publish()
 
     @staticmethod
     def _run_backdrops(stage, backdrops):

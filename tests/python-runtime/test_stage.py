@@ -106,6 +106,84 @@ class StageMotionTests(unittest.TestCase):
             session.clear_animations()
             clock.stop()
 
+    def _session(self, actor, finished):
+        return StageSession(
+            {'sessionId': 'run', 'initialStage': {'currentBackdropId': None, 'objects': []}},
+            [({'objectId': 'a', 'kind': 'object', 'path': 'objects/a.py', 'id': 's'}, actor)],
+            lambda kind, stage=None: None, finished.append)
+
+    def test_animation_finish_broadcast_only_on_natural_completion(self):
+        clock.ensure_started()
+        actor = Actor()
+        finished = []
+        session = self._session(actor, finished)
+        try:
+            actor.goto(0, 0)
+            actor.glide_to(10, 0, 0.05, on_finish='move-done')
+            time.sleep(0.08)
+            session.advance_animations()
+            self.assertEqual(['move-done'], finished)
+            actor.glide_to(20, 0, 0.05, on_finish='old')
+            actor.glide_to(30, 0, 0.05, on_finish='new')
+            time.sleep(0.08)
+            session.advance_animations()
+            self.assertEqual(['move-done', 'new'], finished)
+            actor.glide_to(40, 0, 0.05, on_finish='cancelled')
+            actor.x = 5
+            time.sleep(0.08)
+            session.advance_animations()
+            self.assertEqual(['move-done', 'new'], finished)
+        finally:
+            session.clear_animations()
+            clock.stop()
+
+    def test_animation_finish_name_is_validated(self):
+        actor = Actor()
+        with self.assertRaises(ValueError):
+            actor.glide_to(10, 0, 0.1, on_finish='')
+
+    def test_rotation_and_size_animations_run_independently(self):
+        clock.ensure_started()
+        actor = Actor()
+        session = StageSession(
+            {'sessionId': 'run', 'initialStage': {'currentBackdropId': None, 'objects': []}},
+            [({'objectId': 'a', 'kind': 'object', 'path': 'objects/a.py', 'id': 's'}, actor)],
+            lambda kind, stage=None: None)
+        try:
+            actor.goto(0, 0)
+            actor.direction = 0
+            actor.size = 100
+            actor.glide_to(10, 0, 0.05)
+            actor.rotate_to(90, 0.05)
+            actor.glide_size_to(150, 0.05)
+            time.sleep(0.08)
+            session.advance_animations()
+            self.assertAlmostEqual(10, actor.x)
+            self.assertAlmostEqual(0, actor.y)
+            self.assertAlmostEqual(90, actor.direction)
+            self.assertAlmostEqual(150, actor.size)
+            self.assertFalse(session.animations)
+        finally:
+            session.clear_animations()
+            clock.stop()
+
+    def test_rotation_animation_takes_shortest_path(self):
+        clock.ensure_started()
+        actor = Actor()
+        session = StageSession(
+            {'sessionId': 'run', 'initialStage': {'currentBackdropId': None, 'objects': []}},
+            [({'objectId': 'a', 'kind': 'object', 'path': 'objects/a.py', 'id': 's'}, actor)],
+            lambda kind, stage=None: None)
+        try:
+            actor.direction = 170
+            actor.rotate_to(-170, 0.05)
+            time.sleep(0.08)
+            session.advance_animations()
+            self.assertAlmostEqual(-170, actor.direction)
+        finally:
+            session.clear_animations()
+            clock.stop()
+
     def test_glide_is_cancelled_by_direct_assignment(self):
         clock.ensure_started()
         actor = Actor()
