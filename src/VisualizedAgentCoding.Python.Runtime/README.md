@@ -164,6 +164,19 @@ Coordinates may leave the 480x360 stage but are clipped when drawn; the accepted
 if no position has ever been received, both pointer methods leave the role unchanged.
 `BackdropBase` does not expose motion methods.
 
+Non-blocking position animations are also available:
+
+```python
+self.glide_to(x, y, seconds)
+self.glide_by(dx, dy, seconds)
+```
+
+`glide_to` interpolates from the current position to the target; `glide_by` adds the delta to
+the current position first. `seconds <= 0` applies the position immediately. Only one position
+animation is kept per role; a new glide replaces the old one. A direct `self.x`/`self.y`
+assignment cancels the active animation. Animations advance on the main-thread event loop and
+publish through the normal stage sampler; they do not block clicks, keys, timers, or broadcasts.
+
 For a full ordinary Python subclass, `super().__init__(x=0, visible=False)` supplies explicit
 constructor parameters. Layout is fallback only; initialize assignments take final priority.
 The UI retains runtime transforms as a separate preview and never saves them into stage.json.

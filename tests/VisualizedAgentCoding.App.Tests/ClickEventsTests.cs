@@ -307,6 +307,25 @@ public sealed class ClickEventsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GlideToPublishesTheFinalStagePosition()
+    {
+        var cat = ObjectScriptFeatures.AddKey(await Actor("cat"), "a");
+        cat = Body(cat, "start", "self.goto(0, 0)\n");
+        Save(Body(cat, cat.Regions!.Last().Id, "self.glide_to(100, -20, 0.2)\n"));
+        var request = await Request();
+        var objectId = project.FindScript(cat.ScriptId)!.ObjectId!;
+        await using var runtime = new PythonRuntimeProcess(RuntimePath);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, timeout.Token);
+        await WaitUntil(() => events.Any(e => e.Kind == "interactive-ready"), timeout.Token);
+        await runtime.SendKeyAsync(request.SessionId, "a", timeout.Token);
+        await WaitUntil(() => events.Any(e => e.Stage?.Objects.Any(o => o.ObjectId == objectId
+            && Math.Abs(o.X - 100) < 1e-9 && Math.Abs(o.Y + 20) < 1e-9) == true), timeout.Token);
+        await Stop(run, timeout);
+    }
+
+    [Fact]
     public void TimerIdentitiesValidateAndDisplay()
     {
         Assert.Equal("timer:1.5", TimerEvents.FormatIdentity(new(1.5, false)));

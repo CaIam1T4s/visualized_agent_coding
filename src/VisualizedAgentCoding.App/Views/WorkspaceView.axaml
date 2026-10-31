@@ -143,10 +143,8 @@
                                                                 Cursor="SizeAll"
                                                                 PointerPressed="OnStageSpritePointerPressed"
                                                                 ToolTip.Tip="{Binding DisplayName}"
-                                                                AutomationProperties.Name="{Binding DisplayName}">
-                                                            <Border.RenderTransformOrigin>
-                                                                <RelativePoint>0.5,0.5</RelativePoint>
-                                                            </Border.RenderTransformOrigin>
+                                                                AutomationProperties.Name="{Binding DisplayName}"
+                                                                RenderTransformOrigin="50%,50%">
                                                             <Border.RenderTransform>
                                                                 <RotateTransform Angle="{Binding Rotation}" />
                                                             </Border.RenderTransform>

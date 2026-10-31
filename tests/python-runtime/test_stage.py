@@ -1,9 +1,11 @@
 import sys
+import time
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src' / 'VisualizedAgentCoding.Python.Runtime'))
-from vac_runtime.stage import BackdropBase, ElementBase, normalize_direction
+from vac_runtime import clock
+from vac_runtime.stage import BackdropBase, ElementBase, StageSession, normalize_direction
 
 
 class Actor(ElementBase):
@@ -78,6 +80,50 @@ class StageMotionTests(unittest.TestCase):
     def test_background_has_no_motion_api(self):
         self.assertFalse(hasattr(BackdropBase, 'move'))
         self.assertFalse(hasattr(BackdropBase, 'move_to_pointer'))
+
+    def test_glide_to_and_glide_by_use_non_blocking_tween(self):
+        clock.ensure_started()
+        actor = Actor()
+        emitted = []
+        session = StageSession(
+            {'sessionId': 'run', 'initialStage': {'currentBackdropId': None, 'objects': []}},
+            [({'objectId': 'a', 'kind': 'object', 'path': 'objects/a.py', 'id': 's'}, actor)],
+            lambda kind, stage=None: emitted.append(stage))
+        try:
+            actor.goto(0, 0)
+            actor.glide_to(10, -10, 0.05)
+            time.sleep(0.08)
+            session.advance_animations()
+            self.assertAlmostEqual(10, actor.x)
+            self.assertAlmostEqual(-10, actor.y)
+            actor.glide_by(-4, 2, 0.05)
+            time.sleep(0.08)
+            session.advance_animations()
+            self.assertAlmostEqual(6, actor.x)
+            self.assertAlmostEqual(-8, actor.y)
+            self.assertTrue(emitted)
+        finally:
+            session.clear_animations()
+            clock.stop()
+
+    def test_glide_is_cancelled_by_direct_assignment(self):
+        clock.ensure_started()
+        actor = Actor()
+        session = StageSession(
+            {'sessionId': 'run', 'initialStage': {'currentBackdropId': None, 'objects': []}},
+            [({'objectId': 'a', 'kind': 'object', 'path': 'objects/a.py', 'id': 's'}, actor)],
+            lambda kind, stage=None: None)
+        try:
+            actor.goto(0, 0)
+            actor.glide_to(10, 0, 0.05)
+            actor.x = 4
+            time.sleep(0.08)
+            session.advance_animations()
+            self.assertEqual(4, actor.x)
+            self.assertFalse(session.animations)
+        finally:
+            session.clear_animations()
+            clock.stop()
 
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -18,8 +19,12 @@ public partial class WorkspaceView : UserControl
     private Point pressPoint;
     private bool stageDragMoved;
     private long lastPointerSentTicks;
-    private double lastPointerX = double.NaN;
-    private double lastPointerY = double.NaN;
+    private Point? lastPointerRoot;
+    private double pointerStageX = double.NaN;
+    private double pointerStageY = double.NaN;
+    private double sentPointerX = double.NaN;
+    private double sentPointerY = double.NaN;
+    private bool pointerKnown;
 
     public WorkspaceView()
     {
@@ -49,17 +54,20 @@ public partial class WorkspaceView : UserControl
     private void OnRunStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MainViewModel.IsPythonActive)) UpdateRunIcon(((MainViewModel)sender!).IsPythonActive);
+        if (e.PropertyName == nameof(MainViewModel.CanDispatchStageClicks) && ((MainViewModel)sender!).CanDispatchStageClicks)
+            _ = SendCachedPointerAsync();
     }
 
     private void UpdateRunIcon(bool running) => RunIcon.Content = CreateIcon(
         running ? AntDesignIconKind.PauseOutlined : AntDesignIconKind.PlayCircleOutlined);
 
-    private void OnStageKeyDown(object? sender, KeyEventArgs e)
+    private async void OnStageKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not MainViewModel { IsPythonActive: true } viewModel) return;
         if (StageKeyName(e.Key) is not { } key) return;
         e.Handled = true;
-        _ = viewModel.DispatchStageKeyAsync(key);
+        await SendCachedPointerAsync(viewModel);
+        await viewModel.DispatchStageKeyAsync(key);
     }
 
     /// <summary>Maps Avalonia keys to the lower-case names used by key event regions.</summary>
@@ -248,22 +256,42 @@ public partial class WorkspaceView : UserControl
 
     private void OnStagePointerMoved(object? sender, PointerEventArgs e)
     {
-        if (DataContext is not MainViewModel { IsPythonActive: true, CanDispatchStageClicks: true } viewModel)
-            return;
-        var point = e.GetPosition(StageCanvas);
-        var x = point.X - 240;
-        var y = 180 - point.Y;
-        if (!double.IsFinite(x) || !double.IsFinite(y))
-            return;
+        if (TopLevel.GetTopLevel(this) is not { } root) return;
+        var rootPoint = e.GetPosition(root);
+        var moved = lastPointerRoot is not { } previous || Distance(rootPoint, previous) > 0.1;
+        lastPointerRoot = rootPoint;
+        if (!TryGetStagePoint(root, rootPoint, out var x, out var y)) return;
+        pointerStageX = x;
+        pointerStageY = y;
+        pointerKnown = true;
+        if (!moved) return;
+        if (DataContext is not MainViewModel { IsPythonActive: true, CanDispatchStageClicks: true } viewModel) return;
         var now = DateTime.UtcNow.Ticks;
-        if (now - lastPointerSentTicks < TimeSpan.TicksPerSecond / 30)
-            return;
-        if (Math.Abs(x - lastPointerX) < 0.5 && Math.Abs(y - lastPointerY) < 0.5)
-            return;
-        lastPointerSentTicks = now;
-        lastPointerX = x;
-        lastPointerY = y;
-        _ = viewModel.DispatchPointerAsync(x, y);
+        if (now - lastPointerSentTicks < TimeSpan.TicksPerSecond / 30) return;
+        if (Math.Abs(x - sentPointerX) < 0.5 && Math.Abs(y - sentPointerY) < 0.5) return;
+        _ = SendCachedPointerAsync(viewModel);
+    }
+
+    private bool TryGetStagePoint(TopLevel root, Point rootPoint, out double x, out double y)
+    {
+        x = y = 0;
+        if (root.TranslatePoint(rootPoint, StageCanvas) is not { } point) return false;
+        var width = StageCanvas.Bounds.Width > 0 ? StageCanvas.Bounds.Width : 480;
+        var height = StageCanvas.Bounds.Height > 0 ? StageCanvas.Bounds.Height : 360;
+        x = point.X - width / 2;
+        y = height / 2 - point.Y;
+        return double.IsFinite(x) && double.IsFinite(y);
+    }
+
+    private async Task SendCachedPointerAsync(MainViewModel? viewModel = null)
+    {
+        if (!pointerKnown) return;
+        viewModel ??= DataContext as MainViewModel;
+        if (viewModel is not { IsPythonActive: true, CanDispatchStageClicks: true }) return;
+        lastPointerSentTicks = DateTime.UtcNow.Ticks;
+        sentPointerX = pointerStageX;
+        sentPointerY = pointerStageY;
+        await viewModel.DispatchPointerAsync(pointerStageX, pointerStageY);
     }
 
     private void OnStageCanvasPointerPressed(object? sender, PointerPressedEventArgs e)

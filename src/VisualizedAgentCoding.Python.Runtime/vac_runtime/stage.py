@@ -77,7 +77,7 @@ class StageBase:
             if name in _DEFAULTS and value is not _MISSING:
                 setattr(self, name, value)
 
-    def _vac_bind(self, layout, activate, pointer=None):
+    def _vac_bind(self, layout, activate, pointer=None, animate=None):
         values = dict(_DEFAULTS)
         values.update({k: validate(k, layout[_WIRE.get(k, k)]) for k in _DEFAULTS if _WIRE.get(k, k) in layout})
         values.update(getattr(type(self), '_vac_initial', {}))
@@ -85,6 +85,7 @@ class StageBase:
         self.__dict__['_vac_values'] = values
         self.__dict__['_vac_activate'] = activate
         self.__dict__['_vac_pointer'] = pointer
+        self.__dict__['_vac_animate'] = animate
 
 
 
@@ -137,6 +138,23 @@ class ElementBase(StageBase):
         if seen:
             self.goto(x, y)
 
+    def glide_to(self, x, y, seconds):
+        validate('x', x)
+        validate('y', y)
+        duration = finite_number('动画时长', seconds)
+        if duration <= 0:
+            self.goto(x, y)
+            return
+        animate = self.__dict__.get('_vac_animate')
+        if animate is None:
+            self.goto(x, y)
+            return
+        animate(x, y, duration)
+
+    def glide_by(self, dx, dy, seconds):
+        self.glide_to(self.x + finite_number('X 变化量', dx),
+                      self.y + finite_number('Y 变化量', dy), seconds)
+
 
 
 class BackdropBase(StageBase):
@@ -163,6 +181,9 @@ class StageSession:
         self.pointer_x = 0.0
         self.pointer_y = 0.0
         self.pointer_seen = False
+        self.animations = {}
+        self.instances_by_id = {script['objectId']: instance for script, instance in instances
+                                if script['kind'] == 'object'}
         layouts = {o['objectId']: o for o in initial.get('objects', [])}
         backdrops = {s['objectId'] for s, _ in instances if s['kind'] == 'backdrop'}
         for script, _ in instances:
@@ -180,8 +201,49 @@ class StageSession:
                 raise RuntimeError('项目自定义基类不支持舞台同步，请使用产品运行时基类。')
             def activate(identity=script['objectId']):
                 self.switch_backdrop_id(identity)
-            instance._vac_bind(layouts.get(script['objectId'], {}), activate, self.pointer_position)
+            instance._vac_bind(layouts.get(script['objectId'], {}), activate, self.pointer_position,
+                lambda x, y, seconds, identity=script['objectId']: self.start_animation(identity, x, y, seconds))
         self.thread = threading.Thread(target=self._sample, daemon=True)
+
+    def start_animation(self, identity, target_x, target_y, seconds):
+        instance = self.instances_by_id.get(identity)
+        if not isinstance(instance, ElementBase):
+            raise RuntimeError('仅角色可播放位移动画。')
+        validate('x', target_x)
+        validate('y', target_y)
+        if seconds <= 0 or (target_x == instance.x and target_y == instance.y):
+            self.animations.pop(identity, None)
+            instance.goto(target_x, target_y)
+            return
+        self.animations[identity] = dict(start_x=instance.x, start_y=instance.y,
+            target_x=target_x, target_y=target_y, started=clock.seconds(),
+            duration=seconds, last_x=instance.x, last_y=instance.y)
+
+    def advance_animations(self):
+        changed = False
+        now = clock.seconds()
+        for identity, tween in list(self.animations.items()):
+            instance = self.instances_by_id.get(identity)
+            if not isinstance(instance, ElementBase) or abs(instance.x - tween['last_x']) > 1e-6                     or abs(instance.y - tween['last_y']) > 1e-6:
+                del self.animations[identity]
+                continue
+            progress = min(1.0, max(0.0, (now - tween['started']) / tween['duration']))
+            x = tween['start_x'] + (tween['target_x'] - tween['start_x']) * progress
+            y = tween['start_y'] + (tween['target_y'] - tween['start_y']) * progress
+            instance.x = x
+            instance.y = y
+            tween['last_x'] = x
+            tween['last_y'] = y
+            changed = True
+            if progress >= 1.0:
+                instance.x = tween['target_x']
+                instance.y = tween['target_y']
+                del self.animations[identity]
+        if changed:
+            self.publish()
+
+    def clear_animations(self):
+        self.animations.clear()
 
     def set_pointer(self, x, y):
         if type(x) not in (int, float) or type(y) not in (int, float) or not math.isfinite(x) or not math.isfinite(y):

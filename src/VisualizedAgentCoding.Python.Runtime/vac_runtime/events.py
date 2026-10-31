@@ -69,6 +69,8 @@ class EventInbox:
             while not self.stopped.is_set():
                 self._run_backdrops(stage, backdrops)
                 self._run_timers(timers, stage)
+                if stage:
+                    stage.advance_animations()
                 try:
                     kind, identity = self.pending.get(timeout=0.05)
                 except queue.Empty:
@@ -98,6 +100,8 @@ class EventInbox:
                         if stage:
                             stage.publish()
         finally:
+            if stage:
+                stage.clear_animations()
             self.stop()
 
     @staticmethod
