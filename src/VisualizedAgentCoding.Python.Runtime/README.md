@@ -175,7 +175,8 @@ wait(seconds)
 `wait` suspends only the current handler and keeps the main-thread event pump running:
 animations, timers, backdrop switches, clicks, keys and messages continue during the wait.
 It is allowed in `start` and event handlers (and functions called from them), but rejected in
-class-definition/module-level code and `initialize()`. Worker threads and Stop are rejected or
+class-definition/module-level code and `initialize()`. During a key event, later handlers for
+the same key remain runnable while an earlier handler is waiting. Worker threads and Stop are rejected or
 interrupted explicitly. Nested waits are limited to 32 levels. `wait(0)` returns immediately.
 
 Non-blocking position animations are also available:
@@ -203,6 +204,28 @@ the main-thread event loop and publish through the normal stage sampler; they do
 clicks, keys, timers, or broadcasts. Every animation method accepts an optional
 `on_finish="message"`; the message is broadcast once after natural completion, after the final
 value is applied. Replacement, direct-assignment cancellation, and Stop do not broadcast it.
+
+## Costumes
+
+Each role may have several named costumes. The object manager's **管理造型…** dialog imports,
+renames, removes, and selects the initial costume. The first costume added becomes the
+default; later additions do not change the default until explicitly selected. Scripts select
+a costume by its display
+name:
+
+```python
+print(self.costume)          # read-only active costume name
+self.switch_costume("开心")
+```
+
+`self.costume` is `None` when the role has no costume. `switch_costume` accepts only roles,
+raises `ValueError` for an unknown name, and is a no-op when the costume is already active.
+The active costume is runtime-only; it is not written to
+`stage.json`. Applying a costume does not start an animation or block the event loop. A page
+frame carries the active `imagePath` and `normalizeImage`; `size` remains a percentage of that
+costume's logical base dimensions. The host caches images and restores the initial costume
+when the preview is cleared. Costume images use the same validated `assets/images/` relative
+paths as initial scene images.
 
 For a full ordinary Python subclass, `super().__init__(x=0, visible=False)` supplies explicit
 constructor parameters. Layout is fallback only; initialize assignments take final priority.

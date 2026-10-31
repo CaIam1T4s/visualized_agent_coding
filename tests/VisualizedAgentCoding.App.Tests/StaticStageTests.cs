@@ -96,7 +96,7 @@ public sealed class StaticStageTests : IDisposable
         var stage = Service();
         var path = stage.ImportImage(created.Project, created.Script.ObjectId!, source);
         Assert.StartsWith("assets/images/", path);
-        stage.Save(created.Project, new() { Objects = [new(created.Script.ObjectId!, ImagePath: path)] }, null);
+        stage.Save(created.Project, new() { Objects = [ImageObject(created.Script.ObjectId!, path)] }, null);
         File.Delete(source);
         var moved = Path.Combine(directory, "moved");
         Directory.Move(root, moved);
@@ -177,7 +177,7 @@ public sealed class StaticStageTests : IDisposable
         string Import() => stage.ImportImage(created.Project, created.Script.ObjectId!, source);
         string Absolute(string path) => Path.Combine(directory, path.Replace('/', Path.DirectorySeparatorChar));
         var old = Import();
-        var saved = stage.Save(created.Project, new() { Objects = [new(created.Script.ObjectId!, ImagePath: old)] }, null);
+        var saved = stage.Save(created.Project, new() { Objects = [ImageObject(created.Script.ObjectId!, old)] }, null);
         var next = Import();
         var orphan = Import();
         var explicitReference = Import();
@@ -191,7 +191,7 @@ public sealed class StaticStageTests : IDisposable
         Assert.True(File.Exists(Absolute(explicitReference)));
         Assert.True(File.Exists(Absolute(unsavedReference)));
         Assert.True(File.Exists(Absolute(manual)));
-        saved = stage.Save(created.Project, new() { Objects = [new(created.Script.ObjectId!, ImagePath: next, NormalizeImage: true)] }, saved.Revision);
+        saved = stage.Save(created.Project, new() { Objects = [ImageObject(created.Script.ObjectId!, next, true)] }, saved.Revision);
         Assert.Null(stage.CleanUnusedImages(created.Project, [next, old], saved.Revision));
         Assert.True(File.Exists(Absolute(old))); // Another live object can retain it.
         Assert.Null(stage.CleanUnusedImages(created.Project, [next], saved.Revision));
@@ -202,6 +202,74 @@ public sealed class StaticStageTests : IDisposable
         File.AppendAllText(Path.Combine(directory, "scenes", "stage.json"), " ");
         Assert.NotNull(stage.CleanUnusedImages(created.Project, [next], saved.Revision));
         Assert.True(File.Exists(Absolute(newOrphan)));
+    }
+
+    private static StageObjectState ImageObject(string objectId, string path, bool normalize = false) =>
+        new(objectId, ImagePath: path, NormalizeImage: normalize,
+            Costumes: [new("costume-" + objectId, "默认", path, normalize)], InitialCostumeId: "costume-" + objectId);
+
+    [Fact]
+    public void SceneRejectsDuplicateCostumeNamesAndImageMirrorMismatch()
+    {
+        var costumes = new List<StageCostumeState>
+        {
+            new("c1", "同名", "assets/images/a.png", true),
+            new("c2", "同名", "assets/images/b.png", true),
+        };
+        var duplicate = new StageState { Objects = [new("object", ImagePath: "assets/images/a.png", NormalizeImage: true,
+            Costumes: costumes, InitialCostumeId: "c1")] };
+        Assert.Throws<ProjectFormatException>(() => StageRules.Validate(duplicate));
+        var mismatched = new StageState { Objects = [new("object", ImagePath: "assets/images/b.png", NormalizeImage: true,
+            Costumes: [new("c1", "默认", "assets/images/a.png", true)], InitialCostumeId: "c1")] };
+        Assert.Throws<ProjectFormatException>(() => StageRules.Validate(mismatched));
+    }
+
+    [Fact]
+    public async Task OpeningProjectDeletesOnlyUnreferencedManagedImages()
+    {
+        var service = new ProjectService(store);
+        var created = service.CreateScript(service.Create(directory), ProjectScriptKind.Object, "cat");
+        var images = Path.Combine(directory, "assets", "images");
+        Directory.CreateDirectory(images);
+        var referenced = "assets/images/" + Guid.NewGuid().ToString("N") + ".png";
+        var orphan = "assets/images/" + Guid.NewGuid().ToString("N") + ".png";
+        var manual = "assets/images/manual.png";
+        File.WriteAllBytes(Path.Combine(directory, referenced.Replace('/', Path.DirectorySeparatorChar)), [1]);
+        File.WriteAllBytes(Path.Combine(directory, orphan.Replace('/', Path.DirectorySeparatorChar)), [2]);
+        File.WriteAllBytes(Path.Combine(directory, manual.Replace('/', Path.DirectorySeparatorChar)), [3]);
+        Service().Save(created.Project, new() { Objects = [ImageObject(created.Script.ObjectId!, referenced)] }, null);
+        await using var vm = TestMainViewModelFactory.Create(new InMemorySettingsStore());
+        await vm.OpenProject(directory);
+        Assert.True(File.Exists(Path.Combine(directory, referenced.Replace('/', Path.DirectorySeparatorChar))));
+        Assert.False(File.Exists(Path.Combine(directory, orphan.Replace('/', Path.DirectorySeparatorChar))));
+        Assert.True(File.Exists(Path.Combine(directory, manual.Replace('/', Path.DirectorySeparatorChar))));
+    }
+
+    [Fact]
+    public void LegacySceneMigratesToCostumesWithoutRewritingOnOpen()
+    {
+        var service = new ProjectService(store);
+        var created = service.CreateScript(service.Create(directory), ProjectScriptKind.Object, "cat");
+        var path = "assets/images/legacy.png";
+        Directory.CreateDirectory(Path.Combine(directory, "assets", "images"));
+        File.WriteAllBytes(Path.Combine(directory, path.Replace('/', Path.DirectorySeparatorChar)), [1, 2, 3]);
+        var scene = Path.Combine(directory, "scenes", "stage.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(scene)!);
+        var legacy = "{\"version\":1,\"objects\":[{\"objectId\":\"" + created.Script.ObjectId
+            + "\",\"imagePath\":\"" + path + "\",\"normalizeImage\":true}]}";
+        File.WriteAllText(scene, legacy);
+        var stage = Service();
+        var loaded = stage.Load(created.Project);
+        var item = Assert.Single(loaded.State.Objects);
+        Assert.Equal(2, loaded.State.Version);
+        var costume = Assert.Single(item.Costumes!);
+        Assert.Equal(path, costume.ImagePath);
+        Assert.True(costume.NormalizeImage);
+        Assert.Equal(costume.Id, item.InitialCostumeId);
+        Assert.Equal(legacy, File.ReadAllText(scene));
+        stage.Save(created.Project, loaded.State, loaded.Revision);
+        Assert.Contains("\"costumes\"", File.ReadAllText(scene));
+        Assert.Equal(2, stage.Load(created.Project).State.Version);
     }
 
     public void Dispose() { if (Directory.Exists(directory)) Directory.Delete(directory, true); }

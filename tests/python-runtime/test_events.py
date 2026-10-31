@@ -52,6 +52,25 @@ class WaitTests(unittest.TestCase):
         self.assertGreaterEqual(clock.timer() - started, 0.05)
         inbox.stop()
 
+    def test_wait_lets_later_key_handlers_run(self):
+        clock.ensure_started()
+        events = []
+        inbox = EventInbox('run')
+
+        def first():
+            events.append('first-start')
+            inbox.wait(0.04)
+            events.append('first-end')
+
+        def second():
+            events.append('second')
+
+        inbox.prepare({}, lambda kind, text='', stage=None: None, None,
+                      keys={'a': [(None, first), (None, second)]})
+        inbox._dispatch(('key', 'a'), {}, {'a': [(None, first), (None, second)]}, None)
+        self.assertEqual(['first-start', 'second', 'first-end'], events)
+        inbox.stop()
+
     def test_stop_interrupts_wait(self):
         import threading
         clock.ensure_started()

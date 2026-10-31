@@ -1,4 +1,4 @@
-# Static initial scene, version 1
+# Static initial scene, version 2
 
 The stage is 480 × 360. Its origin is the center, X increases rightward and Y upward.
 Sprites are positioned by image center. Direction 90 is the original image; clockwise
@@ -8,14 +8,24 @@ rotation is `direction - 90`. Viewport resizing scales uniformly without changin
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "currentBackdropId": "object_backdrop_id",
   "objects": [
     {
       "objectId": "object_sprite_id",
       "x": 40, "y": 20, "size": 100, "direction": 90,
       "visible": true, "layer": 0, "clickEnabled": true,
-      "imagePath": "assets/images/unique-name.png"
+      "imagePath": "assets/images/unique-name.png",
+      "normalizeImage": true,
+      "initialCostumeId": "costume-unique",
+      "costumes": [
+        {
+          "id": "costume-unique",
+          "name": "默认",
+          "imagePath": "assets/images/unique-name.png",
+          "normalizeImage": true
+        }
+      ]
     }
   ]
 }
@@ -24,9 +34,17 @@ rotation is `direction - 90`. Viewport resizing scales uniformly without changin
 Object identity comes from `project.json`. An absent scene means defaults: centered,
 size 100%, direction 90, visible, layer 0, clickEnabled true, no image, first backdrop. A scene is written
 after layout changes on save/navigation/project close/exit. Opening an unchanged legacy
-project does not create a scene. Unknown versions/fields, duplicate identities, nonfinite
+project does not create a scene. Version 1 scenes are upgraded in memory: a single
+`imagePath` becomes a costume named `造型 1`, and the original file is left untouched until
+the next save. Unknown versions/fields, duplicate identities or costume names, nonfinite
 transforms, and external image paths are rejected. Removed objects are omitted on the next
 scene save. Current backdrop remains independent of editor selection.
+
+Each object has up to 64 costumes. Costume ids are stable; names are 1–64 characters,
+trimmed, control-free and unique within the object. `imagePath` and `normalizeImage` mirror
+the initial costume; the full `costumes` list is authoritative. Costume image paths use the
+same `assets/images/` rule as scene images. `size` is a percentage of the active costume's
+logical base size, so switching costumes may change the displayed size.
 
 Sprite X/Y range is ±100000; size 1–1000%, direction −180–180, layer ±10000. Higher
 layers draw in front; object-list order breaks ties. Sprites may move outside the 480×360
@@ -37,11 +55,13 @@ not apply to backdrops.
 
 PNG/JPEG/BMP/WebP imports copy a validated snapshot into `assets/images/` under a unique
 name. Limits are 20 MB, 8192 pixels per dimension, and 16 million pixels. Headers are checked
-before full bitmap allocation. Every replacement resets size to 100%. New images use
+before full bitmap allocation. Adding the first costume resets size to 100% and makes it the
+default; adding another costume keeps the current size and leaves the default costume
+unchanged. New images use
 `min(1, 480 / width, 360 / height)` as their base scale, so both axes fit without upscaling.
 100% refers to this fitted size, not the original pixel size; original bytes are retained for
-quality. `normalizeImage=true` records the new interpretation. Old records lacking the flag
-keep their previous geometry until an explicit replacement. Relative references survive project moves and source-image
+quality. `normalizeImage=true` is stored per costume. Old records are migrated to a single
+costume. Relative references survive project moves and source-image
 removal. Missing assets retain their references and show a placeholder and reimport hint.
 Replacing an image collects unreferenced app-managed GUID image files. Current unsaved and
 last-saved scene references, other project Python/JSON text references, and the open editor
@@ -75,7 +95,7 @@ handlers. Assignments in start/message handlers update the runtime instance.
 
 `stage` events on the authenticated protocol-v2 channel carry a `stage` object with
 `sessionId`, monotonically increasing `sequence`, `objects` (stable `objectId` plus x/y/size/
-direction/visible/layer/clickEnabled), and `currentBackdropId`. Changed snapshots are sampled at 30 Hz;
+direction/visible/layer/clickEnabled/imagePath/normalizeImage), and `currentBackdropId`. Changed snapshots are sampled at 30 Hz;
 initialization completion and exit flush immediately. The host retains at most one pending
 stage frame, validates object membership/values/session/sequence, and updates UI bindings on
 its normal 50 ms dispatch timer. No user stdout parsing is involved. Multiple assignments
@@ -83,8 +103,15 @@ between frames are coalesced; this is a preview, not an atomic multi-property an
 
 `BackdropBase.activate()` selects that background by stable identity. The current background's
 visibility affects its preview; background transforms are retained but not used to position
-the fixed stage background. Images remain the initial project assets, without a runtime
-costume replacement API. Runtime size uses the imported image's logical 100% base dimensions.
+the fixed stage background. Roles expose `self.costume` as the active costume's read-only name
+and `self.switch_costume(name)` to select a costume by name. The runtime stage frame carries
+the active `imagePath` and `normalizeImage`; the host loads/caches that image without changing
+the saved initial layout. Runtime size uses the active costume's logical 100% base dimensions.
+
+Opening a project runs the managed-image cleanup after the scene and all costumes have been
+loaded. It removes only unreferenced GUID image files; manually named files, missing files
+retained by scene/script references, and images referenced by any project text source remain.
+If the scene revision changed or the reference scan is incomplete, cleanup is skipped.
 
 During execution, object-manager edits and stage dragging are disabled. Completion, failure,
 and stop retain the latest preview; saving still writes only initial layout. The inspector

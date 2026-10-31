@@ -11,6 +11,7 @@ namespace happy_agent_coding.Views;
 public partial class ObjectManagerView : UserControl
 {
     private bool showingStageReload;
+    private bool showingCostumes;
     public ObjectManagerView()
     {
         InitializeComponent();
@@ -27,6 +28,20 @@ public partial class ObjectManagerView : UserControl
         icon.Width = 14;
         icon.Height = 14;
         return icon;
+    }
+
+    private async void OnManageCostumesClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (showingCostumes || sender is not Button { Tag: StageObjectItem item } || DataContext is not MainViewModel model
+            || !item.IsSprite || !item.CanEditProperties
+            || TopLevel.GetTopLevel(this) is not Window owner
+            || owner.FindControl<Border>("WindowFrame")?.Child is not Grid host) return;
+        var dialog = new CostumeManagerView(model, item);
+        showingCostumes = true;
+        Grid.SetRowSpan(dialog, 2);
+        host.Children.Add(dialog);
+        try { await dialog.WaitForClose(); }
+        finally { host.Children.Remove(dialog); showingCostumes = false; (sender as Control)?.Focus(); }
     }
 
     private async void OnImportImageClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

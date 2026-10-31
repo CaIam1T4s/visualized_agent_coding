@@ -319,6 +319,7 @@ public partial class MainViewModel : ViewModelBase
         CollapseCategories();
         ObjectManagerTabIndex = 0;
         RefreshProjectResources();
+        CleanUnusedImagesOnOpen();
         OnPropertyChanged(nameof(FileName));
         OnPropertyChanged(nameof(OpenScript));
         OnPropertyChanged(nameof(ProjectName));

@@ -20,6 +20,7 @@ public sealed class JsonStageStore : IStageStore
         try
         {
             var state = JsonSerializer.Deserialize<StageState>(source, Options) ?? throw new ProjectFormatException("舞台文件为空。");
+            state = StageMigration.Upgrade(state);
             StageRules.Validate(state);
             return new(state, source);
         }

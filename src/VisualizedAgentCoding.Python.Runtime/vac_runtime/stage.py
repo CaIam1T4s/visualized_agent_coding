@@ -2,6 +2,7 @@
 import math
 from pathlib import Path
 import threading
+import unicodedata
 
 from . import clock
 from .messages import validate_name
@@ -12,6 +13,14 @@ _MISSING = object()
 # Python attribute names stay snake_case; the wire protocol is camelCase.
 _WIRE = dict(click_enabled='clickEnabled')
 _WIRE_REVERSE = {wire: name for name, wire in _WIRE.items()}
+
+
+def validate_costume_name(name):
+    if (not isinstance(name, str) or not name or name != name.strip()
+            or len(name.encode('utf-16-le')) // 2 > 64
+            or any(unicodedata.category(char) == 'Cc' for char in name)):
+        raise ValueError('造型名称须为 1–64 个字符，不能包含控制字符或首尾空白。')
+    return name
 
 
 def validate(name, value):
@@ -53,6 +62,12 @@ class StageBase:
     def timer(self):
         return clock.timer()
 
+    @property
+    def costume(self):
+        """Read-only display name of the active costume."""
+        active = self.__dict__.get('_vac_active_costume')
+        return None if active is None else active.get('name')
+
     x = stage_property('x')
     y = stage_property('y')
     size = stage_property('size')
@@ -79,6 +94,29 @@ class StageBase:
                 setattr(self, name, value)
 
     def _vac_bind(self, layout, activate, pointer=None, animate=None, animate_direction=None, animate_size=None):
+        costumes = []
+        names = set()
+        for raw in layout.get('costumes') or []:
+            if not isinstance(raw, dict):
+                raise ValueError('造型数据无效。')
+            identity, name = raw.get('id'), validate_costume_name(raw.get('name'))
+            image_path, normalize = raw.get('imagePath'), raw.get('normalizeImage', False)
+            if not isinstance(identity, str) or not identity or name in names:
+                raise ValueError('造型身份或名称重复。')
+            if not isinstance(image_path, str) or type(normalize) is not bool:
+                raise ValueError('造型图片路径或适配标记无效。')
+            names.add(name)
+            costumes.append(dict(id=identity, name=name, image_path=image_path, normalize=normalize))
+        by_name = {costume['name']: costume for costume in costumes}
+        active = None
+        if costumes:
+            initial_id = layout.get('initialCostumeId')
+            active = next((costume for costume in costumes if costume['id'] == initial_id), None)
+            if active is None:
+                raise ValueError('角色初始造型不存在。')
+        elif layout.get('imagePath'):
+            active = dict(id=None, name=None, image_path=layout['imagePath'],
+                          normalize=bool(layout.get('normalizeImage', False)))
         values = dict(_DEFAULTS)
         values.update({k: validate(k, layout[_WIRE.get(k, k)]) for k in _DEFAULTS if _WIRE.get(k, k) in layout})
         values.update(getattr(type(self), '_vac_initial', {}))
@@ -89,10 +127,28 @@ class StageBase:
         self.__dict__['_vac_animate'] = animate
         self.__dict__['_vac_animate_direction'] = animate_direction
         self.__dict__['_vac_animate_size'] = animate_size
+        self.__dict__['_vac_costumes'] = by_name
+        self.__dict__['_vac_active_costume'] = active
+
+    def _vac_switch_costume(self, name):
+        validate_costume_name(name)
+        costumes = self.__dict__.get('_vac_costumes')
+        if costumes is None:
+            raise RuntimeError('角色尚未接入运行舞台。')
+        target = costumes.get(name)
+        if target is None:
+            raise ValueError(f'造型不存在：{name}')
+        current = self.__dict__.get('_vac_active_costume')
+        if current is None or current.get('id') != target['id']:
+            self.__dict__['_vac_active_costume'] = dict(target)
 
 
 
 class ElementBase(StageBase):
+    def switch_costume(self, name):
+        """Select one of this role's costumes by display name."""
+        self._vac_switch_costume(name)
+
     def move(self, steps):
         distance = finite_number('移动距离', steps)
         angle = math.radians(self.direction)
@@ -393,7 +449,15 @@ class StageSession:
     def publish(self):
         with self.lock:
             # Wire fields are camelCase like objectId/currentBackdropId.
-            objects = [dict(objectId=s['objectId'], **{_WIRE.get(k, k): getattr(o, k) for k in _DEFAULTS}) for s, o in self.instances]
+            objects = []
+            for script, instance in self.instances:
+                row = dict(objectId=script['objectId'],
+                           **{_WIRE.get(k, k): getattr(instance, k) for k in _DEFAULTS})
+                active = instance.__dict__.get('_vac_active_costume')
+                if active is not None:
+                    row['imagePath'] = active['image_path']
+                    row['normalizeImage'] = active['normalize']
+                objects.append(row)
             state = (objects, self.backdrop)
             if state == self.previous:
                 return

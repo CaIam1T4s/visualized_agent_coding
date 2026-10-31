@@ -43,10 +43,19 @@
                         <TextBlock Text="{Binding KindLabel}"
                                    FontSize="12"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Text="{Binding CostumeName, StringFormat='当前造型：{0}'}"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         <TextBox Text="{Binding DisplayName}"
                                  IsReadOnly="True" />
                     </StackPanel>
-                    <Button Content="导入图片…" Tag="{Binding}" Click="OnImportImageClick" IsEnabled="{Binding CanEditProperties}" Classes="command-button secondary" />
+                    <Button Content="管理造型…" Tag="{Binding}" Click="OnManageCostumesClick"
+                            IsEnabled="{Binding CanEditProperties}" IsVisible="{Binding IsSprite}"
+                            Classes="command-button secondary" />
+                    <Button Content="导入图片…" Tag="{Binding}" Click="OnImportImageClick"
+                            IsEnabled="{Binding CanEditProperties}" IsVisible="{Binding IsSprite, Converter={x:Static BoolConverters.Not}}"
+                            Classes="command-button secondary" />
                     <TextBlock Text="{Binding ImageStatus}" TextWrapping="Wrap" FontSize="11" />
                     <TextBlock Text="{Binding InspectorVisibilityText}" FontSize="11" />
                     <Button Content="重新加载舞台…" Click="OnReloadStageClick" IsEnabled="{Binding CanEditProperties}" Classes="command-button secondary"

@@ -204,5 +204,62 @@ class StageMotionTests(unittest.TestCase):
             clock.stop()
 
 
+class CostumeTests(unittest.TestCase):
+    def _layout(self):
+        return {
+            'costumes': [
+                {'id': 'c1', 'name': '默认', 'imagePath': 'assets/images/a.png', 'normalizeImage': True},
+                {'id': 'c2', 'name': '开心', 'imagePath': 'assets/images/b.png', 'normalizeImage': False},
+            ],
+            'initialCostumeId': 'c1',
+            'imagePath': 'assets/images/a.png',
+            'normalizeImage': True,
+        }
+
+    def test_costume_is_read_only_and_switch_resolves_by_name(self):
+        actor = Actor()
+        actor._vac_bind(self._layout(), lambda: None)
+        self.assertEqual('默认', actor.costume)
+        actor.switch_costume('开心')
+        self.assertEqual('开心', actor.costume)
+        actor.switch_costume('开心')
+        self.assertEqual('开心', actor.costume)
+        with self.assertRaises(ValueError):
+            actor.switch_costume('不存在')
+        with self.assertRaises(AttributeError):
+            actor.costume = '默认'
+        with self.assertRaises(AttributeError):
+            BackdropBase.switch_costume
+
+    def test_missing_or_duplicate_costume_data_is_rejected(self):
+        actor = Actor()
+        layout = self._layout()
+        layout['initialCostumeId'] = 'missing'
+        with self.assertRaises(ValueError):
+            actor._vac_bind(layout, lambda: None)
+        duplicate = self._layout()
+        duplicate['costumes'][1]['name'] = '默认'
+        with self.assertRaises(ValueError):
+            Actor()._vac_bind(duplicate, lambda: None)
+
+    def test_publish_carries_active_costume_image(self):
+        emitted = []
+        actor = Actor()
+        session = StageSession(
+            {'sessionId': 'run', 'initialStage': {'currentBackdropId': None, 'objects': [self._layout() | {'objectId': 'a'}]}},
+            [({'objectId': 'a', 'kind': 'object', 'path': 'objects/a.py', 'id': 's'}, actor)],
+            lambda kind, stage=None: emitted.append(stage))
+        try:
+            session.publish()
+            self.assertEqual('assets/images/a.png', emitted[-1]['objects'][0]['imagePath'])
+            self.assertEqual('默认', actor.costume)
+            actor.switch_costume('开心')
+            session.publish()
+            self.assertEqual('assets/images/b.png', emitted[-1]['objects'][0]['imagePath'])
+            self.assertFalse(emitted[-1]['objects'][0]['normalizeImage'])
+        finally:
+            session.close()
+
+
 if __name__ == '__main__':
     unittest.main()

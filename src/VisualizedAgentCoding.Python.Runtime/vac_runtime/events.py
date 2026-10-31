@@ -12,6 +12,9 @@ class EventInbox:
     def __init__(self, session_id):
         self.session_id = session_id
         self.pending = queue.Queue(maxsize=64)
+        # Remaining handlers for one key press stay runnable while an earlier
+        # handler is suspended in wait().
+        self.deferred = queue.Queue()
         self.stopped = threading.Event()
         self.stop_requested = threading.Event()
         self.accepting = False
@@ -71,6 +74,11 @@ class EventInbox:
                     self.pending.get_nowait()
                 except queue.Empty:
                     break
+            while True:
+                try:
+                    self.deferred.get_nowait()
+                except queue.Empty:
+                    break
 
     def run(self, handlers=None, emit=None, stage=None, keys=None, timers=None, backdrops=None):
         if handlers is not None:
@@ -123,24 +131,34 @@ class EventInbox:
         if self.stopped.is_set():
             return
         try:
-            item = self.pending.get(timeout=max(0.0, timeout))
+            item = self.deferred.get_nowait()
         except queue.Empty:
-            return
+            try:
+                item = self.pending.get(timeout=max(0.0, timeout))
+            except queue.Empty:
+                return
         if self.stopped.is_set():
             return
         self._dispatch(item, handlers, keys, stage)
 
     def _dispatch(self, item, handlers, keys, stage):
         kind, identity = item
+        if kind == 'key-target':
+            identity[1]()
+            if stage:
+                stage.publish()
+            return
         if kind == 'key':
-            # Key events are global: every object bound to the key runs, in binding order.
+            # Key events are global: every object bound to the key runs in binding order.
+            # Defer later handlers so an earlier handler's wait() can pump them.
             targets = list((keys or {}).get(identity, ()))
             if identity != 'any':
                 targets.extend((keys or {}).get('any', ()))
-            for target in targets:
-                target[1]()
-            if stage:
-                stage.publish()
+            if not targets:
+                return
+            for target in targets[1:]:
+                self.deferred.put_nowait(('key-target', target))
+            self._dispatch(('key-target', targets[0]), handlers, keys, stage)
             return
         if kind == 'stage-click':
             # Background clicks target whichever backdrop is active at dispatch time.
