@@ -117,7 +117,7 @@ before navigating, and source identity is checked after asynchronous script open
 
 `ElementBase` and `BackdropBase` expose `x`, `y`, `size`, `direction`, `visible`, `layer`, and `click_enabled` (default `True`). `click_enabled` controls click interception only and is independent of `visible`.
 Coordinates use a 480x360 stage, center origin, X right and Y up; direction 90 points right.
-Ranges match the scene contract: x/y +/-10000, size 1..1000, direction -180..180,
+Ranges match the scene contract: x/y +/-100000, size 1..1000, direction -180..180,
 integer layer +/-10000, strict boolean visibility. Invalid assignments raise ValueError
 without replacing the previous valid value. Both bases accept optional keyword initial values.
 Class declarations are also explicit initial values. The desktop never infers omission by
@@ -141,6 +141,29 @@ self.direction = -90
 self.activate()
 ```
 
+### Instant movement
+
+`ElementBase` also provides instant motion methods. They change only runtime state and do not
+block the event loop:
+
+```python
+self.move(10)                  # move along the current direction
+self.turn(15)                  # clockwise degrees; negatives turn counter-clockwise
+self.goto(0, 0)                # set x/y directly
+self.point_in_direction(90)    # set direction, normalized to -180..180
+self.change_x(5)
+self.change_y(-5)
+self.point_towards_pointer()   # point at the latest stage pointer position
+self.move_to_pointer()         # move to the latest stage pointer position
+```
+
+`move` uses `x += steps * sin(direction)` and `y += steps * cos(direction)`. `goto` and `move`
+validate both coordinates before writing, so an invalid Y does not leave a partial X update.
+Coordinates may leave the 480x360 stage but are clipped when drawn; the accepted range is
++/-100000. The pointer position is the latest position received while the stage was visible;
+if no position has ever been received, both pointer methods leave the role unchanged.
+`BackdropBase` does not expose motion methods.
+
 For a full ordinary Python subclass, `super().__init__(x=0, visible=False)` supplies explicit
 constructor parameters. Layout is fallback only; initialize assignments take final priority.
 The UI retains runtime transforms as a separate preview and never saves them into stage.json.
@@ -161,10 +184,12 @@ requests default to `keepAlive: false` to retain finite batch execution compatib
 The runner emits `interactive-ready` only after all start handlers return. Click input before
 that point is ignored. Host-to-runtime commands on the existing authenticated control socket
 are newline-delimited JSON: `{"kind":"sprite-click","sessionId":"...","objectId":"..."}` and
-`{"kind":"stage-click","sessionId":"..."}` and `{"kind":"key","sessionId":"...","key":"a"}`. The
-stage click carries no object identity; the runtime dispatches it to the backdrop that is active
-when the queue item is processed. A key event runs every object bound to that key, plus `any`
-bindings, in binding order.
+`{"kind":"stage-click","sessionId":"..."}`, `{"kind":"key","sessionId":"...","key":"a"}`, and
+`{"kind":"pointer","sessionId":"...","x":120,"y":-30}`. The stage click carries no object identity;
+the runtime dispatches it to the backdrop that is active when the queue item is processed. A key
+event runs every object bound to that key, plus `any` bindings, in binding order. Pointer commands
+replace the latest pointer state instead of entering the bounded click queue; they do not publish
+a stage frame on their own and are throttled by the host.
 The existing `stop` line remains supported and is parsed independently of user stdin. Commands
 are limited to 8192 bytes; malformed commands, wrong sessions and unsupported kinds are ignored.
 The host serializes writes, checks the current session and known role identity, and disables

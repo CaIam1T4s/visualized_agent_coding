@@ -250,6 +250,8 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
     stage = StageSession(request, instances, emit) if request.get('initialStage') is not None else None
     if stage:
         install_stage(stage)
+        if inbox is not None:
+            inbox.pointer_handler = stage.set_pointer
     try:
         for script, instance in instances:
             initialize = getattr(instance, 'initialize', None)

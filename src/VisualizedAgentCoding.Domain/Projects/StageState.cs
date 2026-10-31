@@ -27,7 +27,7 @@ public static class StageRules
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var item in state.Objects)
             if (item is null || string.IsNullOrWhiteSpace(item.ObjectId) || !ids.Add(item.ObjectId)
-                || !double.IsFinite(item.X) || Math.Abs(item.X) > 10000 || !double.IsFinite(item.Y) || Math.Abs(item.Y) > 10000
+                || !double.IsFinite(item.X) || Math.Abs(item.X) > 100000 || !double.IsFinite(item.Y) || Math.Abs(item.Y) > 100000
                 || !double.IsFinite(item.Size) || item.Size is < 1 or > 1000
                 || !double.IsFinite(item.Direction) || item.Direction is < -180 or > 180
                 || item.Layer is < -10000 or > 10000 || !IsImagePath(item.ImagePath))

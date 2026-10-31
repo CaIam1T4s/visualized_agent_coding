@@ -183,6 +183,21 @@ public sealed class PythonRuntimeProcess(string? runtimeDirectory = null) : IPyt
         finally { commandGate.Release(); }
     }
 
+    public async Task SendPointerAsync(string requestedSession, double x, double y, CancellationToken token = default)
+    {
+        if (!double.IsFinite(x) || !double.IsFinite(y)) throw new ArgumentException("指针坐标必须为有限数值。");
+        await commandGate.WaitAsync(token);
+        try
+        {
+            if (!acceptsClicks || sessionId != requestedSession
+                || liveControl is null || process is not { HasExited: false })
+                throw new IOException("当前运行会话无法接收指针位置。");
+            var command = JsonSerializer.Serialize(new { kind = "pointer", sessionId = requestedSession, x, y }, Json) + "\n";
+            await liveControl.GetStream().WriteAsync(Encoding.UTF8.GetBytes(command), token);
+        }
+        finally { commandGate.Release(); }
+    }
+
     public async Task SendInputAsync(string text, CancellationToken token = default)
     {
         await inputGate.WaitAsync(token);

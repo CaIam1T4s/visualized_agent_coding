@@ -14,5 +14,6 @@ public interface IPythonRuntime : IAsyncDisposable
     Task SendSpriteClickAsync(string sessionId, string objectId, CancellationToken token = default);
     Task SendStageClickAsync(string sessionId, CancellationToken token = default);
     Task SendKeyAsync(string sessionId, string key, CancellationToken token = default);
+    Task SendPointerAsync(string sessionId, double x, double y, CancellationToken token = default);
     Task SendInputAsync(string text, CancellationToken token = default);
 }

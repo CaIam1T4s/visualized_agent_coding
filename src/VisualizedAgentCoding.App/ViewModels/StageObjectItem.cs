@@ -95,8 +95,8 @@ public partial class StageObjectItem : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(RenderLayer), nameof(InspectorLayer))]
     private int layer;
     partial void OnLayerChanged(int value) { if (value is < -10000 or > 10000) Layer = Math.Clamp(value, -10000, 10000); }
-    partial void OnXChanged(double value) { var safe = double.IsFinite(value) ? Math.Clamp(value, -10000, 10000) : 0; if (value != safe) X = safe; }
-    partial void OnYChanged(double value) { var safe = double.IsFinite(value) ? Math.Clamp(value, -10000, 10000) : 0; if (value != safe) Y = safe; }
+    partial void OnXChanged(double value) { var safe = double.IsFinite(value) ? Math.Clamp(value, -100000, 100000) : 0; if (value != safe) X = safe; }
+    partial void OnYChanged(double value) { var safe = double.IsFinite(value) ? Math.Clamp(value, -100000, 100000) : 0; if (value != safe) Y = safe; }
     partial void OnSizeChanged(double value) { var safe = double.IsFinite(value) ? Math.Clamp(value, 1, 1000) : 100; if (value != safe) Size = safe; }
     partial void OnDirectionChanged(double value)
     {

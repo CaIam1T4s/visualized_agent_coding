@@ -28,8 +28,9 @@ project does not create a scene. Unknown versions/fields, duplicate identities, 
 transforms, and external image paths are rejected. Removed objects are omitted on the next
 scene save. Current backdrop remains independent of editor selection.
 
-Sprite X/Y range is ±10000; size 1–1000%, direction −180–180, layer ±10000. Higher
-layers draw in front; object-list order breaks ties. Hidden sprites do not draw. `ClickEnabled` (default true) alone decides whether a sprite intercepts
+Sprite X/Y range is ±100000; size 1–1000%, direction −180–180, layer ±10000. Higher
+layers draw in front; object-list order breaks ties. Sprites may move outside the 480×360
+stage; the stage frame clips the parts outside its bounds. Hidden sprites do not draw. `ClickEnabled` (default true) alone decides whether a sprite intercepts
 stage clicks, regardless of visibility. Hidden sprites can be selected and shown in the object manager. New backdrop images fit
 inside the stage without cropping, centered without upscaling. Only the current backdrop is drawn; sprite transforms do
 not apply to backdrops.

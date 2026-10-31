@@ -55,6 +55,8 @@
                                 Background="Transparent"
                                 Focusable="True"
                                 KeyDown="OnStageKeyDown"
+                                PointerEntered="OnStagePointerMoved"
+                                PointerMoved="OnStagePointerMoved"
                                 CornerRadius="8"
                                 MinWidth="360"
                                 MinHeight="270"

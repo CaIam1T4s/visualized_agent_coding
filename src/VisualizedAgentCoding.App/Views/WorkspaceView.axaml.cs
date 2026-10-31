@@ -17,6 +17,9 @@ public partial class WorkspaceView : UserControl
     private Point dragOffset;
     private Point pressPoint;
     private bool stageDragMoved;
+    private long lastPointerSentTicks;
+    private double lastPointerX = double.NaN;
+    private double lastPointerY = double.NaN;
 
     public WorkspaceView()
     {
@@ -241,6 +244,26 @@ public partial class WorkspaceView : UserControl
         if (sender is TextBox { DataContext: ScriptRenameState state } &&
             DataContext is MainViewModel vm && !vm.IsRenamePreviewOpen && ReferenceEquals(vm.ScriptRename, state))
             state.CancelCommand.Execute(null);
+    }
+
+    private void OnStagePointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (DataContext is not MainViewModel { IsPythonActive: true, CanDispatchStageClicks: true } viewModel)
+            return;
+        var point = e.GetPosition(StageCanvas);
+        var x = point.X - 240;
+        var y = 180 - point.Y;
+        if (!double.IsFinite(x) || !double.IsFinite(y))
+            return;
+        var now = DateTime.UtcNow.Ticks;
+        if (now - lastPointerSentTicks < TimeSpan.TicksPerSecond / 30)
+            return;
+        if (Math.Abs(x - lastPointerX) < 0.5 && Math.Abs(y - lastPointerY) < 0.5)
+            return;
+        lastPointerSentTicks = now;
+        lastPointerX = x;
+        lastPointerY = y;
+        _ = viewModel.DispatchPointerAsync(x, y);
     }
 
     private void OnStageCanvasPointerPressed(object? sender, PointerPressedEventArgs e)

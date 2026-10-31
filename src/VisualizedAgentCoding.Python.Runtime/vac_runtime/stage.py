@@ -6,7 +6,7 @@ import threading
 from . import clock
 
 _DEFAULTS = dict(x=0, y=0, size=100, direction=90, visible=True, layer=0, click_enabled=True)
-_LIMITS = dict(x=(-10000, 10000), y=(-10000, 10000), size=(1, 1000), direction=(-180, 180), layer=(-10000, 10000))
+_LIMITS = dict(x=(-100000, 100000), y=(-100000, 100000), size=(1, 1000), direction=(-180, 180), layer=(-10000, 10000))
 _MISSING = object()
 # Python attribute names stay snake_case; the wire protocol is camelCase.
 _WIRE = dict(click_enabled='clickEnabled')
@@ -21,6 +21,21 @@ def validate(name, value):
           or not _LIMITS[name][0] <= value <= _LIMITS[name][1]
           or name == 'layer' and type(value) is not int):
         raise ValueError(name + ' 超出有效范围。')
+    return value
+
+
+def finite_number(name, value):
+    if type(value) not in (int, float) or not math.isfinite(value):
+        raise ValueError(name + ' 必须为有限数值。')
+    return float(value)
+
+
+def normalize_direction(value):
+    value = math.fmod(float(value), 360.0)
+    if value > 180:
+        value -= 360
+    elif value < -180:
+        value += 360
     return value
 
 
@@ -62,18 +77,66 @@ class StageBase:
             if name in _DEFAULTS and value is not _MISSING:
                 setattr(self, name, value)
 
-    def _vac_bind(self, layout, activate):
+    def _vac_bind(self, layout, activate, pointer=None):
         values = dict(_DEFAULTS)
         values.update({k: validate(k, layout[_WIRE.get(k, k)]) for k in _DEFAULTS if _WIRE.get(k, k) in layout})
         values.update(getattr(type(self), '_vac_initial', {}))
         values.update(self.__dict__.get('_vac_values', {}))
         self.__dict__['_vac_values'] = values
         self.__dict__['_vac_activate'] = activate
+        self.__dict__['_vac_pointer'] = pointer
 
 
 
 class ElementBase(StageBase):
-    pass
+    def move(self, steps):
+        distance = finite_number('移动距离', steps)
+        angle = math.radians(self.direction)
+        x = self.x + distance * math.sin(angle)
+        y = self.y + distance * math.cos(angle)
+        validate('x', x)
+        validate('y', y)
+        self.x = x
+        self.y = y
+
+    def turn(self, degrees):
+        self.direction = normalize_direction(self.direction + finite_number('旋转角度', degrees))
+
+    def goto(self, x, y):
+        validate('x', x)
+        validate('y', y)
+        self.x = x
+        self.y = y
+
+    def point_in_direction(self, angle):
+        self.direction = normalize_direction(finite_number('方向', angle))
+
+    def change_x(self, delta):
+        self.x = self.x + finite_number('X 变化量', delta)
+
+    def change_y(self, delta):
+        self.y = self.y + finite_number('Y 变化量', delta)
+
+    def point_towards_pointer(self):
+        pointer = self.__dict__.get('_vac_pointer')
+        if pointer is None:
+            return
+        x, y, seen = pointer()
+        if not seen:
+            return
+        dx, dy = x - self.x, y - self.y
+        if abs(dx) < 1e-9 and abs(dy) < 1e-9:
+            return
+        self.direction = normalize_direction(math.degrees(math.atan2(dx, dy)))
+
+    def move_to_pointer(self):
+        pointer = self.__dict__.get('_vac_pointer')
+        if pointer is None:
+            return
+        x, y, seen = pointer()
+        if seen:
+            self.goto(x, y)
+
 
 
 class BackdropBase(StageBase):
@@ -97,6 +160,9 @@ class StageSession:
         self.failure = None
         self.pending_switches = []
         self.backdrop_names = {}
+        self.pointer_x = 0.0
+        self.pointer_y = 0.0
+        self.pointer_seen = False
         layouts = {o['objectId']: o for o in initial.get('objects', [])}
         backdrops = {s['objectId'] for s, _ in instances if s['kind'] == 'backdrop'}
         for script, _ in instances:
@@ -114,8 +180,20 @@ class StageSession:
                 raise RuntimeError('项目自定义基类不支持舞台同步，请使用产品运行时基类。')
             def activate(identity=script['objectId']):
                 self.switch_backdrop_id(identity)
-            instance._vac_bind(layouts.get(script['objectId'], {}), activate)
+            instance._vac_bind(layouts.get(script['objectId'], {}), activate, self.pointer_position)
         self.thread = threading.Thread(target=self._sample, daemon=True)
+
+    def set_pointer(self, x, y):
+        if type(x) not in (int, float) or type(y) not in (int, float) or not math.isfinite(x) or not math.isfinite(y):
+            raise ValueError('指针坐标必须为有限数值。')
+        with self.lock:
+            self.pointer_x = float(x)
+            self.pointer_y = float(y)
+            self.pointer_seen = True
+
+    def pointer_position(self):
+        with self.lock:
+            return self.pointer_x, self.pointer_y, self.pointer_seen
 
     def switch_backdrop_id(self, identity):
         with self.lock:

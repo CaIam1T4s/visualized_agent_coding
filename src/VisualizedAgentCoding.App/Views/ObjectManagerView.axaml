@@ -59,10 +59,10 @@
                                    Text="Y"
                                    FontSize="12"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <NumericUpDown Grid.Row="1" Minimum="-10000" Maximum="10000" Increment="1"
+                        <NumericUpDown Grid.Row="1" Minimum="-100000" Maximum="100000" Increment="1"
                                  Value="{Binding InspectorX}" IsEnabled="{Binding CanEditProperties}"
                                  Margin="0,4,0,8" />
-                        <NumericUpDown Grid.Row="3" Minimum="-10000" Maximum="10000" Increment="1"
+                        <NumericUpDown Grid.Row="3" Minimum="-100000" Maximum="100000" Increment="1"
                                  Value="{Binding InspectorY}" IsEnabled="{Binding CanEditProperties}"
                                  Margin="0,4,0,8" />
                         <TextBlock Grid.Row="4"

@@ -221,6 +221,14 @@ public partial class MainViewModel
         catch (IOException) { if (generation == runGeneration && IsPythonActive) RuntimeStatus = "当前无法发送按键事件，请重新运行。"; }
     }
 
+    public async Task DispatchPointerAsync(double x, double y)
+    {
+        if (!IsPythonActive || !CanDispatchStageClicks || lastRun is null || runWorkspace != runtimeWorkspace) return;
+        try { await runtime.SendPointerAsync(lastRun.SessionId, x, y, runCancellation!.Token); }
+        catch (OperationCanceledException) { }
+        catch (IOException) { }
+    }
+
     private void AppendTerminal(string text)
     {
         var value = TerminalOutput + text;

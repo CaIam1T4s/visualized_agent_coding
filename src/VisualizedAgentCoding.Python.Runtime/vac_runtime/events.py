@@ -1,4 +1,5 @@
 """Session-scoped bounded input queue; dispatch belongs to the project main thread."""
+import math
 import queue
 import threading
 
@@ -13,6 +14,7 @@ class EventInbox:
         self.stop_requested = threading.Event()
         self.accepting = False
         self.lock = threading.Lock()
+        self.pointer_handler = None
 
     def offer(self, command):
         with self.lock:
@@ -20,6 +22,16 @@ class EventInbox:
                     or command.get('sessionId') != self.session_id):
                 return False
             kind = command.get('kind')
+            if kind == 'pointer':
+                x, y = command.get('x'), command.get('y')
+                if (type(x) not in (int, float) or type(y) not in (int, float)
+                        or not math.isfinite(x) or not math.isfinite(y)):
+                    return False
+                handler = self.pointer_handler
+                if handler is None:
+                    return False
+                handler(x, y)
+                return True
             if kind == 'sprite-click' and isinstance(command.get('objectId'), str):
                 item = ('sprite-click', command['objectId'])
             elif kind == 'stage-click':
@@ -39,6 +51,7 @@ class EventInbox:
             self.stop_requested.set()
         with self.lock:
             self.accepting = False
+            self.pointer_handler = None
             self.stopped.set()
             while True:
                 try:

@@ -286,6 +286,27 @@ public sealed class ClickEventsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PointerCommandsDriveDirectionAndMoveToPointer()
+    {
+        var cat = ObjectScriptFeatures.AddKey(await Actor("cat"), "a");
+        cat = Body(cat, "start", "self.goto(0, 0)\nself.direction = 0\n");
+        Save(Body(cat, cat.Regions!.Last().Id,
+            "self.point_towards_pointer()\nprint('direction', self.direction)\nself.move_to_pointer()\nprint('moved', self.x, self.y)\n"));
+        var request = await Request();
+        await using var runtime = new PythonRuntimeProcess(RuntimePath);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, timeout.Token);
+        await WaitUntil(() => events.Any(e => e.Kind == "interactive-ready"), timeout.Token);
+        await runtime.SendPointerAsync(request.SessionId, 100, 0, timeout.Token);
+        await runtime.SendKeyAsync(request.SessionId, "a", timeout.Token);
+        await WaitUntil(() => Output(events).Contains("moved"), timeout.Token);
+        Assert.Contains("direction 90", Output(events));
+        Assert.Contains("moved 100", Output(events));
+        await Stop(run, timeout);
+    }
+
+    [Fact]
     public void TimerIdentitiesValidateAndDisplay()
     {
         Assert.Equal("timer:1.5", TimerEvents.FormatIdentity(new(1.5, false)));
