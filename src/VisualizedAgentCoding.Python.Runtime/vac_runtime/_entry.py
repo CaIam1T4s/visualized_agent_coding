@@ -2,6 +2,8 @@
 from contextlib import contextmanager
 import threading
 
+from . import clock
+
 
 _active = None
 
@@ -12,8 +14,9 @@ def entry_session(execute):
     if _active is not None:
         raise RuntimeError('A project entry session is already active')
     session = {'execute': execute, 'thread': threading.get_ident(), 'started': False,
-               'router': None, 'messages_open': False}
+               'router': None, 'messages_open': False, 'stage': None}
     _active = session
+    clock.ensure_started()
     try:
         yield
         if not session['started']:
@@ -21,7 +24,9 @@ def entry_session(execute):
     finally:
         session['router'] = None
         session['messages_open'] = False
+        session['stage'] = None
         _active = None
+        clock.stop()
 
 
 def run_project():
@@ -39,6 +44,23 @@ def install_router(router):
     if _active is None:
         raise RuntimeError('Message routing requires the system project entry')
     _active['router'] = router
+
+
+def install_stage(stage):
+    """Called by the entry-owned lifecycle once the run stage exists."""
+    if _active is None:
+        raise RuntimeError('舞台切换需要系统项目入口。')
+    _active['stage'] = stage
+
+
+def switch_backdrop(name):
+    """Switch the active backdrop from any object in the current run."""
+    session = _active
+    if session is None or session['thread'] != threading.get_ident():
+        raise RuntimeError('背景切换只能在项目运行主线程中调用。')
+    if session['stage'] is None:
+        raise RuntimeError('舞台尚未就绪。')
+    session['stage'].switch_backdrop(name)
 
 
 def open_messages():

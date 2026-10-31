@@ -37,7 +37,11 @@ public sealed class ObjectScriptDocumentService(IPythonBridge bridge)
         var regions = result.Regions;
         if (status == ObjectScriptStatus.Recognized && result.TemplateVersion == 1)
             regions = [new("user", "members", result.UserRegion!, 4)];
-        return new(script.Id, uri, version, fullSource, status, result.TemplateVersion, result.UserRegion, result.Problems, regions, result.Imports);
+        var backdrops = project.Manifest.Scripts
+            .Where(entry => entry.Kind == ProjectScriptKind.Backdrop && entry.ObjectId is not null)
+            .ToDictionary(entry => entry.ObjectId!, entry => Path.GetFileNameWithoutExtension(entry.Path),
+                StringComparer.Ordinal);
+        return new(script.Id, uri, version, fullSource, status, result.TemplateVersion, result.UserRegion, result.Problems, regions, result.Imports, backdrops);
     }
 
     private static void ValidateResponse(string uri, long version, string source, ObjectScriptInspectionResult result)

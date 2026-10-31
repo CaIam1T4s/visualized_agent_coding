@@ -107,6 +107,16 @@ backdrop that is active at dispatch time; hidden roles still intercept when `cli
 true. The winning backdrop decides `clickEnabled` gating, and a missing handler is ignored.
 Key events use `eventName=key:<name>` with lower-case letters, digits, or preset names such as
 `space`/`up`/`any`; one keystroke runs every object bound to that key, in binding order, and
-`any` matches every key.
+`any` matches every key. Timer events use `eventName=timer:<seconds>` for a one-shot threshold
+or `timer:every:<seconds>` for a repeating interval. The run-scoped monotonic clock starts when
+execution begins and is exposed to project code as `timer()` and `self.timer`; timer callbacks
+run on the main thread and publish the stage after each callback.
+Backdrop switch events use `eventName=backdrop-switch:<targetObjectId>` and may be owned by any
+object or backdrop. `BackdropBase.activate()` and the public `switch_backdrop(name)` API both
+change the active backdrop; handlers bound to the new backdrop run on the main thread after the
+switch, then the stage is published. The initial backdrop and a switch to the already-active
+backdrop do not emit the event. Deleting a backdrop reports `switch_backdrop` call sites and
+`backdrop-switch` regions in other scripts with file/line locations; their source is left for
+the user to edit.
 See the Python runtime README for the control protocol. Existing custom project-local bases are not overwritten; to opt into
 desktop stage synchronization they must inherit the product bases.

@@ -29,6 +29,12 @@ public sealed class ClickEventsTests : IAsyncLifetime
             [new("vac_runtime", Name: "broadcast", Source: "runtime")]);
         return await Inspect(doc.ScriptId, imported.Source);
     }
+    private async Task<ObjectScriptDocument> Backdrop(string name)
+    {
+        var created = new ProjectService(store).CreateScript(project, ProjectScriptKind.Backdrop, name);
+        project = created.Project;
+        return await Inspect(created.Script.Id, store.ReadScript(root, created.Script.Path));
+    }
     private Task<ObjectScriptDocument> Inspect(string id, string source) => new ObjectScriptDocumentService(bridge).InspectAsync(project, id, 0, source);
     private static ObjectScriptDocument Body(ObjectScriptDocument doc, string id, string text)
     {
@@ -213,6 +219,107 @@ public sealed class ClickEventsTests : IAsyncLifetime
         var text = Output(events);
         Assert.Contains("cat-key", text);
         Assert.Contains("dog-key", text);
+        await Stop(run, timeout);
+    }
+
+    [Fact]
+    public async Task BackdropSwitchEventRunsForEveryBoundObject()
+    {
+        var day = await Backdrop("day");
+        var night = await Backdrop("night");
+        var nightId = project.FindScript(night.ScriptId)!.ObjectId!;
+        Save(Body(night, "start", "self.activate()\n"));
+        day = ObjectScriptFeatures.AddBackdropSwitch(day, nightId);
+        Save(Body(day, day.Regions!.Last().Id, "print('day-switch')\n"));
+        var cat = ObjectScriptFeatures.AddBackdropSwitch(await Actor("cat"), nightId);
+        Assert.Contains("当背景切换到 night", new MultiRegionProjection(cat).ViewSource);
+        Save(Body(cat, cat.Regions!.Last().Id, "print('cat-switch')\n"));
+        var request = (await Request()) with
+        {
+            InitialStage = new StageState
+            {
+                CurrentBackdropId = project.FindScript(day.ScriptId)!.ObjectId!,
+                Objects = [new(project.FindScript(day.ScriptId)!.ObjectId!), new(nightId)],
+            },
+        };
+        Assert.Contains(request.Handlers, h => h.Event == ProjectEventKinds.BackdropSwitch && h.Argument == nightId);
+        await using var runtime = new PythonRuntimeProcess(RuntimePath);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, timeout.Token);
+        await WaitUntil(() => Output(events).Contains("day-switch") && Output(events).Contains("cat-switch"), timeout.Token);
+        Assert.Contains("day-switch", Output(events));
+        Assert.Contains("cat-switch", Output(events));
+        await Stop(run, timeout);
+    }
+
+    [Fact]
+    public async Task SwitchBackdropApiWorksFromAnyObject()
+    {
+        var day = await Backdrop("day");
+        var night = await Backdrop("night");
+        var nightId = project.FindScript(night.ScriptId)!.ObjectId!;
+        var cat = ObjectScriptFeatures.AddBackdropSwitch(await Actor("cat"), nightId);
+        Save(Body(cat, cat.Regions!.Last().Id, "print('cat-switch')\n"));
+        var driver = await Actor("driver");
+        var imported = await new ScriptImportService(bridge).InspectAsync(project,
+            project.FindScript(driver.ScriptId)!, 0, driver.FullSource, driver,
+            [new("vac_runtime", Name: "broadcast", Source: "runtime"),
+             new("vac_runtime", Name: "switch_backdrop", Source: "runtime")]);
+        driver = await Inspect(driver.ScriptId, imported.Source);
+        Save(Body(driver, "start", "switch_backdrop('night')\n"));
+        var request = (await Request()) with
+        {
+            InitialStage = new StageState
+            {
+                CurrentBackdropId = project.FindScript(day.ScriptId)!.ObjectId!,
+                Objects = [new(project.FindScript(day.ScriptId)!.ObjectId!), new(nightId)],
+            },
+        };
+        await using var runtime = new PythonRuntimeProcess(RuntimePath);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, timeout.Token);
+        await WaitUntil(() => Output(events).Contains("cat-switch"), timeout.Token);
+        Assert.Contains("cat-switch", Output(events));
+        await Stop(run, timeout);
+    }
+
+    [Fact]
+    public void TimerIdentitiesValidateAndDisplay()
+    {
+        Assert.Equal("timer:1.5", TimerEvents.FormatIdentity(new(1.5, false)));
+        Assert.Equal("timer:every:2", TimerEvents.FormatIdentity(new(2, true)));
+        Assert.Equal(new TimerSpec(1.5, false), TimerEvents.ParseIdentity("timer:1.5")!.Value);
+        Assert.Equal(new TimerSpec(2, true), TimerEvents.ParseIdentity("timer:every:2")!.Value);
+        Assert.Equal("1.5", TimerEvents.ValidateArgument(" 1.5 ", false));
+        Assert.Equal("every:2", TimerEvents.ValidateArgument("2", true));
+        Assert.Throws<ArgumentException>(() => TimerEvents.ValidateArgument("0", false));
+        Assert.Throws<ArgumentException>(() => TimerEvents.ValidateArgument("every:2", false));
+        Assert.Throws<ArgumentException>(() => TimerEvents.ValidateArgument("", false));
+        Assert.Null(TimerEvents.ParseIdentity("key:a"));
+    }
+
+    [Fact]
+    public async Task TimerEventRunsOnTheMainThreadAndExposesTheRunClock()
+    {
+        var doc = await Actor("cat");
+        var imported = await new ScriptImportService(bridge).InspectAsync(project,
+            project.FindScript(doc.ScriptId)!, 0, doc.FullSource, doc,
+            [new("vac_runtime", Name: "broadcast", Source: "runtime"),
+             new("vac_runtime", Name: "timer", Source: "runtime")]);
+        doc = await Inspect(doc.ScriptId, imported.Source);
+        doc = ObjectScriptFeatures.AddTimer(doc, "0.2", false);
+        Save(Body(doc, doc.Regions!.Last().Id,
+            "print('timer', round(timer(), 2), round(self.timer, 2))\nself.x = 10\n"));
+        var request = await Request();
+        Assert.Contains(request.Handlers, h => h.Event == ProjectEventKinds.Timer);
+        await using var runtime = new PythonRuntimeProcess(RuntimePath);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, timeout.Token);
+        await WaitUntil(() => Output(events).Contains("timer"), timeout.Token);
+        Assert.Contains("timer", Output(events));
         await Stop(run, timeout);
     }
 

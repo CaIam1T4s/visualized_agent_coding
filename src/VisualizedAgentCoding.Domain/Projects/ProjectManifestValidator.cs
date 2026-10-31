@@ -148,6 +148,11 @@ public static class ProjectManifestValidator
             if (string.IsNullOrWhiteSpace(handler.Handler))
                 throw new ProjectFormatException($"Event handler for {handler.Event} does not declare a Python function.");
 
+            if (handler.Event == ProjectEventKinds.BackdropSwitch
+                && (!BackdropSwitchEvents.IsValidTarget(argument)
+                    || !(manifest.Scripts ?? []).Any(script => script.Kind == ProjectScriptKind.Backdrop && script.ObjectId == argument)))
+                throw new ProjectFormatException($"Event handler for {handler.Event} targets an unknown backdrop.");
+
             var key = HandlerKey(handler.ScriptId, handler.Event, argument);
             if (!keys.Add(key))
                 throw new ProjectFormatException($"Duplicate event handler: {key}.");

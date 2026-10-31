@@ -64,8 +64,8 @@ public sealed class RuntimeSourceSnapshot
             if (document!.TemplateVersion is 2 or 3 && region.Kind != "members")
             {
                 var first = 1 + source[..region.Span.Offset].Count(c => c == '\n');
-                hiddenRegionTitles[first - 2] = RegionTitle(region) + "（系统包装）";
-                hiddenRegionTitles[first - 1] = RegionTitle(region) + "（系统标记）";
+                hiddenRegionTitles[first - 2] = RegionTitle(region, document.BackdropNames) + "（系统包装）";
+                hiddenRegionTitles[first - 1] = RegionTitle(region, document.BackdropNames) + "（系统标记）";
             }
         }
         if (projection is not null)
@@ -78,7 +78,7 @@ public sealed class RuntimeSourceSnapshot
                 var region = document?.Regions?.FirstOrDefault(r => offset >= r.Span.Offset && offset < r.Span.Offset + r.Span.Length);
                 if (script.Kind != ProjectScriptKind.User && region is null) continue;
                 frozen.Add(new(fullLine, row, Math.Max(0, column - 1), viewLines[row - 1].Length,
-                    region is null ? "" : RegionTitle(region)));
+                    region is null ? "" : RegionTitle(region, document?.BackdropNames)));
             }
         }
         lines = frozen.ToArray();
@@ -99,9 +99,9 @@ public sealed class RuntimeSourceSnapshot
         var line = lines.FirstOrDefault(l => l.ViewLine == viewLine);
         return line is null ? (0, 0) : (line.FullLine, line.Shift + Math.Clamp(viewColumn, 1, line.Length + 1));
     }
-    public static string RegionTitle(ObjectScriptRegion region) => region.Kind switch
+    public static string RegionTitle(ObjectScriptRegion region, IReadOnlyDictionary<string, string>? backdropNames = null) => region.Kind switch
     {
         "members" => "类定义", "initialize" => "初始化", "start" => "程序启动",
-        "event" => MessageEvents.Title(region.EventName ?? region.Id).Replace('\r', ' ').Replace('\n', ' '), _ => "用户区域",
+        "event" => MessageEvents.Title(region.EventName ?? region.Id, backdropNames).Replace('\r', ' ').Replace('\n', ' '), _ => "用户区域",
     };
 }

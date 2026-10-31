@@ -2,6 +2,8 @@
 import queue
 import threading
 
+from . import clock
+
 
 class EventInbox:
     def __init__(self, session_id):
@@ -44,7 +46,7 @@ class EventInbox:
                 except queue.Empty:
                     break
 
-    def run(self, handlers, emit, stage, keys=None):
+    def run(self, handlers, emit, stage, keys=None, timers=None, backdrops=None):
         with self.lock:
             if self.stopped.is_set():
                 return
@@ -52,6 +54,8 @@ class EventInbox:
         emit('interactive-ready')
         try:
             while not self.stopped.is_set():
+                self._run_backdrops(stage, backdrops)
+                self._run_timers(timers, stage)
                 try:
                     kind, identity = self.pending.get(timeout=0.05)
                 except queue.Empty:
@@ -82,3 +86,30 @@ class EventInbox:
                             stage.publish()
         finally:
             self.stop()
+
+    @staticmethod
+    def _run_backdrops(stage, backdrops):
+        if stage is None:
+            return
+        for target in stage.take_switches():
+            for instance, callback in (backdrops or {}).get(target, ()):
+                callback()
+            stage.publish()
+
+    @staticmethod
+    def _run_timers(timers, stage):
+        if not timers:
+            return
+        for timer in timers:
+            now = clock.seconds()
+            if timer['done'] or now < timer['next']:
+                continue
+            timer['callback']()
+            if stage:
+                stage.publish()
+            if timer['repeat']:
+                timer['next'] += timer['interval']
+                if timer['next'] <= now:
+                    timer['next'] = now + timer['interval']
+            else:
+                timer['done'] = True

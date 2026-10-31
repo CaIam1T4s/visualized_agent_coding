@@ -41,9 +41,12 @@ does not expose that path: only the exact managed template is submitted.
 
 ## Synchronous messages
 
-The public API is `from vac_runtime import broadcast` (managed import source `runtime`).
+The public API is `from vac_runtime import broadcast, timer, switch_backdrop` (managed import source `runtime`).
 Object regions must add it via the import manager; user modules may also use the normal
-Python import. Internal entry, router, and base APIs remain unavailable through user imports.
+Python import. `timer()` returns the seconds elapsed since the current run started; object
+scripts may also read the same value from `self.timer`. `switch_backdrop(name)` switches the current
+backdrop from any object; a backdrop can use `self.activate()` for its own identity. Internal
+entry, router, clock and base APIs remain unavailable through user imports.
 
 `broadcast("start")` enters the main-thread router established by the managed project entry,
 calls every matching object/backdrop handler in manifest object order, and returns only after
@@ -145,7 +148,7 @@ Runtime sampling continues through non-daemon workers and flushes at exit (inclu
 Low-level callers may omit `initialStage` for legacy execution without stage binding.
 Desktop runs include it; custom local bases must inherit the product bases, and are never
 rewritten automatically. See [scene and runtime wire contract](../VisualizedAgentCoding.Domain/Projects/stage-format.md).
-Role clicks, backdrop (`stage-click`) clicks, key events and a persistent project event loop are implemented; timer events remain future work.
+Role clicks, backdrop (`stage-click`) clicks, backdrop switch (`backdrop-switch`) events, key events, timer events and a persistent project event loop are implemented.
 
 
 ## Persistent execution and sprite clicks
@@ -172,13 +175,20 @@ region ID; its generated handler is `_vac_event_<id>`. Preparation derives click
 verified source regions and replaces manifest click bindings for v2/v3 objects. Backgrounds
 cannot own role-click regions, and roles cannot own `stage-click` regions; each backdrop may
 own one `kind=event` region with `eventName=stage-click`. Any object may own `eventName=key:<name>`
-regions for lower-case letters, digits, or preset names such as `space`/`up`/`any`.
+regions for lower-case letters, digits, or preset names such as `space`/`up`/`any`, and
+`eventName=timer:<seconds>` or `timer:every:<seconds>` timer regions, plus
+`backdrop-switch:<targetObjectId>` regions. A backdrop switch runs every object/backdrop handler
+bound to the new backdrop, in binding order, after the switch and before the next stage frame.
+Deleting a backdrop reports `switch_backdrop` call sites and `backdrop-switch` regions in other
+scripts with file/line locations; their source is left for the user to edit.
 Click callbacks run sequentially on the main thread, through the
 managed-entry lifecycle; synchronous broadcast within them keeps its existing nested ordering.
 Uncaught callback errors terminate the session and use the frozen source/user-region error maps.
 
 The input queue holds at most 64 pending clicks; excess clicks are discarded. Input or long
-handlers block following callbacks, while stage publication and Stop remain separate. Dispatch
+handlers block following callbacks, while stage publication and Stop remain separate. Timer
+deadlines are checked on each event-loop turn, so a long callback delays later timers until it
+returns; missed repeating intervals collapse into one immediate run. Dispatch
 rechecks target identity and `click_enabled`, ignoring disabled/deleted/unknown recipients. A
 `stage-click` resolves the active backdrop at dispatch time and is dropped when no backdrop is
 active or the recipient has no handler. Stop clears
@@ -191,7 +201,7 @@ its transformed rectangular bounds (transparent image pixels are not an alpha ma
 continues to use selection/dragging; running uses clicks, and an empty-stage press dispatches a
 `stage-click` to the active backdrop instead of selecting. Hidden roles keep intercepting when
 `click_enabled` is true, because a hidden element still hit-tests.
-The inspector tiles remain available for browsing. No concurrent callback execution,
-keyboard, timer event, or dedicated animation API is added.
+The inspector tiles remain available for browsing. No concurrent callback execution or
+dedicated animation API is added.
 
 Runtime inbox checks: `python -B -m unittest discover -s tests/python-runtime -v`.

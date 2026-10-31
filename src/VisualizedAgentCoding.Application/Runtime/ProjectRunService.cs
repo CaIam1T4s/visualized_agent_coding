@@ -47,7 +47,7 @@ public sealed class ProjectRunService(IProjectStore store, IPythonBridge bridge)
                 if (document.HasRegions)
                 {
                     // Region source is authoritative; deleted regions cannot leave ghost bindings.
-                    handlers.RemoveAll(h => h.ScriptId == script.Id && h.Event is ProjectEventKinds.Broadcast or ProjectEventKinds.SpriteClick or ProjectEventKinds.StageClick or ProjectEventKinds.Key);
+                    handlers.RemoveAll(h => h.ScriptId == script.Id && h.Event is ProjectEventKinds.Broadcast or ProjectEventKinds.SpriteClick or ProjectEventKinds.StageClick or ProjectEventKinds.BackdropSwitch or ProjectEventKinds.Key or ProjectEventKinds.Timer);
                     foreach (var region in document.Regions!)
                     {
                         if (region.Kind == "event" && MessageEvents.Name(region.EventName) is { } message)
@@ -62,9 +62,18 @@ public sealed class ProjectRunService(IProjectStore store, IPythonBridge bridge)
                             if (script.Kind != ProjectScriptKind.Backdrop) throw new ProjectOperationException("背景点击事件只能用于背景脚本。");
                             handlers.Add(new(script.Id, ProjectEventKinds.StageClick, null, "_vac_event_" + region.Id));
                         }
+                        else if (region.Kind == "event" && BackdropSwitchEvents.Target(region.EventName) is { } backdrop)
+                        {
+                            handlers.Add(new(script.Id, ProjectEventKinds.BackdropSwitch,
+                                BackdropSwitchEvents.ValidateTarget(backdrop), "_vac_event_" + region.Id));
+                        }
                         else if (region.Kind == "event" && KeyEvents.Name(region.EventName) is { } key)
                         {
                             handlers.Add(new(script.Id, ProjectEventKinds.Key, KeyEvents.ValidateName(key), "_vac_event_" + region.Id));
+                        }
+                        else if (region.Kind == "event" && TimerEvents.ParseIdentity(region.EventName) is { } timer)
+                        {
+                            handlers.Add(new(script.Id, ProjectEventKinds.Timer, TimerEvents.FormatArgument(timer), "_vac_event_" + region.Id));
                         }
                     }
                 }

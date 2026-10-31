@@ -308,11 +308,19 @@ public sealed class ProjectService : IProjectValidityChecker
         if (string.Equals(registration.Event, ProjectEventKinds.StageClick, StringComparison.Ordinal)
             && owner.Kind == ProjectScriptKind.Object)
             throw new ProjectOperationException("舞台点击处理器不能绑定到对象脚本。");
-        if (string.Equals(registration.Event, ProjectEventKinds.BackdropSwitch, StringComparison.Ordinal)
-            && owner.Kind != ProjectScriptKind.Backdrop)
-            throw new ProjectOperationException("背景切换处理器必须绑定到背景脚本。");
+        if (string.Equals(registration.Event, ProjectEventKinds.BackdropSwitch, StringComparison.Ordinal))
+        {
+            if (owner.Kind == ProjectScriptKind.User)
+                throw new ProjectOperationException("背景切换处理器不能绑定到普通用户脚本。");
+            if (argument is null || !BackdropSwitchEvents.IsValidTarget(argument)
+                || !manifest.Scripts.Any(script => script.Kind == ProjectScriptKind.Backdrop && script.ObjectId == argument))
+                throw new ProjectOperationException("背景切换事件的目标背景不存在。");
+        }
         if (string.Equals(registration.Event, ProjectEventKinds.Key, StringComparison.Ordinal) && argument is not null)
             KeyEvents.ValidateName(argument);
+        if (string.Equals(registration.Event, ProjectEventKinds.Timer, StringComparison.Ordinal) && argument is not null
+            && TimerEvents.ParseArgument(argument) is null)
+            throw new ProjectOperationException("计时器参数无效。");
 
         var newHandler = new ProjectEventHandler(owner.Id, registration.Event, argument, handlerName);
         var key = ProjectManifestValidator.HandlerKey(owner.Id, registration.Event, argument);

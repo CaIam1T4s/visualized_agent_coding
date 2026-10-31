@@ -17,6 +17,7 @@ public sealed record ObjectScriptRegionDefinition(string Id, string Kind, string
         {
             if (MessageEvents.Name(region.EventName) is { } message) MessageEvents.ValidateName(message);
             if (KeyEvents.Name(region.EventName) is { } key) KeyEvents.ValidateName(key);
+            if (BackdropSwitchEvents.Target(region.EventName) is { } backdrop) BackdropSwitchEvents.ValidateTarget(backdrop);
             if (region.Id is null || !Regex.IsMatch(region.Id, "\\A[a-z][a-z0-9_]{0,63}\\z")
                 || region.Kind is not ("members" or "initialize" or "start" or "event")
                 || (region.Kind == "event" ? string.IsNullOrWhiteSpace(region.EventName)

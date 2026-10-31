@@ -23,6 +23,16 @@ public partial class MainViewModel
     private string? currentBackdropId;
 
     private string? runtimeBackdropId;
+
+    public string? BackdropObjectIdForScript(string scriptId) => activeProject?.FindScript(scriptId)?.ObjectId;
+
+    public string? BackdropNameForObjectId(string objectId)
+    {
+        var script = activeProject?.Manifest.Scripts.FirstOrDefault(entry =>
+            entry.Kind == ProjectScriptKind.Backdrop && entry.ObjectId == objectId);
+        return script is null ? null : Path.GetFileNameWithoutExtension(script.Path);
+    }
+
     private long stageSequence;
     private bool hasRuntimePreview;
     public bool HasRuntimeStagePreview => hasRuntimePreview;

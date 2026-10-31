@@ -13,7 +13,8 @@ import sys
 import threading
 import traceback
 import types
-from vac_runtime._entry import entry_session, install_router, open_messages
+from vac_runtime import clock
+from vac_runtime._entry import entry_session, install_router, install_stage, open_messages
 from vac_runtime.messages import MessageRouter
 from vac_runtime.stage import StageSession
 from vac_runtime.events import EventInbox
@@ -157,6 +158,7 @@ def run(request, emit, inbox=None):
 
 
 def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=None):
+    clock.ensure_started()
     instances = []
     for script in request['scripts']:
         if script['kind'] not in ('object', 'backdrop'):
@@ -177,6 +179,9 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
     starts = []
     clicks = {}
     keys = {}
+    timers = []
+    backdrops = {}
+    backdrop_ids = {script['objectId'] for script, _ in instances if script['kind'] == 'backdrop'}
     router = MessageRouter()
     for script, instance in instances:
         bindings = [h for h in request['handlers'] if h['scriptId'] == script['id'] and h['event'] == 'start']
@@ -210,6 +215,24 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
             if not callable(callback):
                 raise RuntimeError(f"{script['path']}：按键处理器不存在")
             keys.setdefault(binding['argument'], []).append((instance, callback))
+        for binding in request['handlers']:
+            if binding['scriptId'] != script['id'] or binding['event'] != 'timer':
+                continue
+            repeat, interval = clock.parse_spec(binding['argument'])
+            callback = getattr(instance, binding['handler'], None)
+            if not callable(callback):
+                raise RuntimeError(f"{script['path']}：计时器处理器不存在")
+            timers.append(dict(interval=interval, next=interval, repeat=repeat, callback=callback, done=False))
+        for binding in request['handlers']:
+            if binding['scriptId'] != script['id'] or binding['event'] != 'backdrop-switch':
+                continue
+            target = binding['argument']
+            if target not in backdrop_ids:
+                raise RuntimeError(f"{script['path']}：背景切换目标不存在")
+            callback = getattr(instance, binding['handler'], None)
+            if not callable(callback):
+                raise RuntimeError(f"{script['path']}：背景切换处理器不存在")
+            backdrops.setdefault(target, []).append((instance, callback))
         seen = set()
         for binding in request['handlers']:
             if binding['scriptId'] != script['id'] or binding['event'] != 'broadcast':
@@ -225,6 +248,8 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
     if legacy_main is None:
         install_router(router)
     stage = StageSession(request, instances, emit) if request.get('initialStage') is not None else None
+    if stage:
+        install_stage(stage)
     try:
         for script, instance in instances:
             initialize = getattr(instance, 'initialize', None)
@@ -241,7 +266,7 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
         if request.get('keepAlive'):
             if legacy_main is not None or inbox is None:
                 raise RuntimeError('Interactive execution requires the managed project entry.')
-            inbox.run(clicks, emit, stage, keys)
+            inbox.run(clicks, emit, stage, keys, timers, backdrops)
         # Keep publication alive for user-created non-daemon workers as well.
         while stage:
             workers = [t for t in threading.enumerate() if not t.daemon and t is not threading.current_thread()]

@@ -100,6 +100,51 @@ public static partial class ObjectScriptFeatures
         return DeleteEventRegion(document, region);
     }
 
+    public static void ValidateBackdropSwitch(ObjectScriptDocument document, string targetId, string? excludingId = null)
+    {
+        RequireMessageDocument(document);
+        var identity = BackdropSwitchEvents.Identity(targetId);
+        if (document.Regions!.Any(r => r.Id != excludingId && r.Kind == "event" && r.EventName == identity))
+            throw new ArgumentException("当前对象已经监听了该背景切换。");
+    }
+    public static ObjectScriptDocument AddBackdropSwitch(ObjectScriptDocument document, string targetId)
+    {
+        ValidateBackdropSwitch(document, targetId);
+        return AddEventRegion(document, BackdropSwitchEvents.Identity(targetId), "backdrop_switch_");
+    }
+    public static ObjectScriptDocument DeleteBackdropSwitch(ObjectScriptDocument document, string id)
+    {
+        RequireMessageDocument(document);
+        var region = document.Regions!.SingleOrDefault(r => r.Id == id && r.Kind == "event"
+            && BackdropSwitchEvents.Target(r.EventName) is not null)
+            ?? throw new ArgumentException("请选择背景切换事件区域。");
+        return DeleteEventRegion(document, region);
+    }
+
+    public static void ValidateTimer(ObjectScriptDocument document, string value, bool repeat, string? excludingId = null)
+    {
+        RequireMessageDocument(document);
+        var identity = TimerIdentity(value, repeat);
+        if (document.Regions!.Any(r => r.Id != excludingId && r.Kind == "event" && r.EventName == identity))
+            throw new ArgumentException("当前对象已经有相同的计时器事件。");
+    }
+    public static ObjectScriptDocument AddTimer(ObjectScriptDocument document, string value, bool repeat)
+    {
+        ValidateTimer(document, value, repeat);
+        return AddEventRegion(document, TimerIdentity(value, repeat), repeat ? "timer_every_" : "timer_");
+    }
+
+    private static string TimerIdentity(string value, bool repeat) => TimerEvents.FormatIdentity(
+        TimerEvents.ParseArgument(TimerEvents.ValidateArgument(value, repeat))!.Value);
+    public static ObjectScriptDocument DeleteTimer(ObjectScriptDocument document, string id)
+    {
+        RequireMessageDocument(document);
+        var region = document.Regions!.SingleOrDefault(r => r.Id == id && r.Kind == "event"
+            && TimerEvents.ParseIdentity(r.EventName) is not null)
+            ?? throw new ArgumentException("请选择计时器事件区域。");
+        return DeleteEventRegion(document, region);
+    }
+
     public static void ValidateKey(ObjectScriptDocument document, string name, string? excludingId = null)
     {
         RequireMessageDocument(document);

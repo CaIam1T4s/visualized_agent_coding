@@ -1,7 +1,9 @@
 import sys
+import time
 import unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src' / 'VisualizedAgentCoding.Python.Runtime'))
+from vac_runtime import clock
 from vac_runtime.events import EventInbox
 
 
@@ -52,3 +54,25 @@ class StageClickTests(unittest.TestCase):
         self.assertTrue(inbox.offer(dict(kind='key', sessionId='run', key='a')))
         self.assertEqual(('key', 'a'), inbox.pending.get_nowait())
         self.assertFalse(inbox.offer(dict(kind='key', sessionId='run', key=1)))
+
+
+class ClockTests(unittest.TestCase):
+    def tearDown(self):
+        clock.stop()
+
+    def test_timer_starts_and_advances(self):
+        clock.stop()
+        with self.assertRaises(RuntimeError):
+            clock.timer()
+        clock.ensure_started()
+        first = clock.timer()
+        time.sleep(0.01)
+        self.assertGreaterEqual(clock.timer(), first)
+
+    def test_timer_specs_parse_threshold_and_repeat(self):
+        self.assertEqual((False, 1.5), clock.parse_spec('1.5'))
+        self.assertEqual((True, 2.0), clock.parse_spec('every:2'))
+        with self.assertRaises(ValueError):
+            clock.parse_spec('0')
+        with self.assertRaises(ValueError):
+            clock.parse_spec('every:')

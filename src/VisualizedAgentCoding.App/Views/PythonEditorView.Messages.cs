@@ -12,7 +12,7 @@ public partial class PythonEditorView
 {
     private bool showingMessages;
 
-    private async void EditMessage(string? id = null, bool delete = false, bool spriteClick = false, bool stageClick = false, bool keyEvent = false)
+    private async void EditMessage(string? id = null, bool delete = false, bool spriteClick = false, bool stageClick = false, bool keyEvent = false, bool timerEvent = false, bool timerRepeat = false, bool backdropSwitch = false, string? backdropTargetId = null, string? backdropTargetName = null)
     {
         editorMenu?.Hide();
         if (showingMessages || EditorTextBox.IsReadOnly || projection is not MultiRegionProjection multi
@@ -28,18 +28,23 @@ public partial class PythonEditorView
             EditorTextBox.SelectionLength, EditorTextBox.CaretOffset); }
         catch (InvalidOperationException ex) { SetProtectionStatus(ex.Message); return; }
         var selected = original.Regions!.FirstOrDefault(r => r.Id == id);
-        var name = MessageEvents.Name(selected?.EventName) ?? KeyEvents.Name(selected?.EventName) ?? "";
+        var name = MessageEvents.Name(selected?.EventName) ?? KeyEvents.Name(selected?.EventName)
+            ?? (TimerEvents.ParseIdentity(selected?.EventName) is { } timer ? TimerEvents.FormatArgument(timer) : "")
+            ?? (BackdropSwitchEvents.Target(selected?.EventName) is { } backdrop
+                ? viewModel.BackdropNameForObjectId(backdrop) ?? "" : "");
         var preview = delete && selected is not null ? multi.ViewSource.Substring(
             multi.EditableRegions.First(r => r.Id == id).Span.Offset, multi.EditableRegions.First(r => r.Id == id).Span.Length) : null;
         var title = spriteClick ? (delete ? "删除角色点击区域" : "添加角色点击事件")
             : stageClick ? (delete ? "删除舞台点击区域" : "添加背景点击事件")
             : keyEvent ? (delete ? "删除按键事件区域" : "添加按键事件")
+            : timerEvent ? (delete ? "删除计时器事件区域" : timerRepeat ? "添加周期计时器事件" : "添加计时器事件")
+            : backdropSwitch ? (delete ? "删除背景切换事件区域" : "添加背景切换事件：" + backdropTargetName)
             : delete ? "删除消息区域" : id is null ? "添加消息事件" : "修改消息名称";
         var dialog = new MessageEventView(title, name, value =>
         {
-            try { if (!delete) { if (spriteClick) ObjectScriptFeatures.ValidateSpriteClick(original); else if (stageClick) ObjectScriptFeatures.ValidateStageClick(original); else if (keyEvent) ObjectScriptFeatures.ValidateKey(original, value, id); else ObjectScriptFeatures.ValidateMessage(original, value, id); } return null; }
+            try { if (!delete) { if (spriteClick) ObjectScriptFeatures.ValidateSpriteClick(original); else if (stageClick) ObjectScriptFeatures.ValidateStageClick(original); else if (keyEvent) ObjectScriptFeatures.ValidateKey(original, value, id); else if (timerEvent) ObjectScriptFeatures.ValidateTimer(original, value, timerRepeat, id); else if (backdropSwitch) ObjectScriptFeatures.ValidateBackdropSwitch(original, backdropTargetId!, id); else ObjectScriptFeatures.ValidateMessage(original, value, id); } return null; }
             catch (ArgumentException ex) { return ex.Message; }
-        }, preview, renaming: id is not null && !delete, fixedEvent: spriteClick || stageClick, keyEvent: keyEvent);
+        }, preview, renaming: id is not null && !delete, fixedEvent: spriteClick || stageClick || backdropSwitch, keyEvent: keyEvent, timerEvent: timerEvent, timerRepeat: timerRepeat, backdropSwitch: backdropSwitch);
         showingMessages = true;
         Grid.SetRowSpan(dialog, 2);
         host.Children.Add(dialog);
@@ -57,6 +62,10 @@ public partial class PythonEditorView
                 ? delete ? ObjectScriptFeatures.DeleteStageClick(original, id!) : ObjectScriptFeatures.AddStageClick(original)
                 : keyEvent
                 ? delete ? ObjectScriptFeatures.DeleteKey(original, id!) : ObjectScriptFeatures.AddKey(original, result)
+                : timerEvent
+                ? delete ? ObjectScriptFeatures.DeleteTimer(original, id!) : ObjectScriptFeatures.AddTimer(original, result, timerRepeat)
+                : backdropSwitch
+                ? delete ? ObjectScriptFeatures.DeleteBackdropSwitch(original, id!) : ObjectScriptFeatures.AddBackdropSwitch(original, backdropTargetId!)
                 : delete ? ObjectScriptFeatures.DeleteMessage(original, id!)
                 : id is null ? ObjectScriptFeatures.AddMessage(original, result) : ObjectScriptFeatures.RenameMessage(original, id, result);
             if (ReferenceEquals(updated, original)) return;

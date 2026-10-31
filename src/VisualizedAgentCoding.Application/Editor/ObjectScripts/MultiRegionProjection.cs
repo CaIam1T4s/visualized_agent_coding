@@ -74,7 +74,7 @@ public sealed class MultiRegionProjection : IEditorProjection
                 "members" => "# 类定义",
                 "start" => "# 程序启动时运行",
                 "initialize" => "# 初始化",
-                _ => "# " + VisualizedAgentCoding.Domain.Projects.MessageEvents.Title(region.EventName ?? region.Id).Replace("\r", " ").Replace("\n", " "),
+                _ => "# " + VisualizedAgentCoding.Domain.Projects.MessageEvents.Title(region.EventName ?? region.Id, Document.BackdropNames).Replace("\r", " ").Replace("\n", " "),
             };
             view.Append(title).Append(newline);
             viewLine++;

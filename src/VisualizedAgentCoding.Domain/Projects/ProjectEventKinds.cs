@@ -10,7 +10,7 @@ public static class ProjectEventKinds
     public const string SpriteClick = "sprite-click";
     public const string StageClick = "stage-click";
     public const string BackdropSwitch = "backdrop-switch";
-    public const string Loudness = "loudness";
+    public const string Timer = "timer";
     public const string Broadcast = "broadcast";
 
     public static readonly IReadOnlySet<string> All = new HashSet<string>(System.StringComparer.Ordinal)
@@ -20,7 +20,7 @@ public static class ProjectEventKinds
         SpriteClick,
         StageClick,
         BackdropSwitch,
-        Loudness,
+        Timer,
         Broadcast,
     };
 
@@ -28,5 +28,5 @@ public static class ProjectEventKinds
 
     /// <summary>True when the event cannot be matched without an argument.</summary>
     public static bool RequiresArgument(string? value) =>
-        value is Key or BackdropSwitch or Loudness or Broadcast;
+        value is Key or BackdropSwitch or Timer or Broadcast;
 }

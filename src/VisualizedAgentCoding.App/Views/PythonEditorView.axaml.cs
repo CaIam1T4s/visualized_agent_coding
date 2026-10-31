@@ -126,6 +126,24 @@ public partial class PythonEditorView : UserControl
         var keyAdd = new MenuItem { Header = "当按下按键…", IsEnabled = messagesEnabled };
         keyAdd.Click += (_, _) => EditMessage(keyEvent: true);
         add.Items.Add(keyAdd);
+        var timerAdd = new MenuItem { Header = "当计时器到达…", IsEnabled = messagesEnabled };
+        timerAdd.Click += (_, _) => EditMessage(timerEvent: true);
+        add.Items.Add(timerAdd);
+        var timerRepeatAdd = new MenuItem { Header = "每隔一段时间…", IsEnabled = messagesEnabled };
+        timerRepeatAdd.Click += (_, _) => EditMessage(timerEvent: true, timerRepeat: true);
+        add.Items.Add(timerRepeatAdd);
+        var backdropSwitchAdd = new MenuItem { Header = "当背景切换时…", IsEnabled = messagesEnabled
+            && viewModel.OpenScript.Kind != ProjectScriptKind.User };
+        foreach (var target in viewModel.BackdropScripts)
+        {
+            if (viewModel.BackdropObjectIdForScript(target.Id) is not { } targetId) continue;
+            var entry = new MenuItem { Header = target.DisplayName };
+            entry.Click += (_, _) => EditMessage(backdropSwitch: true, backdropTargetId: targetId,
+                backdropTargetName: target.DisplayName);
+            backdropSwitchAdd.Items.Add(entry);
+        }
+        backdropSwitchAdd.IsEnabled &= backdropSwitchAdd.Items.Count > 0;
+        add.Items.Add(backdropSwitchAdd);
         var canManageImports = !EditorTextBox.IsReadOnly && (viewModel.OpenScript.Kind == ProjectScriptKind.User || projection?.Document.TemplateVersion == 3);
         var imports = new MenuItem { Header = "导入脚本…", IsEnabled = canManageImports };
         ToolTip.SetTip(imports, canManageImports ? "导入其他用户脚本或标准库" : "旧版角色或背景脚本需先升级模板");
@@ -166,6 +184,31 @@ public partial class PythonEditorView : UserControl
         }
         keyRegions.IsEnabled &= keyRegions.Items.Count > 0;
         editorMenu.Items.Add(keyRegions);
+        var timerRegions = new MenuItem { Header = "管理计时器事件", IsEnabled = messagesEnabled };
+        foreach (var region in projection?.Document.Regions ?? [])
+        {
+            if (region.Kind != "event" || TimerEvents.ParseIdentity(region.EventName) is not { } timer) continue;
+            var entry = new MenuItem { Header = TimerEvents.Display(timer) };
+            var deleteTimer = new MenuItem { Header = "删除计时器区域…" };
+            deleteTimer.Click += (_, _) => EditMessage(region.Id, delete: true, timerEvent: true, timerRepeat: timer.Repeat);
+            entry.Items.Add(deleteTimer);
+            timerRegions.Items.Add(entry);
+        }
+        timerRegions.IsEnabled &= timerRegions.Items.Count > 0;
+        editorMenu.Items.Add(timerRegions);
+        var backdropSwitchRegions = new MenuItem { Header = "管理背景切换事件", IsEnabled = messagesEnabled
+            && viewModel.OpenScript.Kind != ProjectScriptKind.User };
+        foreach (var region in projection?.Document.Regions ?? [])
+        {
+            if (region.Kind != "event" || BackdropSwitchEvents.Target(region.EventName) is not { } target) continue;
+            var entry = new MenuItem { Header = "当背景切换到 " + (viewModel.BackdropNameForObjectId(target) ?? target) };
+            var deleteBackdropSwitch = new MenuItem { Header = "删除背景切换区域…" };
+            deleteBackdropSwitch.Click += (_, _) => EditMessage(region.Id, delete: true, backdropSwitch: true);
+            entry.Items.Add(deleteBackdropSwitch);
+            backdropSwitchRegions.Items.Add(entry);
+        }
+        backdropSwitchRegions.IsEnabled &= backdropSwitchRegions.Items.Count > 0;
+        editorMenu.Items.Add(backdropSwitchRegions);
         editorMenu.Items.Add(new Separator());
         editorMenu.Items.Add(references);
         editorMenu.Items.Add(new MenuItem { Header = "重新加载磁盘文件…", Command = viewModel.RequestReloadScriptCommand });

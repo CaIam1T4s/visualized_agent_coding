@@ -52,6 +52,25 @@ public sealed class ScriptDeletionImpactServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task BackdropDeletionReportsStringCallsAndSwitchBindings()
+    {
+        var projects = new ProjectService(store);
+        var day = projects.CreateScript(project, VisualizedAgentCoding.Domain.Projects.ProjectScriptKind.Backdrop, "day");
+        var night = projects.CreateScript(day.Project, VisualizedAgentCoding.Domain.Projects.ProjectScriptKind.Backdrop, "night");
+        var objectId = night.Script.ObjectId!;
+        store.WriteScript(root, "scripts/user/use.py",
+            "from vac_runtime import switch_backdrop\nswitch_backdrop('night')\n# backdrop-switch:" + objectId + "\n");
+        var result = await new ScriptDeletionImpactService(new EmptyBridge(), store)
+            .AnalyzeAsync(night.Project, night.Script.Id, 1, []);
+        Assert.Equal(DeletionImpactState.Complete, result.State);
+        Assert.Contains(result.References, item => item.Uri == UseUri && item.Range.Line == 2
+            && item.Name == "switch_backdrop");
+        Assert.Contains(result.References, item => item.Uri == UseUri && item.Range.Line == 3
+            && item.Name == "backdrop-switch");
+        Assert.True(result.RequiresOverride);
+    }
+
+    [Fact]
     public async Task FailuresRemainUnknownAndRequireOverride()
     {
         var result = await new ScriptDeletionImpactService(new StubBridge(), store)
@@ -81,6 +100,16 @@ public sealed class ScriptDeletionImpactServiceTests : IDisposable
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             new ScriptDeletionImpactService(new StubBridge(), store)
                 .AnalyzeAsync(project, project.Manifest.Scripts[0].Id, 4, [], cancellation.Token));
+    }
+
+    private sealed class EmptyBridge : IPythonBridge
+    {
+        public Task<PythonReferencesResult> FindModuleDependenciesAsync(PythonModuleDependenciesRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(new PythonReferencesResult(request.Uri, request.Version, [], [], false));
+        public Task<PythonReferencesResult> FindReferencesAsync(PythonReferencesRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PythonHelperInfo> InitializeAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PythonParseResult> ParseAsync(PythonParseRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private sealed class StubBridge : IPythonBridge

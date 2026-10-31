@@ -40,9 +40,14 @@ public partial class ManageImportsView : UserControl
         {
             0 => targets.Select(t => new Target(t.DisplayName, new ScriptImport(t.Module, Alias: t.Module.Split('.').Last(), Source: "project", ScriptId: t.Id))).ToArray(),
             1 => standard.Select(m => new Target(m, new ScriptImport(m))).ToArray(),
-            _ => new[] { new Target("消息广播 broadcast", new ScriptImport("vac_runtime", Name: "broadcast", Source: "runtime")) },
+            _ => new[]
+            {
+                new Target("消息广播 broadcast", new ScriptImport("vac_runtime", Name: "broadcast", Source: "runtime")),
+                new Target("运行计时器 timer", new ScriptImport("vac_runtime", Name: "timer", Source: "runtime")),
+                new Target("切换背景 switch_backdrop", new ScriptImport("vac_runtime", Name: "switch_backdrop", Source: "runtime")),
+            },
         };
-        SourceHint.Text = SourceKind.SelectedIndex == 2 ? "broadcast(消息名称)：通过系统入口同步发送消息，全部接收方执行完后返回。"
+        SourceHint.Text = SourceKind.SelectedIndex == 2 ? "broadcast(消息名称)：同步广播；timer()：本次运行秒数；switch_backdrop(背景名)：切换当前背景。"
             : SourceKind.SelectedIndex == 0 ? "仅列出其他普通用户脚本；角色、背景和当前脚本不能导入。" : "可用模块来自当前 Python 环境，不自动安装包。";
         TargetModule.SelectedIndex = -1;
     }
@@ -54,7 +59,7 @@ public partial class ManageImportsView : UserControl
     {
         if (ImportList.SelectedItem is not Row row) return;
         SourceKind.SelectedIndex = row.Entry.Source == "project" ? 0 : row.Entry.Source == "standard" ? 1 : 2;
-        TargetModule.SelectedItem = TargetModule.Items.OfType<Target>().FirstOrDefault(t => t.Entry.Module == row.Entry.Module);
+        TargetModule.SelectedItem = TargetModule.Items.OfType<Target>().FirstOrDefault(t => t.Entry.Module == row.Entry.Module && t.Entry.Name == row.Entry.Name);
         ImportAlias.Text = row.Entry.Alias ?? "";
     }
     private ScriptImport? Choice()

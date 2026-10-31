@@ -6,7 +6,7 @@ namespace VisualizedAgentCoding.Domain.Projects;
 /// </summary>
 /// <param name="ScriptId">Stable id of the script that owns the handler.</param>
 /// <param name="Event">One of <see cref="ProjectEventKinds"/>.</param>
-/// <param name="Argument">Key name, broadcast message, backdrop name or loudness comparison.</param>
+/// <param name="Argument">Key name, broadcast message, backdrop object id or timer spec.</param>
 /// <param name="Handler">Python function name to call inside the script.</param>
 public sealed record ProjectEventHandler(string ScriptId, string Event, string? Argument, string Handler);
 

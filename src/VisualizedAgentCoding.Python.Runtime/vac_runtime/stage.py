@@ -1,6 +1,9 @@
 """Validated object state and bounded-rate stage publication for one run."""
 import math
+from pathlib import Path
 import threading
+
+from . import clock
 
 _DEFAULTS = dict(x=0, y=0, size=100, direction=90, visible=True, layer=0, click_enabled=True)
 _LIMITS = dict(x=(-10000, 10000), y=(-10000, 10000), size=(1, 1000), direction=(-180, 180), layer=(-10000, 10000))
@@ -30,6 +33,10 @@ def stage_property(name):
 
 
 class StageBase:
+    @property
+    def timer(self):
+        return clock.timer()
+
     x = stage_property('x')
     y = stage_property('y')
     size = stage_property('size')
@@ -88,19 +95,48 @@ class StageSession:
         self.stopped = threading.Event()
         self.lock = threading.Lock()
         self.failure = None
+        self.pending_switches = []
+        self.backdrop_names = {}
         layouts = {o['objectId']: o for o in initial.get('objects', [])}
-        backdrops = [s['objectId'] for s, _ in instances if s['kind'] == 'backdrop']
+        backdrops = {s['objectId'] for s, _ in instances if s['kind'] == 'backdrop'}
+        for script, _ in instances:
+            if script['kind'] != 'backdrop':
+                continue
+            name = Path(script['path']).stem
+            if name in self.backdrop_names:
+                raise RuntimeError(f'背景名称重复：{name}')
+            self.backdrop_names[name] = script['objectId']
         if self.backdrop not in backdrops:
             self.backdrop = next(iter(backdrops), None)
+        self.backdrops = backdrops
         for script, instance in instances:
             if not isinstance(instance, StageBase):
                 raise RuntimeError('项目自定义基类不支持舞台同步，请使用产品运行时基类。')
             def activate(identity=script['objectId']):
-                if identity not in backdrops:
-                    raise RuntimeError('仅背景可切换舞台背景。')
-                self.backdrop = identity
+                self.switch_backdrop_id(identity)
             instance._vac_bind(layouts.get(script['objectId'], {}), activate)
         self.thread = threading.Thread(target=self._sample, daemon=True)
+
+    def switch_backdrop_id(self, identity):
+        with self.lock:
+            if identity not in self.backdrops:
+                raise RuntimeError('仅背景可切换舞台背景。')
+            if identity == self.backdrop:
+                return
+            self.backdrop = identity
+            self.pending_switches.append(identity)
+
+    def switch_backdrop(self, name):
+        identity = self.backdrop_names.get(name)
+        if identity is None:
+            raise ValueError(f'背景不存在：{name}')
+        self.switch_backdrop_id(identity)
+
+    def take_switches(self):
+        with self.lock:
+            pending = self.pending_switches
+            self.pending_switches = []
+            return pending
 
     def publish(self):
         with self.lock:

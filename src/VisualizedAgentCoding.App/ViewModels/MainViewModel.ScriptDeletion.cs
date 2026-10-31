@@ -88,7 +88,7 @@ public partial class MainViewModel
                 throw new InvalidOperationException(result.Error);
             foreach (var location in result.References)
                 DeleteReferences.Add(new(location, Path.GetRelativePath(project.RootPath, new Uri(location.Uri).LocalPath)));
-            DeleteReferenceStatus = $"发现 {result.AffectedScriptCount} 个脚本、{DeleteReferences.Count} 处引用受影响（含导入）。";
+            DeleteReferenceStatus = $"发现 {result.AffectedScriptCount} 个脚本、{DeleteReferences.Count} 处引用受影响（含导入或背景切换引用）。";
             DeleteReferenceIssues = string.Join(Environment.NewLine, result.Issues.Select(issue =>
                 $"{Path.GetRelativePath(project.RootPath, new Uri(issue.Uri).LocalPath)}：{issue.Message}"));
             if (result.State == DeletionImpactState.Incomplete) DeleteReferenceStatus += "分析结果不完整。";
