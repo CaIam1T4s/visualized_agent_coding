@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using happy_agent_coding.Services;
 using VisualizedAgentCoding.Domain.Projects;
 using VisualizedAgentCoding.Application.Editor.ObjectScripts;
+using VisualizedAgentCoding.Application.Projects;
 using System.Xml;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -96,6 +97,11 @@ public partial class PythonEditorView : UserControl
     {
         if (viewModel?.OpenScript is null || viewModel.IsScriptActionDialogOpen) return;
         editorMenu?.Hide();
+        if (viewModel.IsBlockEditorMode)
+        {
+            ShowBlockEditorMenu(atPointer, anchor);
+            return;
+        }
         var references = new MenuItem { Header = "查找引用", InputGesture = new KeyGesture(Key.F12, KeyModifiers.Shift) };
         references.Click += OnFindReferencesClick;
         editorMenu = new MenuFlyout();
@@ -155,6 +161,17 @@ public partial class PythonEditorView : UserControl
         imports.Click += OnManageImportsClick;
         add.Items.Add(imports);
         editorMenu.Items.Add(add);
+        var manageVariables = new MenuItem { Header = "管理变量…",
+            IsEnabled = viewModel.HasOpenProject && !viewModel.IsPythonActive };
+        manageVariables.Click += OnManageVariablesClick;
+        editorMenu.Items.Add(manageVariables);
+        var collisionBoxes = new MenuItem
+        {
+            Header = viewModel.ShowCollisionBoxes ? "隐藏碰撞箱" : "显示碰撞箱",
+            IsEnabled = viewModel.HasOpenProject
+        };
+        collisionBoxes.Click += (_, _) => viewModel.ShowCollisionBoxes = !viewModel.ShowCollisionBoxes;
+        editorMenu.Items.Add(collisionBoxes);
         var messageRegions = new MenuItem { Header = "管理消息事件", IsEnabled = messagesEnabled };
         foreach (var region in projection?.Document.Regions ?? [])
         {
@@ -240,6 +257,27 @@ public partial class PythonEditorView : UserControl
         editorMenu.ShowAt(anchor ?? EditorTextBox, atPointer);
     }
 
+    private void ShowBlockEditorMenu(bool atPointer, Control? anchor)
+    {
+        if (viewModel is not { } current || current.OpenScript is null) return;
+        var canManageImports = !EditorTextBox.IsReadOnly
+            && (current.OpenScript.Kind == ProjectScriptKind.User
+                || projection?.Document.TemplateVersion == 3);
+        editorMenu = new MenuFlyout();
+        var collisionBoxes = new MenuItem
+        {
+            Header = current.ShowCollisionBoxes ? "隐藏碰撞箱" : "显示碰撞箱",
+            IsEnabled = current.HasOpenProject
+        };
+        collisionBoxes.Click += (_, _) => current.ShowCollisionBoxes = !current.ShowCollisionBoxes;
+        editorMenu.Items.Add(collisionBoxes);
+        var manageImports = new MenuItem { Header = "管理导入…", IsEnabled = canManageImports };
+        manageImports.Click += OnManageImportsClick;
+        editorMenu.Items.Add(manageImports);
+        editorMenu.Items.Add(new MenuItem { Header = "重新加载磁盘文件…", Command = current.RequestReloadScriptCommand });
+        editorMenu.ShowAt(anchor ?? this, atPointer);
+    }
+
     private void OnLoaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is MainViewModel currentViewModel)
@@ -258,6 +296,7 @@ public partial class PythonEditorView : UserControl
             viewModel.DeleteReferenceOpened -= NavigateDeleteReference;
             viewModel.RuntimeLocationOpened -= NavigateDeleteReference;
             viewModel.EditorHistoryResetRequested -= ResetEditorHistory;
+            viewModel.DataReferenceRenameRequested -= OnDataReferenceRenameRequested;
         }
 
         viewModel = DataContext as MainViewModel;
@@ -269,6 +308,7 @@ public partial class PythonEditorView : UserControl
         viewModel.DeleteReferenceOpened += NavigateDeleteReference;
         viewModel.RuntimeLocationOpened += NavigateDeleteReference;
         viewModel.EditorHistoryResetRequested += ResetEditorHistory;
+        viewModel.DataReferenceRenameRequested += OnDataReferenceRenameRequested;
         UpdateEditorText(viewModel.PythonCode);
     }
 
@@ -349,6 +389,22 @@ public partial class PythonEditorView : UserControl
         EditorTextBox.ScrollTo(line.LineNumber, column);
         // Keyboard input belongs to AvaloniaEdit's TextArea, not its outer control.
         EditorTextBox.TextArea.Focus();
+    }
+
+    private void OnDataReferenceRenameRequested(string oldName, string newName)
+    {
+        if (viewModel?.OpenScript is null) return;
+        var edits = ProjectDataReferenceService.FindLiteralEdits(EditorTextBox.Text, oldName, newName);
+        if (edits.Count == 0) return;
+        var caret = EditorTextBox.CaretOffset;
+        EditorTextBox.Document.UndoStack.StartUndoGroup();
+        try
+        {
+            foreach (var edit in edits)
+                EditorTextBox.Document.Replace(edit.Offset, edit.Length, edit.Replacement);
+        }
+        finally { EditorTextBox.Document.UndoStack.EndUndoGroup(); }
+        EditorTextBox.CaretOffset = Math.Clamp(caret, 0, EditorTextBox.Document.TextLength);
     }
 
     private void UpdateEditorText(string text)

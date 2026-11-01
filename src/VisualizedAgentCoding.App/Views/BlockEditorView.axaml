@@ -1,0 +1,142 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:happy_agent_coding.ViewModels"
+             x:Class="happy_agent_coding.Views.BlockEditorView"
+             x:DataType="vm:MainViewModel">
+    <Grid ColumnDefinitions="220,*"
+          Background="{DynamicResource LayerFillColorBrush}">
+        <Border Grid.Column="0"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                BorderThickness="0,0,1,0"
+                Padding="10,8">
+            <Grid RowDefinitions="Auto,*">
+                <TextBlock Text="积木"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Margin="4,2,0,10"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                <ScrollViewer Grid.Row="1"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="6">
+                        <Expander Header="事件" IsExpanded="True">
+                            <StackPanel Spacing="4" Margin="0,4,0,0">
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="当启动时" />
+                                </Border>
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="当角色被点击" />
+                                </Border>
+                            </StackPanel>
+                        </Expander>
+                        <Expander Header="运动">
+                            <StackPanel Spacing="4" Margin="0,4,0,0">
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="移动 10 步" />
+                                </Border>
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="旋转 15 度" />
+                                </Border>
+                            </StackPanel>
+                        </Expander>
+                        <Expander Header="控制">
+                            <StackPanel Spacing="4" Margin="0,4,0,0">
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="重复执行 10 次" />
+                                </Border>
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="计数循环" />
+                                </Border>
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="重复直到条件" />
+                                </Border>
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="列表遍历" />
+                                </Border>
+                            </StackPanel>
+                        </Expander>
+                        <Expander Header="数据">
+                            <StackPanel Spacing="4" Margin="0,4,0,0">
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="设置变量" />
+                                </Border>
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="增加变量" />
+                                </Border>
+                            </StackPanel>
+                        </Expander>
+                        <Expander Header="外观">
+                            <StackPanel Spacing="4" Margin="0,4,0,0">
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="切换造型" />
+                                </Border>
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+        <Border Grid.Column="1"
+                Margin="16"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                ClipToBounds="True">
+            <Grid RowDefinitions="Auto,*,Auto" Margin="18,14,18,10">
+                <TextBlock Grid.Row="0"
+                           Text="{Binding BlockEditor.Title}"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                <ScrollViewer Grid.Row="1"
+                              Margin="0,12,0,8"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding BlockEditor.Lines}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="6" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BlockLine">
+                                <Border Margin="{Binding IndentMargin}"
+                                        Padding="12,8"
+                                        CornerRadius="6"
+                                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                        BorderThickness="1">
+                                    <TextBlock Text="{Binding Text}"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                <StackPanel Grid.Row="2" Spacing="4">
+                    <TextBlock Text="积木模型和 Python 同步接入后，这里将显示当前脚本的事件积木和语句积木。"
+                               IsVisible="{Binding BlockEditor.IsEmpty}"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="{Binding BlockEditor.Status}"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

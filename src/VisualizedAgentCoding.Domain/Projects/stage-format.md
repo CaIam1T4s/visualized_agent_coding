@@ -152,5 +152,15 @@ project-owned role never runs it. The clone is added to the next stage frame bef
 handler starts, and `self.delete_clone()` removes it again. Clone-start handlers may use
 `wait`, while clone instances still do not receive independent key or message bindings.
 
+Collision detection is evaluated in the runtime from the current stage state. Roles expose
+`self.touching("角色名")`, `self.touching_edge()`, and `self.touching_pointer()`. Each
+instance contributes its rotated image rectangle: the active costume's image dimensions,
+the current `size`, and the current `direction`. Collision uses a separating-axis test, so
+touching edges count as a hit. Originals and clones participate; the current instance is
+excluded, and hidden or deleted objects are ignored. Role names are script filenames without
+`.py` and are case-sensitive. The desktop supplies dimensions for every costume through the
+run request, plus a per-object fallback; a 48x48 fallback is used when metadata is
+unavailable. Pixel-perfect silhouettes are not modeled.
+
 See the Python runtime README for the control protocol. Existing custom project-local bases are not overwritten; to opt into
 desktop stage synchronization they must inherit the product bases.

@@ -49,10 +49,11 @@
 
 ## 方法
 
-- `helper.hello`：params 为 `{"protocolVersions":[1]}`；result 包含 protocolVersion、pythonVersion、capabilities（当前 `["parse", "findReferences", "findModuleDependencies", "planModuleRename", "inspectObjectScript"]`）。无共同版本返回 -32002。每次启动进程都重新握手。hello 已承担版本和存活确认，不另外增加 ping/version 方法。
+- `helper.hello`：params 为 `{"protocolVersions":[1]}`；result 包含 protocolVersion、pythonVersion、capabilities（当前 `["parse", "findReferences", "findModuleDependencies", "planModuleRename", "inspectObjectScript", "blocks"]`）。无共同版本返回 -32002。每次启动进程都重新握手。hello 已承担版本和存活确认，不另外增加 ping/version 方法。
 - `python.parse`：params 为 `{"uri":"file:///.../example.py","version":1,"source":"..."}`。version 为非负整数。result 原样返回 uri、version，并包含 diagnostics 与 symbols。仅解析，不 import 或执行用户源码。
 - `symbols` 包含顶层 classes/functions（name、range）与 imports（module、names、range）；该结果不是完整 AST 或跨文件引用分析。
 - 语法错误作为 result.diagnostics 返回（severity、message、line、column），symbols 为 null；解析成功时 diagnostics 为空数组。
+- `python.blocks`：参数为 `{"source":"..."}`，source 是已经去缩进的单个脚本区域正文。result 包含 error 和只读积木节点树；未支持语句返回 `raw` 节点，注释返回 `comment` 节点。该接口不修改源码、不执行用户代码。
 - `helper.shutdown`：返回空对象后退出；EOF 同样退出。
 
 ## 按需静态分析

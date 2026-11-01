@@ -191,6 +191,74 @@ class Cat(ElementBase):
     }
 
     [Fact]
+    public async Task TouchingEdgeUsesTheProvidedImageSize()
+    {
+        var request = Request("""
+from vac_runtime import ElementBase
+class Cat(ElementBase):
+    def _vac_on_start(self):
+        self.direction = 90
+        self.goto(220, 0)
+        print('near', self.touching_edge())
+        self.goto(225, 0)
+        print('edge', self.touching_edge())
+""") with { StageImageSizes = new Dictionary<string, RuntimeImageSize> { ["cat-id"] = new(20, 20) } };
+        var (exit, events) = await Run(request);
+        Assert.Equal(0, exit);
+        var output = string.Concat(events.Where(e => e.Kind == "stdout").Select(e => e.Text));
+        Assert.Contains("near False", output);
+        Assert.Contains("edge True", output);
+    }
+
+    [Fact]
+    public async Task TouchingUsesTheActiveCostumeImageSize()
+    {
+        var request = new PythonRunRequest(
+            Guid.NewGuid().ToString("N"), PythonEnvironment.DefaultExecutable, root, "scripts/main.py",
+            [new("scripts/main.py", ManagedProjectEntry.Source),
+             new("scripts/objects/cat.py", """
+from vac_runtime import ElementBase
+class Cat(ElementBase):
+    def _vac_on_start(self):
+        print('small', self.touching('dog'))
+        self.switch_costume('大')
+        print('large', self.touching('dog'))
+"""),
+             new("scripts/objects/dog.py", """
+from vac_runtime import ElementBase
+class Dog(ElementBase):
+    pass
+""")],
+            [new("cat", "cat-id", "scripts/objects/cat.py", "object"),
+             new("dog", "dog-id", "scripts/objects/dog.py", "object")],
+            [], InitialStage: new StageState
+            {
+                Objects =
+                [
+                    new("cat-id", 0, 0, 100, 90, true, 0, "assets/images/small.png", false, true,
+                        [new("small", "小", "assets/images/small.png", false),
+                         new("large", "大", "assets/images/large.png", false)], "small"),
+                    new("dog-id", 60, 0, 100, 90, true, 0)
+                ]
+            })
+        {
+            StageImageSizes = new Dictionary<string, RuntimeImageSize>
+            {
+                ["cat-id"] = new(10, 10), ["dog-id"] = new(48, 48)
+            },
+            StageCostumeImageSizes = new Dictionary<string, RuntimeImageSize>
+            {
+                ["small"] = new(10, 10), ["large"] = new(100, 100)
+            }
+        };
+        var (exit, events) = await Run(request);
+        Assert.Equal(0, exit);
+        var output = string.Concat(events.Where(e => e.Kind == "stdout").Select(e => e.Text));
+        Assert.Contains("small False", output);
+        Assert.Contains("large True", output);
+    }
+
+    [Fact]
     public async Task CloneStartHandlerRunsOnlyForTheNewClone()
     {
         var request = Request("""
@@ -208,6 +276,84 @@ class Cat(ElementBase):
         Assert.Equal(100, last.Objects.Single(o => o.ObjectId == "cat-id").X);
         Assert.Equal(200, last.Objects.Single(o => o.ObjectId == "clone:cat-id:1").X);
         Assert.Contains("clone-start True", string.Concat(events.Where(e => e.Kind == "stdout").Select(e => e.Text)));
+    }
+
+    [Fact]
+    public async Task ProjectVariablesAndListsAreSharedByRuntimeScripts()
+    {
+        var request = Request("""
+from vac_runtime import ElementBase, add_to_variable, get_variable, list_append, list_length, list_values
+class Cat(ElementBase):
+    def _vac_on_start(self):
+        add_to_variable('score', 2)
+        list_append('items', 'gem')
+        print('data', get_variable('score'), list_length('items'))
+        print('items', ','.join(list_values('items')))
+""") with { ProjectData = new RuntimeProjectData(
+            [new RuntimeVariableDefinition("score", "number", "1")],
+            [new RuntimeListDefinition("items", ["coin"])]) };
+        var (exit, events) = await Run(request);
+        Assert.Equal(0, exit);
+        var output = string.Concat(events.Where(e => e.Kind == "stdout").Select(e => e.Text));
+        Assert.Contains("data 3.0 2", output);
+        Assert.Contains("items coin,gem", output);
+    }
+
+    [Fact]
+    public async Task GlideBlocksItsOwnHandlerUntilTheTargetIsReached()
+    {
+        var request = Request("""
+from vac_runtime import ElementBase
+class Cat(ElementBase):
+    def _vac_on_start(self):
+        self.goto(0, 0)
+        self.glide_to(100, 0, 0.1)
+        print('after', self.x)
+""") with { KeepAlive = true };
+        Directory.CreateDirectory(root);
+        await using var runtime = new PythonRuntimeProcess(Path.Combine(AppContext.BaseDirectory, "python-runtime"));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, cancellation.Token);
+        string Output() => string.Concat(events.Where(e => e.Kind == "stdout").Select(e => e.Text));
+        while (!Output().Contains("after 100"))
+            await Task.Delay(20, timeout.Token);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+    }
+
+    [Fact]
+    public async Task GlideBlocksItsHandlerWhileCloneStartIsQueued()
+    {
+        var request = Request("""
+from vac_runtime import ElementBase, wait
+class Cat(ElementBase):
+    def _vac_on_start(self):
+        self.goto(0, 0)
+        copy = self.clone()
+        copy.glide_by(0, 100, 0.05)
+        print('copied', copy.is_clone)
+    def on_clone_start(self):
+        self.goto(0, 0)
+        wait(0.1)
+        self.delete_clone()
+""") with { KeepAlive = true, Handlers = [new("cat", ProjectEventKinds.CloneStart, null, "on_clone_start")] };
+        Directory.CreateDirectory(root);
+        await using var runtime = new PythonRuntimeProcess(Path.Combine(AppContext.BaseDirectory, "python-runtime"));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, cancellation.Token);
+        string Output() => string.Concat(events.Where(e => e.Kind == "stdout").Select(e => e.Text));
+        while (!Output().Contains("copied True"))
+            await Task.Delay(20, timeout.Token);
+        while (!events.Any(e => e.Stage is { } frame && frame.Objects.Length == 1
+                               && frame.Objects[0].ObjectId == "cat-id"))
+            await Task.Delay(20, timeout.Token);
+        Assert.DoesNotContain(events, e => e.Kind == "exception");
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
     }
 
     [Fact]

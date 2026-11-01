@@ -46,6 +46,16 @@ public partial class ManageImportsView : UserControl
                 new Target("运行计时器 timer", new ScriptImport("vac_runtime", Name: "timer", Source: "runtime")),
                 new Target("切换背景 switch_backdrop", new ScriptImport("vac_runtime", Name: "switch_backdrop", Source: "runtime")),
                 new Target("等待 wait", new ScriptImport("vac_runtime", Name: "wait", Source: "runtime")),
+                new Target("读取变量 get_variable", new ScriptImport("vac_runtime", Name: "get_variable", Source: "runtime")),
+                new Target("设置变量 set_variable", new ScriptImport("vac_runtime", Name: "set_variable", Source: "runtime")),
+                new Target("增加变量 add_to_variable", new ScriptImport("vac_runtime", Name: "add_to_variable", Source: "runtime")),
+                new Target("列表追加 list_append", new ScriptImport("vac_runtime", Name: "list_append", Source: "runtime")),
+                new Target("列表读取 list_get", new ScriptImport("vac_runtime", Name: "list_get", Source: "runtime")),
+                new Target("列表写入 list_set", new ScriptImport("vac_runtime", Name: "list_set", Source: "runtime")),
+                new Target("列表删除 list_remove", new ScriptImport("vac_runtime", Name: "list_remove", Source: "runtime")),
+                new Target("列表清空 list_clear", new ScriptImport("vac_runtime", Name: "list_clear", Source: "runtime")),
+                new Target("列表长度 list_length", new ScriptImport("vac_runtime", Name: "list_length", Source: "runtime")),
+                new Target("列表快照 list_values", new ScriptImport("vac_runtime", Name: "list_values", Source: "runtime")),
             },
         };
         SourceHint.Text = SourceKind.SelectedIndex == 2 ? "broadcast：同步广播；timer()/self.timer：运行秒数；switch_backdrop：切换背景；wait(秒)：等待并继续处理事件。"

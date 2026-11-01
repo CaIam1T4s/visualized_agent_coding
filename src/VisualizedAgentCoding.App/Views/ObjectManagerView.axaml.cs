@@ -4,7 +4,10 @@ using Avalonia.VisualTree;
 using AtomUI.Icons.AntDesign;
 using happy_agent_coding.ViewModels;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using System;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace happy_agent_coding.Views;
 
@@ -12,9 +15,78 @@ public partial class ObjectManagerView : UserControl
 {
     private bool showingStageReload;
     private bool showingCostumes;
+    private bool savingStageObjectName;
+    private MainViewModel? attachedModel;
     public ObjectManagerView()
     {
         InitializeComponent();
+        DataContextChanged += (_, _) => AttachModel(DataContext as MainViewModel);
+        Unloaded += (_, _) => AttachModel(null);
+    }
+
+    private void AttachModel(MainViewModel? model)
+    {
+        if (ReferenceEquals(attachedModel, model)) return;
+        if (attachedModel is not null) attachedModel.StageObjectNameFocusRequested -= OnStageObjectNameFocusRequested;
+        attachedModel = model;
+        if (attachedModel is not null) attachedModel.StageObjectNameFocusRequested += OnStageObjectNameFocusRequested;
+    }
+
+    private void OnStageObjectNameFocusRequested(StageObjectItem item) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            var box = this.GetVisualDescendants().OfType<TextBox>()
+                .FirstOrDefault(candidate => Equals(candidate.Tag, "StageObjectName"));
+            if (box?.DataContext is not StageObjectItem current || !ReferenceEquals(current, item)) return;
+            box.Focus();
+            box.SelectAll();
+        });
+
+    private async void OnStageObjectNameLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (savingStageObjectName || sender is not TextBox { DataContext: StageObjectItem item } box
+            || DataContext is not MainViewModel model) return;
+        await CommitStageObjectNameAsync(model, item, box);
+    }
+
+    private async void OnStageObjectNameKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (sender is not TextBox { DataContext: StageObjectItem item } box
+            || DataContext is not MainViewModel model) return;
+        if (e.Key == Avalonia.Input.Key.Enter)
+        {
+            e.Handled = true;
+            await CommitStageObjectNameAsync(model, item, box);
+            box.Focus();
+            box.SelectAll();
+        }
+        else if (e.Key == Avalonia.Input.Key.Escape)
+        {
+            e.Handled = true;
+            box.Text = item.DisplayName;
+            box.SelectAll();
+        }
+    }
+
+    private async Task CommitStageObjectNameAsync(MainViewModel model, StageObjectItem item, TextBox box)
+    {
+        if (savingStageObjectName) return;
+        savingStageObjectName = true;
+        try
+        {
+            var name = (box.Text ?? string.Empty).Trim();
+            if (string.Equals(name, item.DisplayName, StringComparison.Ordinal))
+            {
+                box.Text = item.DisplayName;
+                return;
+            }
+            if (!await model.RenameStageObjectAsync(item, name))
+            {
+                box.Text = item.DisplayName;
+                box.SelectAll();
+            }
+        }
+        finally { savingStageObjectName = false; }
     }
 
     private void OnHideIconAttached(object? sender, VisualTreeAttachmentEventArgs e)
@@ -83,6 +155,18 @@ public partial class ObjectManagerView : UserControl
             ScriptActionMenu.Show(source, viewModel, item.ToScriptItem());
             e.Handled = true;
         }
+    }
+
+    private void OnAddSpriteClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel model && model.AddSpriteCommand.CanExecute(null))
+            model.AddSpriteCommand.Execute(null);
+    }
+
+    private void OnAddBackdropClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel model && model.AddBackdropCommand.CanExecute(null))
+            model.AddBackdropCommand.Execute(null);
     }
 
     private void OnStageObjectClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

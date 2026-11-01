@@ -391,12 +391,17 @@ public class ScriptCreationTests
         try
         {
             await using var viewModel = await OpenProjectAsync(root);
+            var focusRequests = new System.Collections.Generic.List<StageObjectItem>();
+            viewModel.StageObjectNameFocusRequested += focusRequests.Add;
 
             await viewModel.AddSpriteCommand.ExecuteAsync(null);
             await viewModel.AddSpriteCommand.ExecuteAsync(null);
             await viewModel.AddBackdropCommand.ExecuteAsync(null);
 
             Assert.Equal(2, viewModel.StageSprites.Count);
+            Assert.True(viewModel.IsObjectManagerMode);
+            Assert.Equal(3, focusRequests.Count);
+            Assert.Same(Assert.Single(viewModel.StageBackdrops), focusRequests[^1]);
             Assert.Single(viewModel.StageBackdrops);
             Assert.Equal("sprite", viewModel.StageSprites[0].DisplayName);
             Assert.Equal("sprite2", viewModel.StageSprites[1].DisplayName);

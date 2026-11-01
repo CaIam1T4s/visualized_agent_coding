@@ -5,6 +5,7 @@ import threading
 import unicodedata
 
 from . import clock
+from ._entry import wait as wait_seconds
 from .messages import validate_name
 
 _DEFAULTS = dict(x=0, y=0, size=100, direction=90, visible=True, layer=0, click_enabled=True)
@@ -99,7 +100,8 @@ class StageBase:
                 setattr(self, name, value)
 
     def _vac_bind(self, layout, activate, pointer=None, animate=None, animate_direction=None, animate_size=None,
-                  clone=None, delete_clone=None):
+                  clone=None, delete_clone=None, touching=None, touching_edge=None, touching_pointer=None,
+                  wait_animation=None, costume_sizes=None):
         costumes = []
         names = set()
         for raw in layout.get('costumes') or []:
@@ -123,6 +125,22 @@ class StageBase:
         elif layout.get('imagePath'):
             active = dict(id=None, name=None, image_path=layout['imagePath'],
                           normalize=bool(layout.get('normalizeImage', False)))
+        image_width = finite_number('图片宽度', layout.get('imageWidth', 48))
+        image_height = finite_number('图片高度', layout.get('imageHeight', 48))
+        if image_width <= 0 or image_height <= 0:
+            raise ValueError('图片宽高必须大于 0。')
+        costume_sizes = costume_sizes if isinstance(costume_sizes, dict) else {}
+        for costume in costumes:
+            size = costume_sizes.get(costume['id'])
+            width = size.get('width') if isinstance(size, dict) else image_width
+            height = size.get('height') if isinstance(size, dict) else image_height
+            costume['image_width'] = finite_number('造型图片宽度', width)
+            costume['image_height'] = finite_number('造型图片高度', height)
+            if costume['image_width'] <= 0 or costume['image_height'] <= 0:
+                raise ValueError('造型图片宽高必须大于 0。')
+        if active is not None and not active.get('image_width'):
+            active['image_width'] = image_width
+            active['image_height'] = image_height
         values = dict(_DEFAULTS)
         values.update({k: validate(k, layout[_WIRE.get(k, k)]) for k in _DEFAULTS if _WIRE.get(k, k) in layout})
         values.update(getattr(type(self), '_vac_initial', {}))
@@ -135,6 +153,12 @@ class StageBase:
         self.__dict__['_vac_animate_size'] = animate_size
         self.__dict__['_vac_clone'] = clone
         self.__dict__['_vac_delete_clone'] = delete_clone
+        self.__dict__['_vac_touching'] = touching
+        self.__dict__['_vac_touching_edge'] = touching_edge
+        self.__dict__['_vac_touching_pointer'] = touching_pointer
+        self.__dict__['_vac_wait_animation'] = wait_animation
+        self.__dict__['_vac_image_width'] = image_width
+        self.__dict__['_vac_image_height'] = image_height
         self.__dict__['_vac_costumes'] = by_name
         self.__dict__['_vac_active_costume'] = active
 
@@ -153,6 +177,63 @@ class StageBase:
 
 
 class ElementBase(StageBase):
+    def _vac_half_extents(self):
+        active = self.__dict__.get('_vac_active_costume')
+        width = active.get('image_width') if active is not None else None
+        height = active.get('image_height') if active is not None else None
+        width = self.__dict__.get('_vac_image_width', 48) if width is None else width
+        height = self.__dict__.get('_vac_image_height', 48) if height is None else height
+        if active is not None and active.get('normalize'):
+            fit = min(1.0, 480.0 / width, 360.0 / height)
+            width *= fit
+            height *= fit
+        scale = self.size / 100.0
+        return width * scale / 2.0, height * scale / 2.0
+
+    def _vac_corners(self):
+        """The rotated image rectangle on the stage, in clockwise corner order."""
+        half_width, half_height = self._vac_half_extents()
+        angle = math.radians(self.direction - 90.0)
+        x_axis = (math.cos(angle), math.sin(angle))
+        y_axis = (-math.sin(angle), math.cos(angle))
+        x, y = self.x, self.y
+        return tuple(
+            (x + sx * half_width * x_axis[0] + sy * half_height * y_axis[0],
+             y + sx * half_width * x_axis[1] + sy * half_height * y_axis[1])
+            for sx, sy in ((1, 1), (-1, 1), (-1, -1), (1, -1)))
+
+    def _vac_box(self):
+        """Axis-aligned bounds of the rotated image rectangle."""
+        corners = self._vac_corners()
+        return (min(point[0] for point in corners), min(point[1] for point in corners),
+                max(point[0] for point in corners), max(point[1] for point in corners))
+
+    def touching(self, name):
+        """True when another visible instance of the named role overlaps this role."""
+        callback = self.__dict__.get('_vac_touching')
+        if callback is None:
+            raise RuntimeError('角色尚未接入运行舞台。')
+        return callback(name)
+
+    def touching_edge(self):
+        """True when this role's visible bounds reach a stage edge."""
+        callback = self.__dict__.get('_vac_touching_edge')
+        if callback is None:
+            raise RuntimeError('角色尚未接入运行舞台。')
+        return callback()
+
+    def touching_pointer(self):
+        """True when the pointer is inside this role's visible bounds."""
+        callback = self.__dict__.get('_vac_touching_pointer')
+        if callback is None:
+            raise RuntimeError('角色尚未接入运行舞台。')
+        return callback()
+
+    def _vac_wait_tween(self, kind):
+        callback = self.__dict__.get('_vac_wait_animation')
+        if callback is not None:
+            callback(kind)
+
     def clone(self):
         """Create an independent runtime copy of this role and return it."""
         callback = self.__dict__.get('_vac_clone')
@@ -232,7 +313,8 @@ class ElementBase(StageBase):
         if animate is None:
             self.goto(x, y)
             return
-        animate(x, y, duration, on_finish)
+        if animate(x, y, duration, on_finish):
+            self._vac_wait_tween('position')
 
     def glide_by(self, dx, dy, seconds, on_finish=None):
         self.glide_to(self.x + finite_number('X 变化量', dx),
@@ -250,7 +332,8 @@ class ElementBase(StageBase):
         if animate is None:
             self.direction = target
             return
-        animate(target, duration, on_finish)
+        if animate(target, duration, on_finish):
+            self._vac_wait_tween('direction')
 
     def rotate_by(self, degrees, seconds, on_finish=None):
         self.rotate_to(self.direction + finite_number('旋转角度', degrees), seconds, on_finish)
@@ -267,7 +350,8 @@ class ElementBase(StageBase):
         if animate is None:
             self.size = percent
             return
-        animate(percent, duration, on_finish)
+        if animate(percent, duration, on_finish):
+            self._vac_wait_tween('size')
 
     def glide_size_by(self, delta, seconds, on_finish=None):
         self.glide_size_to(self.size + finite_number('大小变化量', delta), seconds, on_finish)
@@ -291,6 +375,8 @@ class StageSession:
         self.broadcast = broadcast
         self.click_handlers = click_handlers
         self.clone_handlers = clone_handlers
+        self.image_sizes = request.get('stageImageSizes') or request.get('imageSizes') or {}
+        self.costume_image_sizes = request.get('stageCostumeImageSizes') or request.get('costumeImageSizes') or {}
         initial = request.get('initialStage') or {}
         self.backdrop = initial.get('currentBackdropId')
         self.sequence = 0
@@ -307,8 +393,15 @@ class StageSession:
         self.instances_by_id = {script['objectId']: instance for script, instance in instances
                                 if script['kind'] == 'object'}
         self.scripts_by_id = {script['objectId']: script for script, _ in instances}
+        self.role_names = {Path(script['path']).stem for script, _ in instances if script['kind'] == 'object'}
         self.clone_count = 0
-        layouts = {o['objectId']: o for o in initial.get('objects', [])}
+        self.pending_clone_starts = []
+        layouts = {o['objectId']: dict(o) for o in initial.get('objects', [])}
+        for object_id, layout in layouts.items():
+            size = self.image_sizes.get(object_id)
+            if isinstance(size, dict):
+                layout['imageWidth'] = size.get('width', layout.get('imageWidth', 48))
+                layout['imageHeight'] = size.get('height', layout.get('imageHeight', 48))
         self.layouts = layouts
         backdrops = {s['objectId'] for s, _ in instances if s['kind'] == 'backdrop'}
         for script, _ in instances:
@@ -331,7 +424,12 @@ class StageSession:
                 lambda angle, seconds, on_finish, identity=script['objectId']: self.start_direction_animation(identity, angle, seconds, on_finish),
                 lambda value, seconds, on_finish, identity=script['objectId']: self.start_size_animation(identity, value, seconds, on_finish),
                 clone=lambda identity=script['objectId']: self.clone_instance(identity),
-                delete_clone=lambda identity=script['objectId']: self.delete_instance(identity))
+                delete_clone=lambda identity=script['objectId']: self.delete_instance(identity),
+                touching=lambda name, identity=script['objectId']: self.touching(identity, name),
+                touching_edge=lambda identity=script['objectId']: self.touching_edge(identity),
+                touching_pointer=lambda identity=script['objectId']: self.touching_pointer(identity),
+                wait_animation=lambda kind, identity=script['objectId']: self.wait_animation(identity, kind),
+                costume_sizes=self.costume_image_sizes)
         self.thread = threading.Thread(target=self._sample, daemon=True)
 
     def start_position_animation(self, identity, target_x, target_y, seconds, on_finish=None):
@@ -342,12 +440,13 @@ class StageSession:
         if seconds <= 0 or (target_x == instance.x and target_y == instance.y):
             self.animations.pop(key, None)
             instance.goto(target_x, target_y)
-            return
+            return False
         if on_finish is not None:
             validate_name(on_finish)
         self.animations[key] = dict(kind='position', start=(instance.x, instance.y),
             target=(target_x, target_y), started=clock.seconds(), duration=seconds,
             last=(instance.x, instance.y), on_finish=on_finish)
+        return True
 
     def start_direction_animation(self, identity, target, seconds, on_finish=None):
         instance = self._animation_instance(identity)
@@ -357,12 +456,13 @@ class StageSession:
         if seconds <= 0 or delta == 0:
             self.animations.pop(key, None)
             instance.direction = target
-            return
+            return False
         if on_finish is not None:
             validate_name(on_finish)
         self.animations[key] = dict(kind='direction', start=instance.direction,
             target=target, delta=delta, started=clock.seconds(), duration=seconds,
             last=instance.direction, on_finish=on_finish)
+        return True
 
     def start_size_animation(self, identity, target, seconds, on_finish=None):
         instance = self._animation_instance(identity)
@@ -371,11 +471,12 @@ class StageSession:
         if seconds <= 0 or target == instance.size:
             self.animations.pop(key, None)
             instance.size = target
-            return
+            return False
         if on_finish is not None:
             validate_name(on_finish)
         self.animations[key] = dict(kind='size', start=instance.size, target=target,
             started=clock.seconds(), duration=seconds, last=instance.size, on_finish=on_finish)
+        return True
 
     def _animation_instance(self, identity):
         instance = self.instances_by_id.get(identity)
@@ -408,7 +509,12 @@ class StageSession:
                 lambda angle, seconds, on_finish, identity=clone_id: self.start_direction_animation(identity, angle, seconds, on_finish),
                 lambda value, seconds, on_finish, identity=clone_id: self.start_size_animation(identity, value, seconds, on_finish),
                 clone=lambda: self.clone_instance(clone_id),
-                delete_clone=lambda: self.delete_instance(clone_id))
+                delete_clone=lambda: self.delete_instance(clone_id),
+                touching=lambda name, identity=clone_id: self.touching(identity, name),
+                touching_edge=lambda identity=clone_id: self.touching_edge(identity),
+                touching_pointer=lambda identity=clone_id: self.touching_pointer(identity),
+                wait_animation=lambda kind, identity=clone_id: self.wait_animation(identity, kind),
+                costume_sizes=self.costume_image_sizes)
             values = source.__dict__.get('_vac_values')
             if values is not None:
                 clone.__dict__['_vac_values'] = dict(values)
@@ -427,9 +533,9 @@ class StageSession:
                 callback = getattr(clone, getattr(source_callback, '__name__', ''), None)
                 if callable(callback):
                     clone_start = callback
+            if clone_start is not None:
+                self.pending_clone_starts.append((clone_id, clone_start))
         self.publish()
-        if clone_start is not None:
-            clone_start()
         return clone
 
     def delete_instance(self, identity):
@@ -450,9 +556,106 @@ class StageSession:
                 self.click_handlers.pop(identity, None)
             for key in [key for key in self.animations if key[0] == identity]:
                 self.animations.pop(key, None)
+            self.pending_clone_starts = [item for item in self.pending_clone_starts if item[0] != identity]
             instance.__dict__['_vac_deleted'] = True
         self.publish()
         return True
+
+    @staticmethod
+    def _projection(points, axis):
+        values = [point[0] * axis[0] + point[1] * axis[1] for point in points]
+        return min(values), max(values)
+
+    @classmethod
+    def _polygons_overlap(cls, first, second):
+        """Separating-axis test for two rotated rectangles; touching edges count."""
+        for points in (first, second):
+            for index, point in enumerate(points):
+                following = points[(index + 1) % len(points)]
+                axis = (-(following[1] - point[1]), following[0] - point[0])
+                length = math.hypot(*axis)
+                if length == 0:
+                    continue
+                axis = (axis[0] / length, axis[1] / length)
+                first_min, first_max = cls._projection(first, axis)
+                second_min, second_max = cls._projection(second, axis)
+                if first_max < second_min or second_max < first_min:
+                    return False
+        return True
+
+    @staticmethod
+    def _point_in_polygon(point, polygon):
+        x, y = point
+        inside = False
+        for index, current in enumerate(polygon):
+            following = polygon[(index + 1) % len(polygon)]
+            if ((current[1] > y) != (following[1] > y)
+                    and x < (following[0] - current[0]) * (y - current[1])
+                    / (following[1] - current[1]) + current[0]):
+                inside = not inside
+        return inside
+
+
+    @staticmethod
+    def _validate_role_name(name):
+        if (not isinstance(name, str) or not name or name != name.strip() or len(name) > 128
+                or any(unicodedata.category(char) == 'Cc' for char in name)):
+            raise ValueError('角色名称必须为 1–128 个字符，不能包含控制字符或首尾空白。')
+        return name
+
+    def touching(self, identity, name):
+        name = self._validate_role_name(name)
+        if name not in self.role_names:
+            raise ValueError(f'角色不存在：{name}')
+        current = self.instances_by_id.get(identity)
+        if not isinstance(current, ElementBase) or not current.visible:
+            return False
+        corners = current._vac_corners()
+        for script, candidate in list(self.instances):
+            if script['kind'] != 'object' or candidate is current or not candidate.visible:
+                continue
+            if Path(script['path']).stem != name:
+                continue
+            if self._polygons_overlap(corners, candidate._vac_corners()):
+                return True
+        return False
+
+    def touching_edge(self, identity):
+        current = self.instances_by_id.get(identity)
+        if not isinstance(current, ElementBase) or not current.visible:
+            return False
+        box = current._vac_box()
+        return box[0] <= -240 or box[2] >= 240 or box[1] <= -180 or box[3] >= 180
+
+    def touching_pointer(self, identity):
+        current = self.instances_by_id.get(identity)
+        if not isinstance(current, ElementBase) or not current.visible:
+            return False
+        x, y, seen = self.pointer_position()
+        if not seen:
+            return False
+        return self._point_in_polygon((x, y), current._vac_corners())
+
+    def wait_animation(self, identity, kind):
+        """Pump the event loop until this instance's tween finishes or disappears."""
+        while True:
+            with self.lock:
+                if identity not in self.instances_by_id or (identity, kind) not in self.animations:
+                    return
+            try:
+                wait_seconds(0.01)
+            except RuntimeError:
+                return
+
+    def run_pending_clone_starts(self):
+        while True:
+            with self.lock:
+                if not self.pending_clone_starts:
+                    return
+                identity, callback = self.pending_clone_starts.pop(0)
+                if identity not in self.instances_by_id:
+                    continue
+            callback()
 
     def advance_animations(self):
         changed = False

@@ -128,6 +128,7 @@ class EventInbox:
         self._run_timers(timers, stage)
         if stage:
             stage.advance_animations()
+            stage.run_pending_clone_starts()
         if self.stopped.is_set():
             return
         try:

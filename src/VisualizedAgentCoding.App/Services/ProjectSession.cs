@@ -33,6 +33,9 @@ public interface IProjectSession : IProjectValidityChecker
 
     ProjectScriptCreation CreateScript(ProjectWorkspace project, ProjectScriptKind kind, string scriptName);
 
+    ProjectWorkspace SaveProjectData(ProjectWorkspace project,
+        IReadOnlyList<ProjectVariable> variables, IReadOnlyList<ProjectListDefinition> lists);
+
     ProjectWorkspace RegisterEventHandler(ProjectWorkspace project, string scriptId, EventHandlerRegistration registration);
 
     ProjectWorkspace UnregisterEventHandler(ProjectWorkspace project, string scriptId, string eventKind, string? argument = null);
@@ -79,6 +82,10 @@ public sealed class ProjectSession : IProjectSession
 
     public ProjectScriptCreation CreateScript(ProjectWorkspace project, ProjectScriptKind kind, string scriptName) =>
         projectService.CreateScript(project, kind, scriptName);
+
+    public ProjectWorkspace SaveProjectData(ProjectWorkspace project,
+        IReadOnlyList<ProjectVariable> variables, IReadOnlyList<ProjectListDefinition> lists) =>
+        projectService.SaveProjectData(project, variables, lists);
 
     public ProjectWorkspace RegisterEventHandler(
         ProjectWorkspace project,

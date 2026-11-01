@@ -416,6 +416,9 @@ public sealed class ScriptManagementViewModelTests : IAsyncLifetime
             inner.SaveScript(p, s, c);
         }
         public ProjectScriptCreation CreateScript(ProjectWorkspace p, ProjectScriptKind k, string n) => inner.CreateScript(p, k, n);
+        public ProjectWorkspace SaveProjectData(ProjectWorkspace p,
+            IReadOnlyList<ProjectVariable> variables, IReadOnlyList<ProjectListDefinition> lists) =>
+            inner.SaveProjectData(p, variables, lists);
         public ProjectWorkspace DeleteScript(ProjectWorkspace p, string id)
         {
             if (FailDelete) throw new IOException("delete failed");

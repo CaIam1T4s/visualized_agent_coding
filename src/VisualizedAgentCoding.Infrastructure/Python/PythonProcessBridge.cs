@@ -59,6 +59,19 @@ public sealed class PythonProcessBridge : IPythonBridge
         }, cancellationToken);
     }
 
+    public Task<PythonBlockTree> BuildBlockTreeAsync(PythonBlockRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Source);
+        return ExecuteAsync(async token =>
+        {
+            await EnsureStartedAsync(token).ConfigureAwait(false);
+            if (!info!.Capabilities.Contains("blocks")) throw new PythonBridgeException("Python Helper 不支持积木投影。");
+            var result = await SendAsync<PythonBlockTree>("python.blocks", new { source = request.Source }, token).ConfigureAwait(false);
+            return result;
+        }, cancellationToken);
+    }
+
     public Task<VisualizedAgentCoding.Application.Editor.ScriptImportsResult> InspectImportsAsync(
         VisualizedAgentCoding.Application.Editor.ScriptImportsRequest request, CancellationToken cancellationToken = default)
         => ExecuteAsync(async token =>

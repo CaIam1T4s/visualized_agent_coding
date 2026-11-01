@@ -21,6 +21,7 @@ public partial class MainViewModel
     private CancellationTokenSource? renameCancellation;
     private readonly List<Task> renameTasks = new();
     public ObservableCollection<ScriptRenamePreviewItem> RenameChanges { get; } = [];
+    public event Action<StageObjectItem>? StageObjectNameFocusRequested;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(IsScriptActionDialogOpen))] private bool isRenamePreviewOpen;
     [ObservableProperty] private bool canApplyRename;
     [ObservableProperty] private string renamePreviewStatus = string.Empty;
@@ -36,6 +37,59 @@ public partial class MainViewModel
         CategoryFor(script.Kind).CompleteCreation();
         CategoryFor(script.Kind).IsExpanded = true;
         RefreshProjectResources();
+    }
+
+    /// <summary>Rename from the object properties panel without opening the resource-filter editor.</summary>
+    public async Task<bool> RenameStageObjectAsync(StageObjectItem item, string newName)
+    {
+        if (activeProject?.FindScript(item.ScriptId) is not { } script) return false;
+        newName = newName.Trim();
+        if (string.Equals(newName, Path.GetFileNameWithoutExtension(script.Path), StringComparison.Ordinal)) return true;
+        if (IsPythonActive || IsScriptActionDialogOpen)
+        {
+            ReportResourceMessage("当前状态不能重命名脚本。");
+            return false;
+        }
+        if (scriptRenameService is null)
+        {
+            ReportResourceMessage("重命名分析不可用，未修改文件。");
+            return false;
+        }
+        var project = activeProject;
+        var version = pythonDocumentVersion;
+        try
+        {
+            if (OpenScript is { } current && loadedScriptId == current.Id
+                && projectSession.LoadScript(project, current) != loadedScriptSource)
+                throw new ProjectOperationException("当前脚本已被外部修改，请处理冲突后再重命名。");
+            var overlays = OpenScript is { } open
+                ? new[] { new PythonSourceDocument(new Uri(project.ToAbsolutePath(open.Path)).AbsoluteUri, version, PythonCode) }
+                : Array.Empty<PythonSourceDocument>();
+            var plan = await Task.Run(() => scriptRenameService.PlanAsync(project, script.Id, newName, version, overlays));
+            if (!ReferenceEquals(activeProject, project) || version != pythonDocumentVersion)
+                throw new ProjectOperationException("编辑内容已变化，请重新尝试重命名。");
+            var openPath = OpenScript?.Path;
+            activeProject = scriptRenameService.Apply(plan);
+            if (openPath is not null)
+            {
+                var saved = plan.Documents.FirstOrDefault(document => string.Equals(document.Path.Replace('\\', '/'),
+                    openPath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase));
+                if (saved is not null)
+                {
+                    RememberLoadedScript(openScriptId!, saved.After);
+                    PythonCode = saved.After;
+                }
+            }
+            RefreshProjectResources();
+            NotifyScriptEditorState();
+            ReportResourceMessage($"已重命名为 {plan.NewName}.py，并更新 {plan.Changes.Length} 个文件的引用。");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ReportResourceMessage("重命名失败：" + ex.Message);
+            return false;
+        }
     }
 
     [RelayCommand]

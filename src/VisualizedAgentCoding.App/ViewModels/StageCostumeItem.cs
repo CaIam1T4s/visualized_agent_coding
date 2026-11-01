@@ -21,5 +21,5 @@ public partial class StageCostumeItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(Summary))]
     private string name;
     public string FileName => Path.GetFileName(ImagePath);
-    public string Summary => $"{Name} · {FileName}";
+    public string Summary => Name;
 }

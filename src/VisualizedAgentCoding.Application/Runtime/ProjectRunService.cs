@@ -112,9 +112,13 @@ public sealed class ProjectRunService(IProjectStore store, IPythonBridge bridge)
         foreach (var source in sources)
             if (store.ReadScript(project.RootPath, Path.GetRelativePath(project.RootPath, new Uri(source.Uri).LocalPath)) != source.Source)
                 throw new ProjectOperationException("运行准备期间磁盘源码已变化，请重新运行。");
+        var data = new RuntimeProjectData(
+            (project.Manifest.Variables ?? []).Select(v => new RuntimeVariableDefinition(v.Name, v.Type, v.Value)).ToArray(),
+            (project.Manifest.Lists ?? []).Select(l => new RuntimeListDefinition(l.Name, l.Values.ToArray())).ToArray());
         return new(Guid.NewGuid().ToString("N"), executable, project.RootPath, project.Manifest.MainScript,
             sources.Select(s => new PythonRunSource(Path.GetRelativePath(project.RootPath, new Uri(s.Uri).LocalPath).Replace('\\', '/'), s.Source)).ToArray(),
             project.Manifest.Scripts.Select(s => new PythonRunScript(s.Id, s.ObjectId, s.Path, s.Kind.ToString().ToLowerInvariant())).ToArray(),
-            handlers.ToArray(), snapshots.ToArray());
+            handlers.ToArray(), snapshots.ToArray(), ProjectData: data);
+
     }
 }

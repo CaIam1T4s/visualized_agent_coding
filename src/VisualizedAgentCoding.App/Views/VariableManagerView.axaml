@@ -1,0 +1,104 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:happy_agent_coding.ViewModels"
+             x:Class="happy_agent_coding.Views.VariableManagerView"
+             x:DataType="vm:VariableManagerModel" KeyboardNavigation.TabNavigation="Cycle">
+    <Border Background="#99000000">
+        <Border Width="680" MaxWidth="820" MaxHeight="720" Margin="24" CornerRadius="8"
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" Padding="24,10,20,10">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="管理变量和列表" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="caption-button" Click="OnCancel" ToolTip.Tip="关闭" AutomationProperties.Name="关闭">
+                            <TextBlock Classes="caption-glyph" Text="&#xE8BB;" />
+                        </Button>
+                    </Grid>
+                </Border>
+                <TabControl Grid.Row="1" SelectedIndex="{Binding TabIndex}" Margin="24"
+                            SelectionChanged="OnTabChanged">
+                    <TabItem Header="变量">
+                        <Grid ColumnDefinitions="220,*" ColumnSpacing="20">
+                            <StackPanel Spacing="8">
+                                <ListBox x:Name="VariableList" ItemsSource="{Binding Variables}"
+                                         SelectedItem="{Binding SelectedVariable}"
+                                         SelectionChanged="OnSelectionChanged">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:VariableDraft">
+                                            <TextBlock Text="{Binding Name}" />
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <Button Content="新建变量" Click="OnAddVariable" Classes="command-button secondary" />
+                                <Button Content="删除选中" Click="OnRemove" Classes="command-button secondary" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="10"
+                                        x:DataType="vm:VariableDraft"
+                                        DataContext="{Binding SelectedVariable}">
+                                <TextBlock Text="变量名称" />
+                                <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="例如 score" />
+                                <TextBlock Text="类型" />
+                                <ComboBox SelectedIndex="{Binding TypeIndex}">
+                                    <ComboBoxItem Content="数字" />
+                                    <ComboBoxItem Content="文本" />
+                                    <ComboBoxItem Content="布尔" />
+                                </ComboBox>
+                                <TextBlock Text="初始值" />
+                                <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="例如 0 或 true" />
+                                <TextBlock x:Name="VariableReferences" IsVisible="False" TextWrapping="Wrap"
+                                           FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="所有角色、背景和克隆体在本次运行中共享这些数据。"
+                                           TextWrapping="Wrap" FontSize="11"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Grid>
+                    </TabItem>
+                    <TabItem Header="列表">
+                        <Grid ColumnDefinitions="220,*" ColumnSpacing="20">
+                            <StackPanel Spacing="8">
+                                <ListBox x:Name="ListList" ItemsSource="{Binding Lists}"
+                                         SelectedItem="{Binding SelectedList}"
+                                         SelectionChanged="OnSelectionChanged">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ListDraft">
+                                            <TextBlock Text="{Binding Name}" />
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <Button Content="新建列表" Click="OnAddList" Classes="command-button secondary" />
+                                <Button Content="删除选中" Click="OnRemove" Classes="command-button secondary" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="10"
+                                        x:DataType="vm:ListDraft"
+                                        DataContext="{Binding SelectedList}">
+                                <TextBlock Text="列表名称" />
+                                <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="例如 items" />
+                                <TextBlock Text="初始值（每行一个）" />
+                                <TextBox Text="{Binding ValuesText, UpdateSourceTrigger=PropertyChanged}"
+                                         AcceptsReturn="True" MinHeight="160" MaxHeight="300"
+                                         TextWrapping="NoWrap"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                                <TextBlock x:Name="ListReferences" IsVisible="False" TextWrapping="Wrap"
+                                           FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="第一版列表元素按文本保存。"
+                                           TextWrapping="Wrap" FontSize="11"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+                <Border Grid.Row="2" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="24,12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock x:Name="ErrorText" IsVisible="False" Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                   TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Button Content="取消" Classes="command-button secondary" Click="OnCancel" />
+                            <Button Content="应用" Classes="command-button primary" Click="OnAccept" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+    </Border>
+</UserControl>

@@ -59,6 +59,7 @@ public sealed class CostumeTests : IAsyncLifetime
         item.AddCostume(first, select: true);
         item.AddCostume(second, select: false);
         Assert.Same(first, item.SelectedCostume);
+        Assert.Equal("默认", first.Summary);
         Assert.Equal("c1", item.Snapshot().InitialCostumeId);
         item.SelectInitialCostume(second);
         var state = item.Snapshot();

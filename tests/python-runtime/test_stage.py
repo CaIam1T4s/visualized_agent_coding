@@ -269,6 +269,7 @@ class CloningTests(unittest.TestCase):
         session = self._session(actor, [], clone_starts={'a': actor.on_clone_start})
         try:
             clone = actor.clone()
+            session.run_pending_clone_starts()
             self.assertTrue(getattr(clone, 'clone_started', False))
             self.assertFalse(getattr(actor, 'clone_started', False))
         finally:
@@ -280,6 +281,7 @@ class CloningTests(unittest.TestCase):
         session = self._session(actor, emitted, clone_starts={'a': actor.on_clone_start})
         try:
             clone = actor.clone()
+            session.run_pending_clone_starts()
             self.assertNotIn(clone, [instance for _, instance in session.instances])
             self.assertFalse(any(key[0].startswith('clone:') for key in session.animations))
             session.publish()
@@ -359,6 +361,115 @@ class CloningTests(unittest.TestCase):
             actor.clone()
             with self.assertRaises(RuntimeError):
                 actor.clone()
+        finally:
+            session.close()
+
+
+class CollisionTests(unittest.TestCase):
+    def _session(self, image_sizes=None):
+        cat, dog = Actor(), Actor()
+        session = StageSession(
+            {'sessionId': 'run', 'initialStage': {'currentBackdropId': None, 'objects': [
+                {'objectId': 'cat'}, {'objectId': 'dog'}]}, 'imageSizes': image_sizes or {}},
+            [({'objectId': 'cat', 'kind': 'object', 'path': 'objects/cat.py', 'id': 'cat-script'}, cat),
+             ({'objectId': 'dog', 'kind': 'object', 'path': 'objects/dog.py', 'id': 'dog-script'}, dog)],
+            lambda kind, stage=None: None)
+        return session, cat, dog
+
+    def test_visible_instances_overlap_by_role_name(self):
+        session, cat, dog = self._session()
+        try:
+            self.assertTrue(cat.touching('dog'))
+            self.assertTrue(dog.touching('cat'))
+            dog.goto(100, 0)
+            self.assertFalse(cat.touching('dog'))
+            self.assertFalse(dog.touching('cat'))
+        finally:
+            session.close()
+
+    def test_invisible_and_deleted_instances_do_not_collide(self):
+        session, cat, dog = self._session()
+        try:
+            dog.visible = False
+            self.assertFalse(cat.touching('dog'))
+            dog.visible = True
+        finally:
+            session.close()
+
+    def test_clones_can_collide_with_siblings(self):
+        session, cat, dog = self._session()
+        try:
+            clone = cat.clone()
+            dog.goto(100, 0)
+            clone.goto(100, 0)
+            self.assertTrue(clone.touching('dog'))
+            clone.goto(0, 0)
+            self.assertFalse(clone.touching('dog'))
+        finally:
+            session.close()
+
+    def test_edge_and_pointer_collision(self):
+        session, cat, dog = self._session(image_sizes={'cat': {'width': 20, 'height': 20}})
+        try:
+            cat.goto(230, 0)
+            self.assertTrue(cat.touching_edge())
+            cat.goto(225, 0)
+            self.assertFalse(cat.touching_edge())
+            cat.goto(0, 0)
+            self.assertFalse(cat.touching_pointer())
+            session.set_pointer(0, 0)
+            self.assertTrue(cat.touching_pointer())
+            session.set_pointer(100, 0)
+            self.assertFalse(cat.touching_pointer())
+        finally:
+            session.close()
+
+    def test_unknown_role_is_rejected(self):
+        session, cat, dog = self._session()
+        try:
+            with self.assertRaises(ValueError):
+                cat.touching('Missing')
+        finally:
+            session.close()
+
+    def test_collision_uses_the_active_costume_size(self):
+        cat, dog = Actor(), Actor()
+        session = StageSession(
+            {'sessionId': 'run', 'initialStage': {'currentBackdropId': None, 'objects': [
+                {'objectId': 'cat', 'costumes': [
+                    {'id': 'small', 'name': '小', 'imagePath': 'assets/images/small.png',
+                     'normalizeImage': False},
+                    {'id': 'large', 'name': '大', 'imagePath': 'assets/images/large.png',
+                     'normalizeImage': False}],
+                 'initialCostumeId': 'small'},
+                {'objectId': 'dog'}]},
+             'stageCostumeImageSizes': {'small': {'width': 10, 'height': 10},
+                                        'large': {'width': 100, 'height': 100}}},
+            [({'objectId': 'cat', 'kind': 'object', 'path': 'objects/cat.py', 'id': 'cat-script'}, cat),
+             ({'objectId': 'dog', 'kind': 'object', 'path': 'objects/dog.py', 'id': 'dog-script'}, dog)],
+            lambda kind, stage=None: None)
+        try:
+            dog.goto(60, 0)
+            self.assertFalse(cat.touching('dog'))
+            cat.switch_costume('大')
+            self.assertTrue(cat.touching('dog'))
+        finally:
+            session.close()
+
+    def test_rotation_changes_overlap_and_pointer_bounds(self):
+        session, cat, dog = self._session(image_sizes={'cat': {'width': 100, 'height': 20}})
+        try:
+            cat.goto(0, 0)
+            cat.direction = 90
+            dog.goto(0, 100)
+            self.assertFalse(cat.touching('dog'))
+            cat.direction = 0
+            dog.goto(0, 70)
+            self.assertTrue(cat.touching('dog'))
+            session.set_pointer(30, 0)
+            self.assertFalse(cat.touching_pointer())
+            cat.direction = 90
+            self.assertTrue(cat.touching_pointer())
         finally:
             session.close()
 

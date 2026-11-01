@@ -18,6 +18,7 @@ from vac_runtime._entry import entry_session, install_router, install_stage, ins
 from vac_runtime.messages import MessageRouter
 from vac_runtime.stage import StageSession
 from vac_runtime.events import EventInbox
+from vac_runtime import data as project_data
 
 
 def exception_payload(error):
@@ -159,6 +160,7 @@ def run(request, emit, inbox=None):
 
 def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=None):
     clock.ensure_started()
+    project_data.initialize(request.get('projectData'))
     if legacy_main is None:
         set_phase('class-definition')
     instances = []
@@ -284,6 +286,8 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
             legacy_main()
         for method in starts:
             method()
+        if stage and not request.get('keepAlive'):
+            stage.run_pending_clone_starts()
         if request.get('keepAlive'):
             if legacy_main is not None or inbox is None:
                 raise RuntimeError('Interactive execution requires the managed project entry.')

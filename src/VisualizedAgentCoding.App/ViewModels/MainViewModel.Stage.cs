@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using VisualizedAgentCoding.Application.Runtime;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Avalonia.Media.Imaging;
 using happy_agent_coding.Services;
@@ -40,11 +41,17 @@ public partial class MainViewModel
     public bool CanEditStage => !IsPythonActive && !hasRuntimePreview;
     public bool CanEditInitialStage => HasOpenProject && !IsPythonActive && !hasRuntimePreview;
     public bool CanReturnToInitialStage => hasRuntimePreview && !IsPythonActive;
+    [ObservableProperty] private bool showCollisionBoxes;
 
     [RelayCommand(CanExecute = nameof(CanReturnToInitialStage))]
     private void ReturnToInitialStage() => ClearRuntimeStage();
 
     partial void OnIsPythonActiveChanged(bool value) => RefreshStageInspectorState();
+
+    partial void OnShowCollisionBoxesChanged(bool value)
+    {
+        foreach (var item in StageRenderSprites) item.ShowCollisionBox = value;
+    }
 
     private void RefreshStageInspectorState()
     {
@@ -99,7 +106,43 @@ public partial class MainViewModel
         };
         clone.Restore(source.Snapshot());
         LoadInitialStageImage(clone);
+        clone.ShowCollisionBox = ShowCollisionBoxes;
         return clone;
+    }
+
+    private Dictionary<string, RuntimeImageSize> CollectStageImageSizes() =>
+        StageSprites.Concat(StageBackdrops)
+            .Where(item => item.Picture is { } picture)
+            .ToDictionary(item => item.ObjectId,
+                item => new RuntimeImageSize(item.Picture!.PixelSize.Width, item.Picture.PixelSize.Height));
+
+    /// <summary>All costume dimensions are frozen for collision, not just the initial picture.</summary>
+    private Dictionary<string, RuntimeImageSize> CollectStageCostumeImageSizes()
+    {
+        var result = new Dictionary<string, RuntimeImageSize>(StringComparer.Ordinal);
+        if (activeProject is null) return result;
+        var byPath = new Dictionary<string, RuntimeImageSize>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in StageSprites.Concat(StageBackdrops))
+        {
+            foreach (var costume in item.Costumes)
+            {
+                if (!byPath.TryGetValue(costume.ImagePath, out var size))
+                {
+                    try
+                    {
+                        var bytes = StageImageLoader.Read(Path.Combine(activeProject.RootPath,
+                            costume.ImagePath.Replace('/', Path.DirectorySeparatorChar)));
+                        using var input = new MemoryStream(bytes);
+                        using var bitmap = new Bitmap(input);
+                        size = new RuntimeImageSize(bitmap.PixelSize.Width, bitmap.PixelSize.Height);
+                    }
+                    catch (Exception) { continue; }
+                    byPath[costume.ImagePath] = size;
+                }
+                result[costume.Id] = size;
+            }
+        }
+        return result;
     }
 
     private void CleanUnusedImagesOnOpen()
@@ -211,6 +254,7 @@ public partial class MainViewModel
         item.IsStageReadOnly = IsPythonActive;
         item.InitialEditRequested += BeginStagePropertyEdit;
         item.PropertyChanged += OnStageItemChanged;
+        item.ShowCollisionBox = ShowCollisionBoxes;
     }
 
     private void LoadInitialStageImage(StageObjectItem item)

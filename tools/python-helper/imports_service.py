@@ -116,12 +116,14 @@ def classify(entry, context):
         return None, '不支持相对导入、通配符或无效模块名称。'
     if entry.get('alias') is not None and not _ident(entry['alias']):
         return None, '别名必须是有效且非保留的 Python 名称。'
-    if module == 'vac_runtime' and entry.get('name') in ('broadcast', 'timer', 'switch_backdrop', 'wait'):
+    if module == 'vac_runtime' and entry.get('name') in ('broadcast', 'timer', 'switch_backdrop', 'wait',
+            'get_variable', 'set_variable', 'add_to_variable', 'change_variable', 'list_append', 'list_remove',
+            'list_clear', 'list_length', 'list_get', 'list_set', 'list_values'):
         if entry.get('source') not in (None, '', 'runtime') or entry.get('scriptId'):
             return None, '运行时 API 必须来自产品运行时。'
         return dict(entry, source='runtime', scriptId=None), None
     if entry.get('source') == 'runtime':
-        return None, '当前公开运行时 API 仅支持 from vac_runtime import broadcast, timer, switch_backdrop, wait。'
+        return None, '当前公开运行时 API 仅支持 from vac_runtime import broadcast, timer, switch_backdrop, wait 以及变量/列表函数。'
     scripts = context.get('scripts', [])
     forms = {module, module + '.' + entry['name'] if entry.get('name') else module}
     target = next((s for s in scripts if forms.intersection((s['module'], s['module'].split('.')[-1]))), None)

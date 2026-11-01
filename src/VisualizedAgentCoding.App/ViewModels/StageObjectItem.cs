@@ -114,6 +114,7 @@ public partial class StageObjectItem : ObservableObject, IDisposable
 
     public ProjectScriptKind Kind { get; }
     public bool IsRuntimeClone { get; }
+    [ObservableProperty] private bool showCollisionBox;
 
     public string RelativePath { get; private set; } = string.Empty;
 

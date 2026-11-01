@@ -17,4 +17,6 @@ public interface IPythonBridge : IAsyncDisposable
     Task<PythonReferencesResult> FindModuleDependenciesAsync(PythonModuleDependenciesRequest request, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Module dependency analysis is unavailable.");
     Task<PythonReferencesResult> FindReferencesAsync(PythonReferencesRequest request, CancellationToken cancellationToken = default);
+    Task<PythonBlockTree> BuildBlockTreeAsync(PythonBlockRequest request, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Block projection is unavailable.");
 }

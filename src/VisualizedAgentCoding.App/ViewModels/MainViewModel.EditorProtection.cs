@@ -41,6 +41,7 @@ public partial class MainViewModel
         editorUserProjection = null;
         NotifyEditorDiagnosticsChanged();
         if (projection is not null && projection.FullSource == PythonCode) SchedulePythonAnalysis();
+        if (IsBlockEditorMode) ScheduleBlockEditorRefresh();
     }
     /// <summary>Inspect the opened snapshot, never reinterpret a partially edited user region.</summary>
     public async Task<ObjectScriptDocument?> InspectEditorProtectionAsync(CancellationToken token)

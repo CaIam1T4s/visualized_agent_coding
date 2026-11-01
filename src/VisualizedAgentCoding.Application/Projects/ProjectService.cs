@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using VisualizedAgentCoding.Application.Ports;
 using VisualizedAgentCoding.Domain.Projects;
 
@@ -244,6 +245,20 @@ public sealed class ProjectService : IProjectValidityChecker
 
         var owner = ResolveScript(project, scriptId);
         return PersistHandlers(project, AddHandler(project.Manifest, owner, registration));
+    }
+
+    /// <summary>Replaces the project-level variable/list declarations after a manifest conflict check.</summary>
+    public ProjectWorkspace SaveProjectData(ProjectWorkspace project,
+        IReadOnlyList<ProjectVariable> variables, IReadOnlyList<ProjectListDefinition> lists)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ProjectDataRules.Validate(variables, lists);
+        if (JsonSerializer.Serialize(store.ReadManifest(project.RootPath)) != JsonSerializer.Serialize(project.Manifest))
+            throw new ProjectOperationException("项目清单已被外部修改，请重新打开项目后管理变量。");
+        var manifest = project.Manifest with { Variables = [.. variables], Lists = [.. lists] };
+        ProjectManifestValidator.Validate(manifest, path => store.ScriptExists(project.RootPath, path));
+        store.WriteManifest(project.RootPath, manifest);
+        return project.WithManifest(manifest);
     }
 
     /// <summary>Removes a handler binding.</summary>

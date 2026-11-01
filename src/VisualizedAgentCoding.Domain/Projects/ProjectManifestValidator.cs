@@ -40,6 +40,7 @@ public static class ProjectManifestValidator
 
         ValidateScripts(manifest, scriptExists);
         ValidateEventHandlers(manifest);
+        ProjectDataRules.Validate(manifest.Variables, manifest.Lists);
         foreach (var path in manifest.PendingScriptDeletions ?? throw new ProjectFormatException("Missing pending script deletion list."))
         {
             var normalized = NormalizePath(path);

@@ -3,6 +3,7 @@ using VisualizedAgentCoding.Application.Projects;
 using VisualizedAgentCoding.Domain.Projects;
 using VisualizedAgentCoding.Infrastructure.Projects;
 using VisualizedAgentCoding.Infrastructure.Python;
+using happy_agent_coding.Services;
 using happy_agent_coding.ViewModels;
 
 namespace VisualizedAgentCoding.App.Tests;
@@ -53,5 +54,24 @@ public sealed class ScriptRenameTests : IAsyncLifetime
         Assert.Contains($"class {newClass}(", rewritten);
         var inspected = await new ObjectScriptDocumentService(bridge).InspectAsync(updated, renamed.Id, 2, rewritten);
         Assert.Equal(ObjectScriptStatus.Recognized, inspected.Status);
+    }
+
+    [Fact]
+    public async Task PropertiesPanelRenameUpdatesFileClassAndStableIdentity()
+    {
+        await using var vm = new MainViewModel(new JsonSettingsStore(Path.Combine(root, "settings.json")),
+            new InMemoryRecentProjectsStore(), new ProjectSession(), bridge);
+        await vm.OpenProject(root);
+        await vm.AddSpriteCommand.ExecuteAsync(null);
+        var original = Assert.Single(vm.StageSprites);
+        Assert.True(await vm.RenameStageObjectAsync(original, "fire_hero"));
+        var renamed = Assert.Single(vm.StageSprites);
+        Assert.Equal("fire_hero", renamed.DisplayName);
+        Assert.Equal(original.ScriptId, renamed.ScriptId);
+        Assert.Equal(original.ObjectId, renamed.ObjectId);
+        Assert.Equal("scripts/objects/fire_hero.py", vm.OpenScript!.Path);
+        Assert.Contains("class FireHero(", vm.PythonCode);
+        Assert.True(File.Exists(Path.Combine(root, "scripts", "objects", "fire_hero.py")));
+        Assert.False(File.Exists(Path.Combine(root, "scripts", "objects", "sprite.py")));
     }
 }

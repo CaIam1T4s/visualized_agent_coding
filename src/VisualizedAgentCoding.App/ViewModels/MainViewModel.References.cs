@@ -22,6 +22,7 @@ public sealed record PythonReferenceItem(PythonReferenceLocation Location, strin
 public partial class MainViewModel
 {
     private ProjectReferenceService? referenceService;
+    private ProjectDataReferenceService? dataReferenceService;
     private CancellationTokenSource? referenceCancellation;
     private bool navigatingReference;
     private readonly List<Task> referenceTasks = new();
@@ -43,6 +44,7 @@ public partial class MainViewModel
             referenceService = new ProjectReferenceService(bridge, store);
             deletionImpactService = new ScriptDeletionImpactService(bridge, store);
             scriptRenameService = new ScriptRenameService(bridge, store);
+            dataReferenceService = new ProjectDataReferenceService(store);
             objectScriptDocumentService = new ObjectScriptDocumentService(bridge);
             objectScriptSaveService = new ObjectScriptSaveService(objectScriptDocumentService, store);
             scriptImportService = new VisualizedAgentCoding.Application.Editor.ScriptImportService(bridge);

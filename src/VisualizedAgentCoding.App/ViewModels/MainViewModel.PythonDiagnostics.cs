@@ -67,6 +67,7 @@ public partial class MainViewModel : IAsyncDisposable
         RefreshRuntimeNavigationState();
         UpdateOpenTemplateDecoration();
         SchedulePythonAnalysis();
+        if (IsBlockEditorMode) ScheduleBlockEditorRefresh();
     }
 
     private void SchedulePythonAnalysis()

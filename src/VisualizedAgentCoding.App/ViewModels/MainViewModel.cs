@@ -142,8 +142,13 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private double auxiliaryWidth = LayoutSettingValues.DefaultAuxiliaryWidth;
 
+    /// <summary>0 = Python source, 1 = graphical blocks.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPythonEditorMode), nameof(IsBlockEditorMode))]
     private int editorModeIndex = 0;
+
+    public bool IsPythonEditorMode => EditorModeIndex == 0;
+    public bool IsBlockEditorMode => EditorModeIndex == 1;
 
     [ObservableProperty]
     private bool isSettingsOpen;
@@ -230,6 +235,149 @@ public partial class MainViewModel : ViewModelBase
     public bool IsObjectManagerMode => ResourceExplorerModeIndex == 1;
 
     public bool CanCreateScript => activeProject is not null;
+
+    public event Action<string, string>? DataReferenceRenameRequested;
+
+    public IReadOnlyList<ProjectVariable> ProjectVariables => activeProject?.Manifest.Variables ?? [];
+    public IReadOnlyList<ProjectListDefinition> ProjectLists => activeProject?.Manifest.Lists ?? [];
+
+    private IReadOnlyDictionary<string, string>? OpenDataOverlay()
+    {
+        if (OpenScript is not { } open) return null;
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [open.Path.Replace('\\', '/')] = PythonCode,
+        };
+    }
+
+    public IReadOnlyList<ProjectDataReference> FindProjectDataReferences(string name)
+    {
+        if (activeProject is null || dataReferenceService is null) return [];
+        var references = dataReferenceService.Find(activeProject, name, OpenDataOverlay());
+        if (OpenScript is not { } open || CurrentEditorProjection is not { } projection) return references;
+        var openPath = open.Path.Replace('\\', '/');
+        return references.Select(reference =>
+        {
+            if (!string.Equals(reference.Path, openPath, StringComparison.OrdinalIgnoreCase)
+                || !projection.TryToViewPosition(reference.Line, reference.Column, out var line, out var column))
+                return reference;
+            return reference with { Line = line, Column = column };
+        }).ToArray();
+    }
+
+    /// <summary>Reference display with object-script wrapper lines mapped to the visible editor.</summary>
+    public async Task<IReadOnlyList<ProjectDataReference>> FindProjectDataReferencesAsync(string name)
+    {
+        if (activeProject is null || dataReferenceService is null) return [];
+        var references = dataReferenceService.Find(activeProject, name, OpenDataOverlay());
+        var mapped = new List<ProjectDataReference>(references.Count);
+        var openPath = OpenScript?.Path.Replace('\\', '/');
+        foreach (var reference in references)
+        {
+            if (string.Equals(reference.Path, openPath, StringComparison.OrdinalIgnoreCase)
+                && CurrentEditorProjection is { } current)
+            {
+                mapped.Add(current.TryToViewPosition(reference.Line, reference.Column, out var line, out var column)
+                    ? reference with { Line = line, Column = column } : reference);
+                continue;
+            }
+            var script = activeProject.Manifest.Scripts.FirstOrDefault(item =>
+                string.Equals(item.Path.Replace('\\', '/'), reference.Path, StringComparison.OrdinalIgnoreCase));
+            if (script is null || script.Kind == ProjectScriptKind.User || objectScriptDocumentService is null)
+            {
+                mapped.Add(reference);
+                continue;
+            }
+            try
+            {
+                var source = OpenDataOverlay() is { } overlays && overlays.TryGetValue(reference.Path, out var overlay)
+                    ? overlay : runtimeStore.ReadScript(activeProject.RootPath, reference.Path);
+                var document = await objectScriptDocumentService.InspectAsync(activeProject, script.Id, 0, source);
+                if (!document.HasRegions || document.TemplateVersion is not (2 or 3))
+                {
+                    mapped.Add(reference);
+                    continue;
+                }
+                var projection = new VisualizedAgentCoding.Application.Editor.ObjectScripts.MultiRegionProjection(document);
+                mapped.Add(projection.TryToViewPosition(reference.Line, reference.Column, out var line, out var column)
+                    ? reference with { Line = line, Column = column } : reference);
+            }
+            catch (Exception)
+            {
+                mapped.Add(reference);
+            }
+        }
+        return mapped;
+    }
+
+    /// <summary>Persists project-level data edited by the variable manager; null means success.</summary>
+    public string? SaveProjectData(IReadOnlyList<ProjectVariable> variables, IReadOnlyList<ProjectListDefinition> lists)
+    {
+        if (activeProject is null) return "尚未打开项目。";
+        try
+        {
+            ProjectDataRules.Validate(variables, lists);
+            var oldVariables = activeProject.Manifest.Variables ?? [];
+            var oldLists = activeProject.Manifest.Lists ?? [];
+            var oldVariableById = oldVariables.ToDictionary(item => item.Id, StringComparer.Ordinal);
+            var oldListById = oldLists.ToDictionary(item => item.Id, StringComparer.Ordinal);
+            var variablesToDelete = oldVariables.Where(item => variables.All(next => next.Id != item.Id)).ToArray();
+            var listsToDelete = oldLists.Where(item => lists.All(next => next.Id != item.Id)).ToArray();
+            var overlays = OpenDataOverlay();
+            var openPath = OpenScript?.Path.Replace('\\', '/');
+            if (dataReferenceService is not null)
+            {
+                var blocked = new List<string>();
+                foreach (var old in variablesToDelete.Concat<object>(listsToDelete))
+                {
+                    var name = old switch { ProjectVariable v => v.Name, ProjectListDefinition l => l.Name, _ => string.Empty };
+                    var refs = dataReferenceService.Find(activeProject, name, overlays);
+                    if (refs.Count > 0) blocked.Add($"{name}：{refs.Count} 处引用（例如 {refs[0].Display}）");
+                }
+                if (blocked.Count > 0)
+                    return "以下变量/列表仍被脚本引用，未保存：" + Environment.NewLine + string.Join(Environment.NewLine, blocked);
+                var renameOverlays = overlays is null
+                    ? null : new Dictionary<string, string>(overlays, StringComparer.OrdinalIgnoreCase);
+                foreach (var next in variables)
+                {
+                    if (!oldVariableById.TryGetValue(next.Id, out var old) || old.Name == next.Name) continue;
+                    ApplyDataReferenceRewrites(dataReferenceService.Rewrite(activeProject, old.Name, next.Name, renameOverlays),
+                        openPath, renameOverlays, old.Name, next.Name);
+                }
+                foreach (var next in lists)
+                {
+                    if (!oldListById.TryGetValue(next.Id, out var old) || old.Name == next.Name) continue;
+                    ApplyDataReferenceRewrites(dataReferenceService.Rewrite(activeProject, old.Name, next.Name, renameOverlays),
+                        openPath, renameOverlays, old.Name, next.Name);
+                }
+            }
+            activeProject = projectSession.SaveProjectData(activeProject, variables, lists);
+            ReportResourceMessage("项目变量和列表已保存。");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
+        }
+    }
+
+    private void ApplyDataReferenceRewrites(IReadOnlyList<ProjectDataRewrite> rewrites, string? openPath,
+        IDictionary<string, string>? overlays, string oldName, string newName)
+    {
+        foreach (var rewrite in rewrites)
+        {
+            if (string.Equals(rewrite.Path, openPath, StringComparison.OrdinalIgnoreCase))
+            {
+                if (DataReferenceRenameRequested is { } handler) handler(oldName, newName);
+                else PythonCode = rewrite.After;
+                if (overlays is not null) overlays[rewrite.Path] = rewrite.After;
+            }
+            else
+            {
+                runtimeStore.WriteScript(activeProject!.RootPath, rewrite.Path, rewrite.After);
+            }
+        }
+    }
 
     public Task CreateProject(string rootPath, string? name = null) => ActivateProject(projectSession.Create(rootPath, name));
 
@@ -542,20 +690,32 @@ public partial class MainViewModel : ViewModelBase
 
     private async Task AddStageObject(ProjectScriptKind kind)
     {
-        if (activeProject is null)
+        if (activeProject is null || IsPythonActive || !CanEditInitialStage)
             return;
 
-        var category = CategoryFor(kind);
         var name = NextAvailableScriptName(kind);
-        category.NewScriptName = name;
-        CreateScript(category);
-        if (category.HasError)
-            return;
-
-        var created = ObjectsFor(kind)
-            .FirstOrDefault(item => string.Equals(item.DisplayName, name, StringComparison.OrdinalIgnoreCase));
-        if (created is not null)
+        try
+        {
+            var creation = projectSession.CreateScript(activeProject, kind, name);
+            activeProject = creation.Project;
+            RefreshProjectResources();
+            var created = ObjectsFor(kind)
+                .FirstOrDefault(item => string.Equals(item.DisplayName, name, StringComparison.OrdinalIgnoreCase));
+            if (created is null)
+            {
+                ReportResourceMessage("角色已创建，但未能定位舞台对象。");
+                return;
+            }
+            ResourceExplorerModeIndex = 1;
+            ObjectManagerTabIndex = kind == ProjectScriptKind.Backdrop ? 1 : 0;
             await SelectStageObject(created);
+            StageObjectNameFocusRequested?.Invoke(created);
+            ReportResourceMessage($"已创建 {Path.GetFileName(creation.Script.Path)}");
+        }
+        catch (Exception ex)
+        {
+            ReportResourceMessage("创建失败：" + ex.Message);
+        }
     }
 
     private string NextAvailableScriptName(ProjectScriptKind kind)

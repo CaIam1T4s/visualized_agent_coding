@@ -106,7 +106,9 @@ public partial class MainViewModel
                 throw new IOException("运行准备期间编辑内容已变化，请重新运行。");
             if (stageService.Load(project).Revision != stageSnapshot.Revision)
                 throw new VisualizedAgentCoding.Domain.Projects.ProjectOperationException("运行准备期间舞台布局已被修改，请重新加载舞台后运行。");
-            request = request with { InitialStage = stageSnapshot.State, KeepAlive = true };
+            request = request with { InitialStage = stageSnapshot.State, KeepAlive = true,
+                StageImageSizes = CollectStageImageSizes(),
+                StageCostumeImageSizes = CollectStageCostumeImageSizes() };
             lastRun = request;
             var exit = await runtime.RunAsync(request, message => QueueRuntimeEvent(generation, message), token);
             FlushTerminalEvents();

@@ -27,4 +27,10 @@ public sealed record ProjectManifest
     public List<string> PendingScriptDeletions { get; init; } = [];
 
     public List<ProjectEventHandler> EventHandlers { get; init; } = [];
+
+    /// <summary>Project-level variables shared by every script during a run.</summary>
+    public List<ProjectVariable> Variables { get; init; } = [];
+
+    /// <summary>Project-level lists shared by every script during a run.</summary>
+    public List<ProjectListDefinition> Lists { get; init; } = [];
 }

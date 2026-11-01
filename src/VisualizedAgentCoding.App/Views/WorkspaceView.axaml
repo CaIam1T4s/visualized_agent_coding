@@ -131,32 +131,68 @@
                                                 </ItemsControl.ItemContainerTheme>
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="vm:StageObjectItem">
-                                                        <Border Classes="stage-sprite"
-                                                                BorderThickness="0"
-                                                                Classes.has-image="{Binding HasImage}"
-                                                                Classes.selected="{Binding IsSelected}"
-                                                                IsHitTestVisible="{Binding StageHitTestVisible}"
+                                                        <!-- One visual container owns position, size and rotation for both image and collision box. -->
+                                                        <Grid Width="{Binding SpriteWidth}"
+                                                              Height="{Binding SpriteHeight}"
+                                                              RenderTransformOrigin="50%,50%">
+                                                            <Grid.RenderTransform>
+                                                                <RotateTransform Angle="{Binding Rotation}" />
+                                                            </Grid.RenderTransform>
+                                                            <Border Classes="stage-sprite"
+                                                                    BorderThickness="0"
+                                                                    Classes.has-image="{Binding HasImage}"
+                                                                    Classes.selected="{Binding IsSelected}"
+                                                                    IsHitTestVisible="{Binding StageHitTestVisible}"
+                                                                    Opacity="{Binding StageOpacity}"
+                                                                    Tag="{Binding}"
+                                                                    Cursor="SizeAll"
+                                                                    PointerPressed="OnStageSpritePointerPressed"
+                                                                    ToolTip.Tip="{Binding DisplayName}"
+                                                                    AutomationProperties.Name="{Binding DisplayName}">
+                                                                <Grid>
+                                                                <Image Source="{Binding Picture}" Stretch="Uniform" />
+                                                                <TextBlock IsVisible="{Binding HasImage, Converter={x:Static BoolConverters.Not}}" Text="{Binding Initial}"
+                                                                           FontSize="18"
+                                                                           FontWeight="SemiBold"
+                                                                           HorizontalAlignment="Center"
+                                                                           VerticalAlignment="Center" />
+                                                                <Border Classes="stage-sprite-outline" Classes.selected="{Binding IsSelected}" IsHitTestVisible="False" />
+                                                                </Grid>
+                                                            </Border>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <!-- Debug-only overlay: same geometry bindings as sprites, above every layer. -->
+                                            <ItemsControl Width="480"
+                                                          Height="360"
+                                                          IsHitTestVisible="False"
+                                                          ItemsSource="{Binding StageRenderSprites}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <Canvas Width="480" Height="360" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemContainerTheme>
+                                                    <ControlTheme TargetType="ContentPresenter" x:DataType="vm:StageObjectItem">
+                                                        <Setter Property="Canvas.Left" Value="{Binding CanvasLeft}" />
+                                                        <Setter Property="Canvas.Top" Value="{Binding CanvasTop}" />
+                                                        <Setter Property="ZIndex" Value="10000" />
+                                                    </ControlTheme>
+                                                </ItemsControl.ItemContainerTheme>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:StageObjectItem">
+                                                        <Border IsVisible="{Binding ShowCollisionBox}"
                                                                 Width="{Binding SpriteWidth}"
                                                                 Height="{Binding SpriteHeight}"
-                                                                Opacity="{Binding StageOpacity}"
-                                                                Tag="{Binding}"
-                                                                Cursor="SizeAll"
-                                                                PointerPressed="OnStageSpritePointerPressed"
-                                                                ToolTip.Tip="{Binding DisplayName}"
-                                                                AutomationProperties.Name="{Binding DisplayName}"
+                                                                Background="#2200FF00"
+                                                                BorderBrush="#CC00FF00"
+                                                                BorderThickness="1"
+                                                                IsHitTestVisible="False"
                                                                 RenderTransformOrigin="50%,50%">
                                                             <Border.RenderTransform>
                                                                 <RotateTransform Angle="{Binding Rotation}" />
                                                             </Border.RenderTransform>
-                                                            <Grid>
-                                                            <Image Source="{Binding Picture}" Stretch="Uniform" />
-                                                            <TextBlock IsVisible="{Binding HasImage, Converter={x:Static BoolConverters.Not}}" Text="{Binding Initial}"
-                                                                       FontSize="18"
-                                                                       FontWeight="SemiBold"
-                                                                       HorizontalAlignment="Center"
-                                                                       VerticalAlignment="Center" />
-                                                            <Border Classes="stage-sprite-outline" Classes.selected="{Binding IsSelected}" IsHitTestVisible="False" />
-                                                            </Grid>
                                                         </Border>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>

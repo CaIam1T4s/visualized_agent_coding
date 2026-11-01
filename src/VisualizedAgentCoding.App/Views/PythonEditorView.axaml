@@ -5,6 +5,7 @@
              xmlns:avaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
              xmlns:avaloniaEditEditing="clr-namespace:AvaloniaEdit.Editing;assembly=AvaloniaEdit"
              xmlns:avaloniaEditRendering="clr-namespace:AvaloniaEdit.Rendering;assembly=AvaloniaEdit"
+             xmlns:views="using:happy_agent_coding.Views"
              x:Class="happy_agent_coding.Views.PythonEditorView"
              x:DataType="vm:MainViewModel">
     <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
@@ -75,18 +76,21 @@
                                 Classes="command-button secondary" Click="OnEditorMenuClick" />
                         </StackPanel>
                     </Grid>
-                    <avaloniaEdit:TextEditor x:Name="EditorTextBox"
-                                             Grid.Row="1"
-                                             ShowLineNumbers="True"
-                                             HorizontalScrollBarVisibility="Auto"
-                                             VerticalScrollBarVisibility="Auto"
-                                             FontFamily="Consolas"
-                                             FontSize="14"
-                                             Padding="12"
-                                             Background="{DynamicResource LayerFillColorBrush}"
-                                             Foreground="{DynamicResource TextFillColorPrimaryBrush}">
-                    </avaloniaEdit:TextEditor>
-                    <StackPanel Grid.Row="2" Spacing="4">
+                    <Panel Grid.Row="1">
+                        <avaloniaEdit:TextEditor x:Name="EditorTextBox"
+                                                 IsVisible="{Binding IsPythonEditorMode}"
+                                                 ShowLineNumbers="True"
+                                                 HorizontalScrollBarVisibility="Auto"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 FontFamily="Consolas"
+                                                 FontSize="14"
+                                                 Padding="12"
+                                                 Background="{DynamicResource LayerFillColorBrush}"
+                                                 Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                        </avaloniaEdit:TextEditor>
+                        <views:BlockEditorView IsVisible="{Binding IsBlockEditorMode}" />
+                    </Panel>
+                    <StackPanel Grid.Row="2" Spacing="4" IsVisible="{Binding IsPythonEditorMode}">
                     <Expander x:Name="DiagnosticsExpander" Classes="diagnostics-list" IsVisible="{Binding HasPythonDiagnostics}"
                               Header="{Binding PythonErrorListTitle}"
                               ExpandDirection="Up" IsExpanded="False" MinHeight="32" Padding="8,4"

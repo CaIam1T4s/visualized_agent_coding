@@ -164,6 +164,62 @@ Coordinates may leave the 480x360 stage but are clipped when drawn; the accepted
 if no position has ever been received, both pointer methods leave the role unchanged.
 `BackdropBase` does not expose motion methods.
 
+## Project variables and lists
+
+The desktop **更多 → 管理变量…** dialog creates project-level variables and lists. They are
+stored in `project.json` as initial data and are shared by every role, backdrop, user module,
+and clone during one run. Runtime changes are discarded when the run ends.
+
+```python
+from vac_runtime import (
+    get_variable, set_variable, add_to_variable,
+    list_append, list_remove, list_clear, list_length, list_get, list_set, list_values,
+)
+
+score = get_variable("score")
+add_to_variable("score", 1)
+
+list_append("items", "coin")
+first = list_get("items", 0)
+for item in list_values("items"):
+    print(item)
+```
+
+`change_variable` remains as a deprecated compatibility alias for `add_to_variable`.
+`list_values` returns a snapshot, so iterating cannot observe or mutate the shared list.
+Variables have `number`, `text`, or `boolean` initial types. Lists currently store textual
+values. Names must match a declaration in the manager; undeclared names and type mismatches
+raise errors. Direct Python names are not injected, so use these APIs rather than relying on
+module-level globals.
+
+The manager scans literal API calls such as `get_variable("score")` for references. Renaming
+a variable/list updates those literal first arguments; deleting one with references is
+blocked. Dynamic names and aliases are not fully discoverable, so the first version clearly
+warns rather than guessing.
+
+## Collision detection
+
+`ElementBase` exposes a costume-aware, rotated collision API:
+
+```python
+self.touching("角色名")
+self.touching_edge()
+self.touching_pointer()
+```
+
+`touching(name)` returns `True` when another visible instance of the role overlaps
+this instance. The role name is the script filename without `.py` and is case-sensitive.
+Original roles and every clone participate; the current instance is excluded. Invisible
+objects and deleted clones do not participate. An unknown role name raises `ValueError`.
+
+`touching_edge()` tests the rotated image rectangle against the current 480x360 stage
+edges. `touching_pointer()` tests whether the latest stage pointer is inside that rotated
+rectangle; both return `False` for invisible roles or before the pointer has been seen.
+Bounds use the active costume's image dimensions, the current size, and the current
+direction. Collision uses a separating-axis test on two rotated rectangles, so touching
+edges count as a hit and rotation changes the result. The desktop stage supplies image
+dimensions for every costume; low-level requests without metadata fall back to 48x48.
+
 ## Cooperative wait
 
 ```python
@@ -179,7 +235,7 @@ class-definition/module-level code and `initialize()`. During a key event, later
 the same key remain runnable while an earlier handler is waiting. Worker threads and Stop are rejected or
 interrupted explicitly. Nested waits are limited to 32 levels. `wait(0)` returns immediately.
 
-Non-blocking position animations are also available:
+Cooperative tween animations are also available:
 
 ```python
 self.glide_to(x, y, seconds)
@@ -187,7 +243,7 @@ self.glide_by(dx, dy, seconds)
 ```
 
 `glide_to` interpolates from the current position to the target; `glide_by` adds the delta to
-the current position first. Direction and size use the same non-blocking tween model:
+the current position first. Direction and size use the same tween model:
 
 ```python
 self.rotate_to(angle, seconds)
@@ -196,20 +252,23 @@ self.glide_size_to(percent, seconds)
 self.glide_size_by(delta, seconds)
 ```
 
-`seconds <= 0` applies the value immediately. Position, direction, and size animations are
-independent and may run together; a new animation for one property replaces the old one for
-that property. A direct assignment to `x`/`y`, `direction`, or `size` cancels only that
-property animation. Direction animations take the shortest signed path. Animations advance on
-the main-thread event loop and publish through the normal stage sampler; they do not block
-clicks, keys, timers, or broadcasts. Every animation method accepts an optional
-`on_finish="message"`; the message is broadcast once after natural completion, after the final
-value is applied. Replacement, direct-assignment cancellation, and Stop do not broadcast it.
+`seconds <= 0` applies the value immediately. Each tween method blocks only the handler that
+called it until that tween finishes; it pumps the project event loop, so clicks, keys, timers,
+messages, clone starts, and other animations continue. Position, direction, and size
+animations are independent and may run together; a new animation for one property replaces
+the old one for that property. A direct assignment to `x`/`y`, `direction`, or `size` cancels
+only that property animation. Direction animations take the shortest signed path. Animations
+advance on the main-thread event loop and publish through the normal stage sampler. Every
+animation method accepts an optional `on_finish="message"`; the message is broadcast once
+after natural completion, after the final value is applied. Replacement, direct-assignment
+cancellation, and Stop do not broadcast it.
 
 ## Runtime clones
 
 `ElementBase.clone()` creates one independent role copy with the current position, direction,
 size, visibility, layer, and active costume. The copy is rendered immediately and can use the
-normal instant and animation APIs:
+normal instant and animation APIs. Clone-start handlers are queued and run through the event
+pump after the current handler yields, rather than blocking `clone()`:
 
 ```python
 copy = self.clone()
