@@ -196,7 +196,7 @@ public partial class MainViewModel
     public async Task DispatchStageClickAsync(StageObjectItem item)
     {
         if (!IsPythonActive || !CanDispatchStageClicks || !item.IsSprite || !item.ClickEnabledRuntime
-            || !StageSprites.Contains(item) || lastRun is null || runWorkspace != runtimeWorkspace) return;
+            || !StageRenderSprites.Contains(item) || lastRun is null || runWorkspace != runtimeWorkspace) return;
         var generation = runGeneration;
         try { await runtime.SendSpriteClickAsync(lastRun.SessionId, item.ObjectId, runCancellation!.Token); }
         catch (OperationCanceledException) { }

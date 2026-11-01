@@ -9,7 +9,7 @@ namespace VisualizedAgentCoding.Application.Editor.ObjectScripts;
 public sealed class ObjectScriptDocumentService(IPythonBridge bridge)
 {
     public async Task<ObjectScriptDocument> InspectAsync(ProjectWorkspace project, string scriptId, long version,
-        string fullSource, CancellationToken token = default)
+        string fullSource, CancellationToken token = default, string? expectedClassName = null)
     {
         var script = project.FindScript(scriptId) ?? throw new ProjectOperationException("脚本未被项目索引。");
         var kind = script.Kind switch
@@ -22,7 +22,7 @@ public sealed class ObjectScriptDocumentService(IPythonBridge bridge)
         if (version < 0) throw new ArgumentOutOfRangeException(nameof(version));
         token.ThrowIfCancellationRequested();
         var uri = new Uri(project.ToAbsolutePath(script.Path)).AbsoluteUri;
-        var expectedClass = ProjectService.ToClassName(Path.GetFileNameWithoutExtension(script.Path));
+        var expectedClass = expectedClassName ?? ProjectService.ToClassName(Path.GetFileNameWithoutExtension(script.Path));
         var result = await bridge.InspectObjectScriptAsync(new(uri, version, fullSource, expectedClass, kind), token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
         ValidateResponse(uri, version, fullSource, result);

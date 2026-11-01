@@ -28,7 +28,7 @@ explicit start binding or `_vac_on_start` fallback. The bridge requires the acti
 thread, permits only one invocation per session, and clears its state even on failure.
 Restart creates fresh
 instances. Start and click handlers run sequentially. Desktop runs then remain in the managed
-event loop; animation APIs, cloning and parallel event scheduling are not supplied.
+event loop; animation APIs remain available, while parallel event scheduling is not supplied.
 
 Initialization failure aborts the remaining initializations and all start handlers. User-level
 project logic belongs in object start regions and user modules called by those regions; user
@@ -204,6 +204,54 @@ the main-thread event loop and publish through the normal stage sampler; they do
 clicks, keys, timers, or broadcasts. Every animation method accepts an optional
 `on_finish="message"`; the message is broadcast once after natural completion, after the final
 value is applied. Replacement, direct-assignment cancellation, and Stop do not broadcast it.
+
+## Runtime clones
+
+`ElementBase.clone()` creates one independent role copy with the current position, direction,
+size, visibility, layer, and active costume. The copy is rendered immediately and can use the
+normal instant and animation APIs:
+
+```python
+copy = self.clone()
+copy.goto(100, 50)
+copy.switch_costume("开心")
+print(copy.is_clone)          # True
+copy.delete_clone()
+```
+
+`is_clone` is a read-only boolean on both roles and backdrops; it is `False` for the
+project-owned role and `True` for runtime clones. A role's click binding is copied to each
+clone, so the same handler receives clicks for both the original and its clones; use
+`self.is_clone` inside the handler to distinguish them.
+
+```python
+def _vac_event_click(self):
+    if self.is_clone:
+        self.delete_clone()
+    else:
+        self.clone()
+```
+
+`delete_clone()` is allowed only on a clone. It removes the clone immediately, clears its
+click and animation bindings, and publishes the updated stage frame. The project-owned role
+raises `RuntimeError`; deleting an already-removed clone returns `False` without another
+publication.
+
+Add **当作为克隆体启动时** from the script event menu to run a handler for every new clone.
+The original role does not run this handler. The clone-start handler receives the new clone
+as `self`, and may move it, switch costume, wait, or delete it immediately:
+
+```python
+def _vac_event_clone_start(self):
+    self.goto(0, 0)
+    self.delete_clone()
+```
+
+The returned object is a normal role instance with its own state. Clones do not run
+`initialize()` or start/key/message bindings in this first version, cannot be cloned again,
+and are not saved to `stage.json` or shown in the object manager. Each run allows at most
+300 clones. There is no delete-clone API yet; all copies disappear when the run ends or the
+preview returns to the initial layout.
 
 ## Costumes
 

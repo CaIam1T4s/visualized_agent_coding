@@ -152,6 +152,9 @@ public static class ProjectManifestValidator
                 && (!BackdropSwitchEvents.IsValidTarget(argument)
                     || !(manifest.Scripts ?? []).Any(script => script.Kind == ProjectScriptKind.Backdrop && script.ObjectId == argument)))
                 throw new ProjectFormatException($"Event handler for {handler.Event} targets an unknown backdrop.");
+            if (handler.Event == ProjectEventKinds.CloneStart
+                && !(manifest.Scripts ?? []).Any(script => script.Id == handler.ScriptId && script.Kind == ProjectScriptKind.Object))
+                throw new ProjectFormatException("Clone-start handlers must belong to an object script.");
 
             var key = HandlerKey(handler.ScriptId, handler.Event, argument);
             if (!keys.Add(key))

@@ -162,7 +162,6 @@ public sealed class ScriptManagementViewModelTests : IAsyncLifetime
         if (vm.CanApplyRename) vm.ApplyRenameCommand.Execute(null);
         Assert.Same(rename, vm.ScriptRename);
         Assert.True(rename.HasError);
-        vm.BackToRenameCommand.Execute(null);
         rename.Name = "valid";
         await rename.ConfirmCommand.ExecuteAsync(null);
         if (vm.CanApplyRename) vm.ApplyRenameCommand.Execute(null);
@@ -196,12 +195,13 @@ public sealed class ScriptManagementViewModelTests : IAsyncLifetime
     }
 
     [Fact]
-    public void ObjectsAndBackgroundsRefuseRename()
+    public void ObjectsAndBackgroundsCanStartRename()
     {
-        foreach (var item in vm.ObjectScripts.Concat(vm.BackdropScripts))
+        foreach (var item in vm.ObjectScripts.Concat(vm.BackdropScripts).ToArray())
         {
             vm.StartRenameScriptCommand.Execute(item);
-            Assert.Null(vm.ScriptRename);
+            Assert.NotNull(vm.ScriptRename);
+            vm.CancelRenameScriptCommand.Execute(null);
         }
     }
 

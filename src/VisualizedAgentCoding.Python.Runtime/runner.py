@@ -182,6 +182,7 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
     # Resolve every start binding before executing any initialization or start body.
     starts = []
     clicks = {}
+    clone_starts = {}
     keys = {}
     timers = []
     backdrops = {}
@@ -204,6 +205,14 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
             if not callable(callback):
                 raise RuntimeError('Sprite click handler is missing.')
             clicks[script['objectId']] = (instance, callback)
+        clone_bindings = [h for h in request['handlers'] if h['scriptId'] == script['id'] and h['event'] == 'clone-start']
+        if clone_bindings:
+            if script['kind'] != 'object' or len(clone_bindings) != 1:
+                raise RuntimeError('克隆体启动事件只能绑定到一个角色处理器。')
+            callback = getattr(instance, clone_bindings[0]['handler'], None)
+            if not callable(callback):
+                raise RuntimeError(f"{script['path']}：克隆体启动处理器不存在")
+            clone_starts[script['objectId']] = callback
         stage_bindings = [h for h in request['handlers'] if h['scriptId'] == script['id'] and h['event'] == 'stage-click']
         if stage_bindings:
             if script['kind'] != 'backdrop' or len(stage_bindings) != 1:
@@ -251,7 +260,7 @@ def execute_project(request, root, legacy_main=None, *, snapshot, emit, inbox=No
             router.register(name, handler)
     if legacy_main is None:
         install_router(router)
-    stage = StageSession(request, instances, emit, router.broadcast) if request.get('initialStage') is not None else None
+    stage = StageSession(request, instances, emit, router.broadcast, clicks, clone_starts) if request.get('initialStage') is not None else None
     if stage:
         install_stage(stage)
         if inbox is not None:

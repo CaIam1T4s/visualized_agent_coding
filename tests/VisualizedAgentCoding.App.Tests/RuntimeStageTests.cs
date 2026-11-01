@@ -169,6 +169,137 @@ class Cat(ElementBase):
     }
 
     [Fact]
+    public async Task ClonePublishesAnIndependentRoleWithCopiedState()
+    {
+        var (exit, events) = await Run(Request("""
+from vac_runtime import ElementBase
+class Cat(ElementBase):
+    def _vac_on_start(self):
+        self.goto(10, 20)
+        self.direction = 45
+        copy = self.clone()
+        copy.goto(100, 50)
+        self.x = 30
+"""));
+        Assert.Equal(0, exit);
+        var last = events.Last(e => e.Kind == "stage").Stage!;
+        Assert.Equal(2, last.Objects.Length);
+        var original = last.Objects.Single(o => o.ObjectId == "cat-id");
+        var copy = last.Objects.Single(o => o.ObjectId == "clone:cat-id:1");
+        Assert.Equal(30, original.X);
+        Assert.Equal((100d, 50d, 45d), (copy.X, copy.Y, copy.Direction));
+    }
+
+    [Fact]
+    public async Task CloneStartHandlerRunsOnlyForTheNewClone()
+    {
+        var request = Request("""
+from vac_runtime import ElementBase
+class Cat(ElementBase):
+    def _vac_on_start(self):
+        self.clone()
+    def on_clone_start(self):
+        self.x = 200
+        print('clone-start', self.is_clone)
+""") with { Handlers = [new("cat", ProjectEventKinds.CloneStart, null, "on_clone_start")] };
+        var (exit, events) = await Run(request);
+        Assert.Equal(0, exit);
+        var last = events.Last(e => e.Kind == "stage").Stage!;
+        Assert.Equal(100, last.Objects.Single(o => o.ObjectId == "cat-id").X);
+        Assert.Equal(200, last.Objects.Single(o => o.ObjectId == "clone:cat-id:1").X);
+        Assert.Contains("clone-start True", string.Concat(events.Where(e => e.Kind == "stdout").Select(e => e.Text)));
+    }
+
+    [Fact]
+    public async Task CloneUsesItsOwnClickHandlerAndIsCloneFlag()
+    {
+        var request = Request("""
+from vac_runtime import ElementBase
+class Cat(ElementBase):
+    def _vac_on_start(self):
+        self.clone()
+    def on_click(self):
+        print('clicked', self.is_clone)
+""") with { KeepAlive = true, Handlers = [new("cat", ProjectEventKinds.SpriteClick, null, "on_click")] };
+        Directory.CreateDirectory(root);
+        await using var runtime = new PythonRuntimeProcess(Path.Combine(AppContext.BaseDirectory, "python-runtime"));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, cancellation.Token);
+        while (!events.Any(e => e.Kind == "interactive-ready")) await Task.Delay(20, timeout.Token);
+        var cloneId = events.SelectMany(e => e.Stage?.Objects ?? [])
+            .Select(o => o.ObjectId).First(id => id.StartsWith("clone:cat-id:", StringComparison.Ordinal));
+        await runtime.SendSpriteClickAsync(request.SessionId, cloneId, timeout.Token);
+        await runtime.SendSpriteClickAsync(request.SessionId, "cat-id", timeout.Token);
+        string Output() => string.Concat(events.Where(e => e.Kind == "stdout").Select(e => e.Text));
+        while (!Output().Contains("clicked True") || !Output().Contains("clicked False"))
+            await Task.Delay(20, timeout.Token);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+    }
+
+    [Fact]
+    public async Task CloneCanDeleteItselfFromItsClickHandler()
+    {
+        var request = Request("""
+from vac_runtime import ElementBase
+class Cat(ElementBase):
+    def _vac_on_start(self):
+        self.clone()
+    def on_click(self):
+        if self.is_clone:
+            self.delete_clone()
+            print('deleted')
+""") with { KeepAlive = true, Handlers = [new("cat", ProjectEventKinds.SpriteClick, null, "on_click")] };
+        Directory.CreateDirectory(root);
+        await using var runtime = new PythonRuntimeProcess(Path.Combine(AppContext.BaseDirectory, "python-runtime"));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
+        var events = new ConcurrentQueue<PythonRunEvent>();
+        var run = runtime.RunAsync(request, events.Enqueue, cancellation.Token);
+        while (!events.Any(e => e.Kind == "interactive-ready")) await Task.Delay(20, timeout.Token);
+        var cloneId = events.SelectMany(e => e.Stage?.Objects ?? [])
+            .Select(o => o.ObjectId).First(id => id.StartsWith("clone:cat-id:", StringComparison.Ordinal));
+        await runtime.SendSpriteClickAsync(request.SessionId, cloneId, timeout.Token);
+        while (!events.Any(e => e.Kind == "stdout" && e.Text.Contains("deleted")))
+            await Task.Delay(20, timeout.Token);
+        while (!events.Any(e => e.Stage is { } frame && frame.Objects.Length == 1
+                               && frame.Objects[0].ObjectId == "cat-id"))
+            await Task.Delay(20, timeout.Token);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+    }
+
+    [Fact]
+    public async Task RuntimeCloneIsRenderedSeparatelyAndRemovedWhenTheFrameDropsIt()
+    {
+        var service = new ProjectService(new JsonProjectStore());
+        var project = service.Create(root);
+        service.CreateScript(project, ProjectScriptKind.Object, "cat");
+        await using var vm = TestMainViewModelFactory.Create(new InMemorySettingsStore());
+        await vm.OpenProject(root);
+        var baseItem = Assert.Single(vm.StageSprites);
+        var cloneId = $"clone:{baseItem.ObjectId}:1";
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        typeof(MainViewModel).GetField("lastRun", flags)!.SetValue(vm, Request("") with { SessionId = "clone-preview" });
+        typeof(MainViewModel).GetField("runWorkspace", flags)!.SetValue(vm,
+            typeof(MainViewModel).GetField("runtimeWorkspace", flags)!.GetValue(vm));
+        vm.IsPythonActive = true;
+        void Apply(RuntimeStageFrame frame) => typeof(MainViewModel).GetMethod("ApplyRuntimeStage", flags)!.Invoke(vm, [frame]);
+        Apply(new("clone-preview", 1, [new(baseItem.ObjectId, 40), new(cloneId, 140)]));
+        Assert.Single(vm.StageSprites);
+        Assert.Equal(2, vm.StageRenderSprites.Count);
+        var clone = Assert.Single(vm.StageRuntimeClones);
+        Assert.True(clone.IsRuntimeClone);
+        Assert.Equal(140, clone.RenderX);
+        Assert.DoesNotContain(clone, vm.StageSprites);
+        Apply(new("clone-preview", 2, [new(baseItem.ObjectId, 40)]));
+        Assert.Empty(vm.StageRuntimeClones);
+        Assert.Single(vm.StageRenderSprites);
+    }
+
+    [Fact]
     public async Task StageTracksNonDaemonWorkerUntilItFinishes()
     {
         var (exit, events) = await Run(Request("""

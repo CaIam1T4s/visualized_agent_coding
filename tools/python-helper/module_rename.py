@@ -14,11 +14,18 @@ from protocol import ERR_INVALID_PARAMS, ProtocolError
 
 
 def plan_module_rename(params):
-    root_value, uri, version, new_name = (params.get(key) for key in ('projectRoot', 'uri', 'version', 'newName'))
+    root_value, uri, version, new_name, old_class_name, new_class_name = (
+        params.get(key) for key in ('projectRoot', 'uri', 'version', 'newName', 'oldClassName', 'newClassName'))
     if (not isinstance(root_value, str) or not isinstance(uri, str) or type(version) is not int or version < 0
             or not isinstance(new_name, str) or not new_name.isidentifier() or keyword.iskeyword(new_name)
             or new_name == '__init__'):
         raise ProtocolError(ERR_INVALID_PARAMS, 'expected projectRoot, uri, version and a Python module identifier')
+    if ((old_class_name is None) != (new_class_name is None)
+            or old_class_name is not None and (not isinstance(old_class_name, str) or not old_class_name.isidentifier()
+                                               or keyword.iskeyword(old_class_name))
+            or new_class_name is not None and (not isinstance(new_class_name, str) or not new_class_name.isidentifier()
+                                               or keyword.iskeyword(new_class_name))):
+        raise ProtocolError(ERR_INVALID_PARAMS, 'class names must be Python identifiers')
     root, target = Path(root_value).resolve(), file_path(uri)
     if not target.is_relative_to(root) or target.suffix != '.py' or not target.is_file() or target.stem == '__init__':
         raise ProtocolError(ERR_INVALID_PARAMS, 'target must be a Python file in the snapshot')
@@ -57,6 +64,32 @@ def plan_module_rename(params):
                         end = len(text.encode('utf-8')[:alias.end_col_offset].decode('utf-8'))
                         alias_bindings.add((alias.end_lineno, end - len(alias.asname)))
             edits = []
+            class_edit = None
+            if old_class_name is not None and file.resolve() == target:
+                classes = [node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == old_class_name]
+                if len(classes) != 1:
+                    issues.append({'uri': file.as_uri(), 'message': '目标文件必须包含唯一的旧类定义，无法安全重命名。'})
+                    continue
+                class_node = classes[0]
+                class_token = None
+                for index, token in enumerate(tokens[:-1]):
+                    if token.type != tokenize.NAME or token.string != 'class':
+                        continue
+                    name_token = tokens[index + 1]
+                    if (name_token.type == tokenize.NAME and name_token.string == old_class_name
+                            and name_token.start[0] == class_node.lineno):
+                        class_token = name_token
+                        break
+                if class_token is None:
+                    issues.append({'uri': file.as_uri(), 'message': '无法定位旧类名 token，不能安全重命名。'})
+                    continue
+                if any(token.type == tokenize.NAME and token.string == new_class_name for token in tokens):
+                    issues.append({'uri': file.as_uri(), 'message': '新类名与文件中的现有名称冲突，请选择其他名称。'})
+                    continue
+                row, col = class_token.start
+                start = starts[row - 1] + col
+                class_edit = (start, start + len(class_token.string), new_class_name)
+                edits.append(class_edit)
             for token in tokens:
                 if token.type != tokenize.NAME or token.string != target.stem:
                     continue
@@ -90,6 +123,10 @@ def plan_module_rename(params):
                 edits.append((start, start + len(token.string), new_name))
             if edits and any(t.type == tokenize.NAME and t.string == new_name for t in tokens):
                 issues.append({'uri': file.as_uri(), 'message': '新模块名与文件中的现有名称冲突，请选择其他名称。'})
+                continue
+            ordered = sorted(set(edits))
+            if any(left[1] > right[0] for left, right in zip(ordered, ordered[1:])):
+                issues.append({'uri': file.as_uri(), 'message': '重命名编辑区间重叠，未生成修改。'})
                 continue
             updated = source
             for start, end, replacement in sorted(set(edits), reverse=True):

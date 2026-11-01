@@ -146,5 +146,11 @@ switch, then the stage is published. The initial backdrop and a switch to the al
 backdrop do not emit the event. Deleting a backdrop reports `switch_backdrop` call sites and
 `backdrop-switch` regions in other scripts with file/line locations; their source is left for
 the user to edit.
+Clone start events use `eventName=clone-start` and may be owned only by a role. The handler
+runs once for every newly created clone, on the main thread, with the clone as `self`; the
+project-owned role never runs it. The clone is added to the next stage frame before its
+handler starts, and `self.delete_clone()` removes it again. Clone-start handlers may use
+`wait`, while clone instances still do not receive independent key or message bindings.
+
 See the Python runtime README for the control protocol. Existing custom project-local bases are not overwritten; to opt into
 desktop stage synchronization they must inherit the product bases.

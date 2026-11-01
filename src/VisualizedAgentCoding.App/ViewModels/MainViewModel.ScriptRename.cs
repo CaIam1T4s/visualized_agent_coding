@@ -31,12 +31,6 @@ public partial class MainViewModel
     {
         if (activeProject?.FindScript(item?.Id) is not { } script || IsScriptActionDialogOpen)
             return;
-        if (script.Kind != ProjectScriptKind.User)
-        {
-            ReportResourceMessage("角色和背景暂不支持重命名，需先支持类名与引用同步。");
-            return;
-        }
-
         ScriptRename = new ScriptRenameState(script.Id, Path.GetFileNameWithoutExtension(script.Path),
             PrepareRenameScriptAsync, CancelRenameScript);
         CategoryFor(script.Kind).CompleteCreation();
@@ -106,16 +100,6 @@ public partial class MainViewModel
             RenamePreviewError = ex.Message;
             RenamePreviewStatus = "未生成可应用的修改计划，文件未改变。";
         }
-    }
-
-    [RelayCommand]
-    private void BackToRename()
-    {
-        renameCancellation?.Cancel();
-        pendingRenamePlan = null;
-        IsRenamePreviewOpen = false;
-        CanApplyRename = false;
-        RefreshProjectResources();
     }
 
     [RelayCommand]

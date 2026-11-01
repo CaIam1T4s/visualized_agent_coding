@@ -119,11 +119,14 @@ public sealed class ProjectService : IProjectValidityChecker
     }
 
     /// <summary>Internal file/index commit primitive. Public callers must use ScriptRenameService to preserve references.</summary>
-    /// <exception cref="ProjectOperationException">The script is the entry script, is not a user script, or the new name is unusable or taken.</exception>
-    internal ProjectWorkspace CommitScriptFileRename(ProjectWorkspace project, string scriptId, string newName)
+    /// <exception cref="ProjectOperationException">The script is the entry script, an object script is committed without class synchronization, or the new name is unusable or taken.</exception>
+    internal ProjectWorkspace CommitScriptFileRename(ProjectWorkspace project, string scriptId, string newName,
+        bool synchronizeClass = false)
     {
         var target = ScriptRenameRules.ResolveFileTarget(project, scriptId, newName, store);
         var script = target.Script;
+        if (script.Kind != ProjectScriptKind.User && !synchronizeClass)
+            throw new ProjectOperationException("角色和背景脚本必须通过重命名预览同步类名。");
         var newPath = target.Path;
         if (string.Equals(newPath, script.Path, StringComparison.OrdinalIgnoreCase)) return project;
         project = WithPersistedPendingDeletions(project);
@@ -308,6 +311,9 @@ public sealed class ProjectService : IProjectValidityChecker
         if (string.Equals(registration.Event, ProjectEventKinds.StageClick, StringComparison.Ordinal)
             && owner.Kind == ProjectScriptKind.Object)
             throw new ProjectOperationException("舞台点击处理器不能绑定到对象脚本。");
+        if (string.Equals(registration.Event, ProjectEventKinds.CloneStart, StringComparison.Ordinal)
+            && owner.Kind != ProjectScriptKind.Object)
+            throw new ProjectOperationException("克隆体启动处理器必须绑定到角色脚本。");
         if (string.Equals(registration.Event, ProjectEventKinds.BackdropSwitch, StringComparison.Ordinal))
         {
             if (owner.Kind == ProjectScriptKind.User)

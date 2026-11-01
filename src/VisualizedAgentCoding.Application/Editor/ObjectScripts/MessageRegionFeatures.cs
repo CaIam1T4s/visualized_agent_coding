@@ -100,6 +100,25 @@ public static partial class ObjectScriptFeatures
         return DeleteEventRegion(document, region);
     }
 
+    public static void ValidateCloneStart(ObjectScriptDocument document)
+    {
+        RequireMessageDocument(document);
+        if (document.Regions!.Any(r => r.Kind == "event" && r.EventName == ProjectEventKinds.CloneStart))
+            throw new ArgumentException("该角色已经有克隆体启动事件区域。");
+    }
+    public static ObjectScriptDocument AddCloneStart(ObjectScriptDocument document)
+    {
+        ValidateCloneStart(document);
+        return AddEventRegion(document, ProjectEventKinds.CloneStart, "clone_start_");
+    }
+    public static ObjectScriptDocument DeleteCloneStart(ObjectScriptDocument document, string id)
+    {
+        RequireMessageDocument(document);
+        var region = document.Regions!.SingleOrDefault(r => r.Id == id && r.Kind == "event" && r.EventName == ProjectEventKinds.CloneStart)
+            ?? throw new ArgumentException("请选择克隆体启动事件区域。");
+        return DeleteEventRegion(document, region);
+    }
+
     public static void ValidateBackdropSwitch(ObjectScriptDocument document, string targetId, string? excludingId = null)
     {
         RequireMessageDocument(document);

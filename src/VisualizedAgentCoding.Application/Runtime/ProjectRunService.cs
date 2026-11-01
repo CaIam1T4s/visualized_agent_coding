@@ -47,7 +47,7 @@ public sealed class ProjectRunService(IProjectStore store, IPythonBridge bridge)
                 if (document.HasRegions)
                 {
                     // Region source is authoritative; deleted regions cannot leave ghost bindings.
-                    handlers.RemoveAll(h => h.ScriptId == script.Id && h.Event is ProjectEventKinds.Broadcast or ProjectEventKinds.SpriteClick or ProjectEventKinds.StageClick or ProjectEventKinds.BackdropSwitch or ProjectEventKinds.Key or ProjectEventKinds.Timer);
+                    handlers.RemoveAll(h => h.ScriptId == script.Id && h.Event is ProjectEventKinds.Broadcast or ProjectEventKinds.SpriteClick or ProjectEventKinds.StageClick or ProjectEventKinds.BackdropSwitch or ProjectEventKinds.Key or ProjectEventKinds.Timer or ProjectEventKinds.CloneStart);
                     foreach (var region in document.Regions!)
                     {
                         if (region.Kind == "event" && MessageEvents.Name(region.EventName) is { } message)
@@ -61,6 +61,11 @@ public sealed class ProjectRunService(IProjectStore store, IPythonBridge bridge)
                         {
                             if (script.Kind != ProjectScriptKind.Backdrop) throw new ProjectOperationException("背景点击事件只能用于背景脚本。");
                             handlers.Add(new(script.Id, ProjectEventKinds.StageClick, null, "_vac_event_" + region.Id));
+                        }
+                        else if (region.Kind == "event" && region.EventName == ProjectEventKinds.CloneStart)
+                        {
+                            if (script.Kind != ProjectScriptKind.Object) throw new ProjectOperationException("克隆体启动事件只能用于角色脚本。");
+                            handlers.Add(new(script.Id, ProjectEventKinds.CloneStart, null, "_vac_event_" + region.Id));
                         }
                         else if (region.Kind == "event" && BackdropSwitchEvents.Target(region.EventName) is { } backdrop)
                         {

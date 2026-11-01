@@ -16,7 +16,8 @@ public static class MessageEvents
         return name;
     }
     public static string Title(string? identity, IReadOnlyDictionary<string, string>? backdropNames = null) =>
-        identity == ProjectEventKinds.SpriteClick ? "当角色被点击"
+        identity == ProjectEventKinds.CloneStart ? "当作为克隆体启动时"
+        : identity == ProjectEventKinds.SpriteClick ? "当角色被点击"
         : identity == ProjectEventKinds.StageClick ? "当背景被点击"
         : BackdropSwitchEvents.Target(identity) is not null ? BackdropSwitchEvents.Title(identity, backdropNames)
         : TimerEvents.ParseIdentity(identity) is { } timer ? TimerEvents.Display(timer)

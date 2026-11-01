@@ -25,6 +25,7 @@ public sealed class PythonBridgeException(string message, Exception? inner = nul
     public int? ErrorCode { get; } = errorCode;
 }
 
-public sealed record PythonModuleRenameRequest(string ProjectRoot, string Uri, long Version, string NewName, PythonSourceDocument[] Documents);
+public sealed record PythonModuleRenameRequest(string ProjectRoot, string Uri, long Version, string NewName,
+    PythonSourceDocument[] Documents, string? OldClassName = null, string? NewClassName = null);
 public sealed record PythonSourceChange(string Uri, string Source);
 public sealed record PythonModuleRenameResult(string Uri, long Version, PythonSourceChange[] Changes, PythonReferenceIssue[] Issues, bool IsIncomplete);

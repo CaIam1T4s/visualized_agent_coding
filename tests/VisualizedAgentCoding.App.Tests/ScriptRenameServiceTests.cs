@@ -1,4 +1,5 @@
 using System.Text.Json;
+using happy_agent_coding.ViewModels;
 using VisualizedAgentCoding.Application.Ports;
 using VisualizedAgentCoding.Application.Projects;
 using VisualizedAgentCoding.Application.Python;
@@ -35,6 +36,10 @@ public sealed class ScriptRenameServiceTests : IDisposable
         Assert.Single(plan.Changes);
         Assert.DoesNotContain("greetings", store.ReadScript(root, "scripts/user/use.py"));
         Assert.Equal(2, store.ReadScript(root, "scripts/user/use.py").Split('\n').Length - 1);
+        var preview = new ScriptRenamePreviewItem(plan.Changes.Single());
+        Assert.True(preview.HasVisibleChanges);
+        Assert.Contains(preview.VisibleDiff, line => line.Display.Contains("from greetings import greet as welcome"));
+        Assert.DoesNotContain(preview.VisibleDiff, line => line.Text.Contains("# vac:imports"));
         var renamed = service.Apply(plan);
         Assert.Equal("scripts/user/greetings.py", renamed.FindScript(targetId)!.Path);
         Assert.False(store.ScriptExists(root, "scripts/user/hello.py"));

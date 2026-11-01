@@ -12,7 +12,7 @@ public partial class PythonEditorView
 {
     private bool showingMessages;
 
-    private async void EditMessage(string? id = null, bool delete = false, bool spriteClick = false, bool stageClick = false, bool keyEvent = false, bool timerEvent = false, bool timerRepeat = false, bool backdropSwitch = false, string? backdropTargetId = null, string? backdropTargetName = null)
+    private async void EditMessage(string? id = null, bool delete = false, bool spriteClick = false, bool stageClick = false, bool cloneStart = false, bool keyEvent = false, bool timerEvent = false, bool timerRepeat = false, bool backdropSwitch = false, string? backdropTargetId = null, string? backdropTargetName = null)
     {
         editorMenu?.Hide();
         if (showingMessages || EditorTextBox.IsReadOnly || projection is not MultiRegionProjection multi
@@ -21,6 +21,7 @@ public partial class PythonEditorView
             || owner.FindControl<Border>("WindowFrame")?.Child is not Grid host) return;
         if (spriteClick && viewModel.OpenScript?.Kind != ProjectScriptKind.Object) return;
         if (stageClick && viewModel.OpenScript?.Kind != ProjectScriptKind.Backdrop) return;
+        if (cloneStart && viewModel.OpenScript?.Kind != ProjectScriptKind.Object) return;
         var current = viewModel;
         var original = multi.Document;
         StructuralEditorState before;
@@ -36,15 +37,16 @@ public partial class PythonEditorView
             multi.EditableRegions.First(r => r.Id == id).Span.Offset, multi.EditableRegions.First(r => r.Id == id).Span.Length) : null;
         var title = spriteClick ? (delete ? "删除角色点击区域" : "添加角色点击事件")
             : stageClick ? (delete ? "删除舞台点击区域" : "添加背景点击事件")
+            : cloneStart ? (delete ? "删除克隆体启动区域" : "添加克隆体启动事件")
             : keyEvent ? (delete ? "删除按键事件区域" : "添加按键事件")
             : timerEvent ? (delete ? "删除计时器事件区域" : timerRepeat ? "添加周期计时器事件" : "添加计时器事件")
             : backdropSwitch ? (delete ? "删除背景切换事件区域" : "添加背景切换事件：" + backdropTargetName)
             : delete ? "删除消息区域" : id is null ? "添加消息事件" : "修改消息名称";
         var dialog = new MessageEventView(title, name, value =>
         {
-            try { if (!delete) { if (spriteClick) ObjectScriptFeatures.ValidateSpriteClick(original); else if (stageClick) ObjectScriptFeatures.ValidateStageClick(original); else if (keyEvent) ObjectScriptFeatures.ValidateKey(original, value, id); else if (timerEvent) ObjectScriptFeatures.ValidateTimer(original, value, timerRepeat, id); else if (backdropSwitch) ObjectScriptFeatures.ValidateBackdropSwitch(original, backdropTargetId!, id); else ObjectScriptFeatures.ValidateMessage(original, value, id); } return null; }
+            try { if (!delete) { if (spriteClick) ObjectScriptFeatures.ValidateSpriteClick(original); else if (stageClick) ObjectScriptFeatures.ValidateStageClick(original); else if (cloneStart) ObjectScriptFeatures.ValidateCloneStart(original); else if (keyEvent) ObjectScriptFeatures.ValidateKey(original, value, id); else if (timerEvent) ObjectScriptFeatures.ValidateTimer(original, value, timerRepeat, id); else if (backdropSwitch) ObjectScriptFeatures.ValidateBackdropSwitch(original, backdropTargetId!, id); else ObjectScriptFeatures.ValidateMessage(original, value, id); } return null; }
             catch (ArgumentException ex) { return ex.Message; }
-        }, preview, renaming: id is not null && !delete, fixedEvent: spriteClick || stageClick || backdropSwitch, keyEvent: keyEvent, timerEvent: timerEvent, timerRepeat: timerRepeat, backdropSwitch: backdropSwitch);
+        }, preview, renaming: id is not null && !delete, fixedEvent: spriteClick || stageClick || cloneStart || backdropSwitch, keyEvent: keyEvent, timerEvent: timerEvent, timerRepeat: timerRepeat, backdropSwitch: backdropSwitch, cloneStart: cloneStart);
         showingMessages = true;
         Grid.SetRowSpan(dialog, 2);
         host.Children.Add(dialog);
@@ -60,6 +62,8 @@ public partial class PythonEditorView
                 ? delete ? ObjectScriptFeatures.DeleteSpriteClick(original, id!) : ObjectScriptFeatures.AddSpriteClick(original)
                 : stageClick
                 ? delete ? ObjectScriptFeatures.DeleteStageClick(original, id!) : ObjectScriptFeatures.AddStageClick(original)
+                : cloneStart
+                ? delete ? ObjectScriptFeatures.DeleteCloneStart(original, id!) : ObjectScriptFeatures.AddCloneStart(original)
                 : keyEvent
                 ? delete ? ObjectScriptFeatures.DeleteKey(original, id!) : ObjectScriptFeatures.AddKey(original, result)
                 : timerEvent

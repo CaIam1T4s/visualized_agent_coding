@@ -23,11 +23,9 @@ internal static class ScriptRenameRules
         if (scriptId == project.Manifest.MainScriptId)
             throw new ProjectOperationException("不能重命名主脚本。");
         var script = project.FindScript(scriptId) ?? throw new ProjectOperationException("脚本未被项目索引。");
-        if (script.Kind != ProjectScriptKind.User)
-            throw new ProjectOperationException("当前仅支持重命名用户脚本。");
         var stem = ProjectService.SanitizeScriptName(name)
             ?? throw new ProjectOperationException("脚本名只能包含字母、数字、下划线和连字符。");
-        var path = $"{ProjectLayout.UserScriptDirectory}/{stem}.py";
+        var path = $"{ProjectLayout.DirectoryFor(script.Kind)}/{stem}.py";
         if (!string.Equals(path, script.Path, StringComparison.OrdinalIgnoreCase)
             && (store.ScriptExists(project.RootPath, path)
                 || project.Manifest.Scripts.Any(entry => string.Equals(entry.Path, path, StringComparison.OrdinalIgnoreCase))))

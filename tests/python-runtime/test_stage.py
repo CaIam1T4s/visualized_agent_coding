@@ -12,6 +12,19 @@ class Actor(ElementBase):
     pass
 
 
+class ClickActor(ElementBase):
+    def on_click(self):
+        self.clicked = True
+
+    def on_clone_start(self):
+        self.clone_started = True
+
+
+class DeletingActor(ClickActor):
+    def on_clone_start(self):
+        self.delete_clone()
+
+
 class StageMotionTests(unittest.TestCase):
     def setUp(self):
         self.actor = Actor()
@@ -202,6 +215,152 @@ class StageMotionTests(unittest.TestCase):
         finally:
             session.clear_animations()
             clock.stop()
+
+
+class CloningTests(unittest.TestCase):
+    def _session(self, actor, emitted, clicks=None, clone_starts=None):
+        return StageSession(
+            {'sessionId': 'run', 'initialStage': {'currentBackdropId': None, 'objects': []}},
+            [({'objectId': 'a', 'kind': 'object', 'path': 'objects/a.py', 'id': 's'}, actor)],
+            lambda kind, stage=None: emitted.append(stage), click_handlers=clicks,
+            clone_handlers=clone_starts)
+
+    def test_clone_copies_runtime_state_and_has_independent_state(self):
+        emitted = []
+        actor = Actor()
+        session = self._session(actor, emitted)
+        try:
+            actor.goto(12, -8)
+            actor.direction = 45
+            actor.size = 150
+            clone = actor.clone()
+            self.assertIsNot(actor, clone)
+            self.assertEqual((12, -8, 45, 150), (clone.x, clone.y, clone.direction, clone.size))
+            clone.x = 99
+            clone.direction = -45
+            self.assertEqual((12, -8, 45), (actor.x, actor.y, actor.direction))
+            self.assertEqual([actor, clone], [instance for _, instance in session.instances])
+            self.assertIn('clone:a:1', session.instances_by_id)
+            session.publish()
+            self.assertEqual(2, len(emitted[-1]['objects']))
+            self.assertEqual(99, emitted[-1]['objects'][1]['x'])
+        finally:
+            session.close()
+
+    def test_clone_gets_its_own_click_handler_and_is_clone_flag(self):
+        actor = ClickActor()
+        clicks = {}
+        session = self._session(actor, [], clicks)
+        clicks['a'] = (actor, actor.on_click)
+        try:
+            clone = actor.clone()
+            self.assertFalse(actor.is_clone)
+            self.assertTrue(clone.is_clone)
+            clone_instance, clone_callback = clicks['clone:a:1']
+            self.assertIs(clone, clone_instance)
+            self.assertIs(clone, clone_callback.__self__)
+            clone_callback()
+            self.assertTrue(clone.clicked)
+        finally:
+            session.close()
+
+    def test_clone_start_runs_only_for_the_clone(self):
+        actor = ClickActor()
+        session = self._session(actor, [], clone_starts={'a': actor.on_clone_start})
+        try:
+            clone = actor.clone()
+            self.assertTrue(getattr(clone, 'clone_started', False))
+            self.assertFalse(getattr(actor, 'clone_started', False))
+        finally:
+            session.close()
+
+    def test_clone_start_can_delete_the_new_clone(self):
+        actor = DeletingActor()
+        emitted = []
+        session = self._session(actor, emitted, clone_starts={'a': actor.on_clone_start})
+        try:
+            clone = actor.clone()
+            self.assertNotIn(clone, [instance for _, instance in session.instances])
+            self.assertFalse(any(key[0].startswith('clone:') for key in session.animations))
+            session.publish()
+            self.assertEqual(1, len(emitted[-1]['objects']))
+            self.assertEqual('a', emitted[-1]['objects'][0]['objectId'])
+        finally:
+            session.close()
+
+    def test_clone_copies_active_costume(self):
+        actor = Actor()
+        layout = {
+            'costumes': [
+                {'id': 'c1', 'name': '默认', 'imagePath': 'assets/images/a.png', 'normalizeImage': True},
+                {'id': 'c2', 'name': '开心', 'imagePath': 'assets/images/b.png', 'normalizeImage': False},
+            ],
+            'initialCostumeId': 'c1',
+            'imagePath': 'assets/images/a.png',
+            'normalizeImage': True,
+        }
+        emitted = []
+        session = StageSession(
+            {'sessionId': 'run', 'initialStage': {'currentBackdropId': None, 'objects': [layout | {'objectId': 'a'}]}},
+            [({'objectId': 'a', 'kind': 'object', 'path': 'objects/a.py', 'id': 's'}, actor)],
+            lambda kind, stage=None: emitted.append(stage))
+        try:
+            actor.switch_costume('开心')
+            clone = actor.clone()
+            self.assertEqual('开心', clone.costume)
+            clone.switch_costume('默认')
+            self.assertEqual('开心', actor.costume)
+            self.assertEqual('默认', clone.costume)
+        finally:
+            session.close()
+
+    def test_delete_clone_removes_state_handler_and_animation(self):
+        clock.ensure_started()
+        actor = ClickActor()
+        clicks = {}
+        emitted = []
+        session = self._session(actor, emitted, clicks)
+        clicks['a'] = (actor, actor.on_click)
+        try:
+            clone = actor.clone()
+            clone.glide_to(10, 0, 5)
+            self.assertTrue(session.animations)
+            self.assertTrue(clone.delete_clone())
+            self.assertNotIn(clone, [instance for _, instance in session.instances])
+            self.assertNotIn('clone:a:1', session.instances_by_id)
+            self.assertNotIn('clone:a:1', clicks)
+            self.assertFalse(any(key[0] == 'clone:a:1' for key in session.animations))
+            session.publish()
+            self.assertEqual(['a'], [o['objectId'] for o in emitted[-1]['objects']])
+            self.assertFalse(clone.delete_clone())
+            with self.assertRaises(RuntimeError):
+                actor.delete_clone()
+        finally:
+            session.close()
+            clock.stop()
+
+    def test_clone_is_forbidden_for_backdrops_and_clones(self):
+        emitted = []
+        actor = Actor()
+        session = self._session(actor, emitted)
+        try:
+            clone = actor.clone()
+            with self.assertRaises(RuntimeError):
+                clone.clone()
+        finally:
+            session.close()
+        self.assertFalse(hasattr(BackdropBase, 'clone'))
+
+    def test_clone_limit_is_enforced(self):
+        actor = Actor()
+        session = self._session(actor, [])
+        session.MAX_CLONES = 1
+        try:
+            actor.clone()
+            with self.assertRaises(RuntimeError):
+                actor.clone()
+        finally:
+            session.close()
 
 
 class CostumeTests(unittest.TestCase):

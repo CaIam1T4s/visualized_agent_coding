@@ -116,7 +116,7 @@
                                             </ContentControl>
                                             <ItemsControl Width="480"
                                                            Height="360"
-                                                           ItemsSource="{Binding StageSprites}">
+                                                           ItemsSource="{Binding StageRenderSprites}">
                                                 <ItemsControl.ItemsPanel>
                                                     <ItemsPanelTemplate>
                                                         <Canvas Width="480" Height="360" />

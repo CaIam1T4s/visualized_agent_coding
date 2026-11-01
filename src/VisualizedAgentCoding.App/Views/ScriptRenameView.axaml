@@ -19,11 +19,20 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:ScriptRenamePreviewItem">
                                 <StackPanel Spacing="4" Margin="0,0,0,12">
-                                    <TextBlock Text="{Binding Path}" FontWeight="SemiBold" />
-                                    <TextBlock Text="修改前" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock Text="{Binding Before}" FontFamily="Consolas" />
-                                    <TextBlock Text="修改后" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock Text="{Binding After}" FontFamily="Consolas" />
+                                    <TextBlock Text="{Binding PathDisplay}" FontWeight="SemiBold" TextWrapping="Wrap" IsVisible="{Binding ShowPath}" />
+                                    <TextBlock Text="{Binding ClassChange}"
+                                               IsVisible="{Binding HasClassChange}"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="用户代码"
+                                               IsVisible="{Binding HasVisibleChanges}"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <ItemsControl ItemsSource="{Binding VisibleDiff}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:RenameDiffLine">
+                                                <TextBlock Text="{Binding Display}" FontFamily="Consolas" TextWrapping="Wrap" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -35,7 +44,6 @@
                 </ScrollViewer>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
                     <Button Content="取消" Classes="command-button secondary" Command="{Binding CancelRenameScriptCommand}" />
-                    <Button Content="修改名称" Classes="command-button secondary" Command="{Binding BackToRenameCommand}" />
                     <Button Content="应用重命名" Classes="command-button primary" IsEnabled="{Binding CanApplyRename}"
                             Command="{Binding ApplyRenameCommand}" />
                 </StackPanel>

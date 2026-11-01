@@ -80,6 +80,25 @@ class ModuleRenameTests(unittest.TestCase):
         self.assertFalse((self.root / 'greetings.py').exists())
         self.assertEqual((self.root / 'use.py').read_text(), 'import hello\nhello.greet()\n')
 
+    def plan_class(self, source, old='Hero', new='FireHero'):
+        self.write('hero.py', source)
+        return plan_module_rename(dict(projectRoot=str(self.root),
+            uri=(self.root / 'hero.py').as_uri(), version=1, newName='fire_hero',
+            oldClassName=old, newClassName=new))
+
+    def test_class_declaration_is_renamed_with_module(self):
+        result = self.plan_class('class Hero(ElementBase):\n    pass\n')
+        self.assertFalse(result['isIncomplete'])
+        self.assertEqual(result['changes'][0]['source'], 'class FireHero(ElementBase):\n    pass\n')
+
+    def test_missing_or_duplicate_class_blocks_plan(self):
+        self.assertTrue(self.plan_class('class Other(ElementBase):\n    pass\n')['isIncomplete'])
+        self.assertTrue(self.plan_class('class Hero: pass\nclass Hero: pass\n')['isIncomplete'])
+
+    def test_new_class_name_conflict_blocks_plan(self):
+        result = self.plan_class('class Hero: pass\nFireHero = 1\n')
+        self.assertTrue(result['isIncomplete'])
+
     def test_keyword_new_name_is_rejected(self):
         path = self.write('hello.py', '')
         with self.assertRaises(ProtocolError):

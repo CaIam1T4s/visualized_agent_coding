@@ -141,12 +141,21 @@ public sealed class PythonRuntimeProcess(string? runtimeDirectory = null) : IPyt
         while ((count = await reader.ReadAsync(buffer)) > 0) publish(new(kind, new string(buffer, 0, count)));
     }
 
+    private bool CanClick(string objectId)
+    {
+        if (clickObjects.Contains(objectId)) return true;
+        const string prefix = "clone:";
+        var separator = objectId.LastIndexOf(':');
+        return objectId.StartsWith(prefix, StringComparison.Ordinal) && separator > prefix.Length
+            && clickObjects.Contains(objectId[prefix.Length..separator]);
+    }
+
     public async Task SendSpriteClickAsync(string requestedSession, string objectId, CancellationToken token = default)
     {
         await commandGate.WaitAsync(token);
         try
         {
-            if (!acceptsClicks || sessionId != requestedSession || !clickObjects.Contains(objectId)
+            if (!acceptsClicks || sessionId != requestedSession || !CanClick(objectId)
                 || liveControl is null || process is not { HasExited: false })
                 throw new IOException("当前运行会话无法接收该角色的点击。");
             var command = JsonSerializer.Serialize(new { kind = "sprite-click", sessionId = requestedSession, objectId }, Json) + "\n";

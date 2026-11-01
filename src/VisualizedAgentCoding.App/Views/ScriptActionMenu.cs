@@ -12,12 +12,10 @@ internal static class ScriptActionMenu
         var rename = new MenuItem
         {
             Header = "重命名",
-            IsEnabled = item.Kind == ProjectScriptKind.User,
+            IsEnabled = item.Kind is ProjectScriptKind.User or ProjectScriptKind.Object or ProjectScriptKind.Backdrop,
             Command = viewModel.StartRenameScriptCommand,
             CommandParameter = item,
         };
-        if (item.Kind != ProjectScriptKind.User)
-            ToolTip.SetTip(rename, "角色和背景暂不支持重命名，需先支持类名与引用同步。");
         menu.Items.Add(rename);
         menu.Items.Add(new MenuItem
         {

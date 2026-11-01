@@ -12,7 +12,7 @@ public partial class MessageEventView : UserControl
     private readonly Func<string, string?> validate;
     public Task<string?> Result => completion.Task;
     public MessageEventView() : this("添加消息事件", "", _ => null) { }
-    public MessageEventView(string title, string name, Func<string, string?> validate, string? deletePreview = null, bool renaming = false, bool fixedEvent = false, bool keyEvent = false, bool timerEvent = false, bool timerRepeat = false, bool backdropSwitch = false)
+    public MessageEventView(string title, string name, Func<string, string?> validate, string? deletePreview = null, bool renaming = false, bool fixedEvent = false, bool keyEvent = false, bool timerEvent = false, bool timerRepeat = false, bool backdropSwitch = false, bool cloneStart = false)
     {
         this.validate = validate;
         InitializeComponent();
@@ -45,6 +45,12 @@ public partial class MessageEventView : UserControl
                 ? timerRepeat ? "每隔输入的秒数执行一次。计时从本次运行开始，可在脚本中通过 timer() 或 self.timer 读取当前秒数。"
                     : "当本次运行经过输入的秒数后执行一次。可在脚本中通过 timer() 或 self.timer 读取当前秒数。"
                 : "将删除整个计时器事件区域及以下代码，可通过撤销恢复。";
+        }
+        else if (cloneStart)
+        {
+            Description.Text = deletePreview is null
+                ? "每次创建该角色的克隆体时，克隆体会执行此区域。原角色不会执行；每个角色只能有一个克隆体启动区域。"
+                : "将删除整个克隆体启动区域及以下代码，可通过撤销恢复。";
         }
         else if (fixedEvent) Description.Text = deletePreview is null ? "运行时点击该角色，将执行此区域。每个角色只能有一个点击区域。" : "将删除整个角色点击区域及以下代码，可通过撤销恢复。";
         CodePreview.IsVisible = deletePreview is not null;

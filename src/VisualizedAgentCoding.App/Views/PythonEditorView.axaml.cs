@@ -123,6 +123,11 @@ public partial class PythonEditorView : UserControl
             && viewModel.OpenScript.Kind == ProjectScriptKind.Backdrop && stageClickRegion is null };
         stageClick.Click += (_, _) => EditMessage(stageClick: true);
         add.Items.Add(stageClick);
+        var cloneStartRegion = projection?.Document.Regions?.FirstOrDefault(r => r.Kind == "event" && r.EventName == ProjectEventKinds.CloneStart);
+        var cloneStart = new MenuItem { Header = "当作为克隆体启动时…", IsEnabled = messagesEnabled
+            && viewModel.OpenScript.Kind == ProjectScriptKind.Object && cloneStartRegion is null };
+        cloneStart.Click += (_, _) => EditMessage(cloneStart: true);
+        add.Items.Add(cloneStart);
         var keyAdd = new MenuItem { Header = "当按下按键…", IsEnabled = messagesEnabled };
         keyAdd.Click += (_, _) => EditMessage(keyEvent: true);
         add.Items.Add(keyAdd);
@@ -172,6 +177,10 @@ public partial class PythonEditorView : UserControl
             && viewModel.OpenScript.Kind == ProjectScriptKind.Backdrop && stageClickRegion is not null };
         deleteStageClick.Click += (_, _) => EditMessage(stageClickRegion?.Id, delete: true, stageClick: true);
         editorMenu.Items.Add(deleteStageClick);
+        var deleteCloneStart = new MenuItem { Header = "删除克隆体启动区域…", IsEnabled = messagesEnabled
+            && viewModel.OpenScript.Kind == ProjectScriptKind.Object && cloneStartRegion is not null };
+        deleteCloneStart.Click += (_, _) => EditMessage(cloneStartRegion?.Id, delete: true, cloneStart: true);
+        editorMenu.Items.Add(deleteCloneStart);
         var keyRegions = new MenuItem { Header = "管理按键事件", IsEnabled = messagesEnabled };
         foreach (var region in projection?.Document.Regions ?? [])
         {

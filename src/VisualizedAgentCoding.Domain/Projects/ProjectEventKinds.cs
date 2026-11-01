@@ -12,6 +12,7 @@ public static class ProjectEventKinds
     public const string BackdropSwitch = "backdrop-switch";
     public const string Timer = "timer";
     public const string Broadcast = "broadcast";
+    public const string CloneStart = "clone-start";
 
     public static readonly IReadOnlySet<string> All = new HashSet<string>(System.StringComparer.Ordinal)
     {
@@ -22,6 +23,7 @@ public static class ProjectEventKinds
         BackdropSwitch,
         Timer,
         Broadcast,
+        CloneStart,
     };
 
     public static bool IsKnown(string? value) => value is not null && All.Contains(value);

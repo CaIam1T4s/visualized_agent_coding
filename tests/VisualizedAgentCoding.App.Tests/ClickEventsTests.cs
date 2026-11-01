@@ -153,6 +153,24 @@ public sealed class ClickEventsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CloneStartRegionRegistersAndDeletesOneObjectHandler()
+    {
+        var doc = await Actor("cat");
+        doc = ObjectScriptFeatures.AddCloneStart(doc);
+        Assert.Equal(ObjectScriptStatus.Recognized, (await Inspect(doc.ScriptId, doc.FullSource)).Status);
+        var id = doc.Regions!.Last().Id;
+        Save(Body(doc, id, "print('clone-start')\n"));
+        var request = await Request();
+        var handler = Assert.Single(request.Handlers, h => h.Event == ProjectEventKinds.CloneStart);
+        Assert.Null(handler.Argument);
+        Assert.Equal("_vac_event_" + id, handler.Handler);
+        var deleted = ObjectScriptFeatures.DeleteCloneStart(doc, id);
+        Assert.DoesNotContain(ProjectEventKinds.CloneStart, deleted.Regions!.Select(r => r.EventName));
+        Save(deleted);
+        Assert.DoesNotContain((await Request()).Handlers, h => h.Event == ProjectEventKinds.CloneStart);
+    }
+
+    [Fact]
     public async Task ClickFailureTerminatesSessionAndMapsToClickUserRegion()
     {
         var doc = ObjectScriptFeatures.AddSpriteClick(await Actor("cat"));

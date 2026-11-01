@@ -40,6 +40,8 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Indexed object scripts shown as sprites in the object manager.</summary>
     public ObservableCollection<StageObjectItem> StageSprites { get; } = [];
+    public ObservableCollection<StageObjectItem> StageRuntimeClones { get; } = [];
+    public ObservableCollection<StageObjectItem> StageRenderSprites { get; } = [];
 
     /// <summary>Indexed backdrop scripts shown in the object manager.</summary>
     public ObservableCollection<StageObjectItem> StageBackdrops { get; } = [];
@@ -589,6 +591,7 @@ public partial class MainViewModel : ViewModelBase
         {
         SelectedSprite = SyncStageObjects(StageSprites, ProjectScriptKind.Object);
         SelectedBackdrop = SyncStageObjects(StageBackdrops, ProjectScriptKind.Backdrop);
+        RebuildStageRenderSprites();
         OnPropertyChanged(nameof(CurrentBackdrop));
         OnPropertyChanged(nameof(DisplayBackdrop));
         }

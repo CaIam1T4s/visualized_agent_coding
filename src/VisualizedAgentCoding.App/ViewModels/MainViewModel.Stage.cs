@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -47,7 +48,7 @@ public partial class MainViewModel
 
     private void RefreshStageInspectorState()
     {
-        foreach (var item in StageSprites.Concat(StageBackdrops)) item.IsStageReadOnly = IsPythonActive;
+        foreach (var item in StageRenderSprites.Concat(StageBackdrops)) item.IsStageReadOnly = IsPythonActive || item.IsRuntimeClone;
         OnPropertyChanged(nameof(CanEditInitialStage));
         OnPropertyChanged(nameof(CanEditStage));
         OnPropertyChanged(nameof(CanReturnToInitialStage));
@@ -65,9 +66,40 @@ public partial class MainViewModel
     {
         hasRuntimePreview = false; runtimeBackdropId = null; stageSequence = 0;
         foreach (var item in StageSprites.Concat(StageBackdrops)) item.ApplyRuntimeState(null);
+        foreach (var clone in StageRuntimeClones.ToArray()) { StageRuntimeClones.Remove(clone); clone.Dispose(); }
+        RebuildStageRenderSprites();
         OnPropertyChanged(nameof(DisplayBackdrop));
         OnPropertyChanged(nameof(HasRuntimeStagePreview));
         RefreshStageInspectorState();
+    }
+
+    private void RebuildStageRenderSprites()
+    {
+        StageRenderSprites.Clear();
+        foreach (var item in StageSprites) StageRenderSprites.Add(item);
+        foreach (var clone in StageRuntimeClones) StageRenderSprites.Add(clone);
+    }
+
+    private static bool TryGetCloneSource(string objectId, out string sourceObjectId)
+    {
+        const string prefix = "clone:";
+        sourceObjectId = string.Empty;
+        var separator = objectId.LastIndexOf(':');
+        if (!objectId.StartsWith(prefix, StringComparison.Ordinal) || separator <= prefix.Length) return false;
+        sourceObjectId = objectId[prefix.Length..separator];
+        return sourceObjectId.Length > 0;
+    }
+
+    private StageObjectItem CreateRuntimeClone(StageObjectItem source, string objectId)
+    {
+        var clone = new StageObjectItem(string.Empty, objectId, ProjectScriptKind.Object,
+            source.DisplayName, source.RelativePath, isRuntimeClone: true)
+        {
+            IsStageReadOnly = true
+        };
+        clone.Restore(source.Snapshot());
+        LoadInitialStageImage(clone);
+        return clone;
     }
 
     private void CleanUnusedImagesOnOpen()
@@ -83,20 +115,45 @@ public partial class MainViewModel
     {
         if (lastRun is null || frame.SessionId != lastRun.SessionId || frame.Sequence <= stageSequence
             || runWorkspace != runtimeWorkspace || frame.Objects is null) return;
-        var items = StageSprites.Concat(StageBackdrops).ToDictionary(o => o.ObjectId);
-        if (frame.Objects.Length != items.Count || frame.Objects.Any(o => o is null || string.IsNullOrEmpty(o.ObjectId) || !items.ContainsKey(o.ObjectId))
-            || frame.Objects.Select(o => o.ObjectId).Distinct().Count() != items.Count
+        var baseItems = StageSprites.Concat(StageBackdrops).ToDictionary(o => o.ObjectId);
+        var existingClones = StageRuntimeClones.ToDictionary(o => o.ObjectId);
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        var planned = new List<(StageObjectState State, StageObjectItem? Item, StageObjectItem? Source)>();
+        foreach (var state in frame.Objects)
+        {
+            if (state is null || string.IsNullOrEmpty(state.ObjectId) || !ids.Add(state.ObjectId)) return;
+            if (baseItems.TryGetValue(state.ObjectId, out var item))
+                planned.Add((state, item, null));
+            else if (TryGetCloneSource(state.ObjectId, out var sourceId)
+                     && baseItems.TryGetValue(sourceId, out var source) && source.IsSprite)
+                planned.Add((state, existingClones.GetValueOrDefault(state.ObjectId), source));
+            else
+                return;
+        }
+        if (baseItems.Keys.Any(id => !ids.Contains(id))
             || frame.CurrentBackdropId is { } backdrop && !StageBackdrops.Any(b => b.ObjectId == backdrop)) return;
         try { foreach (var state in frame.Objects) StageRules.ValidateRuntimeObject(state); }
         catch (ProjectFormatException) { return; }
         stageSequence = frame.Sequence; hasRuntimePreview = true; runtimeBackdropId = frame.CurrentBackdropId;
-        foreach (var state in frame.Objects)
+        foreach (var (state, existing, source) in planned)
         {
-            var item = items[state.ObjectId];
+            var item = existing;
+            if (item is null)
+            {
+                item = CreateRuntimeClone(source!, state.ObjectId);
+                StageRuntimeClones.Add(item);
+                StageRenderSprites.Add(item);
+            }
             var previousImage = item.RuntimeImagePath;
             item.ApplyRuntimeState(state);
             if (state.ImagePath is not null && !string.Equals(previousImage, state.ImagePath, StringComparison.OrdinalIgnoreCase))
                 ApplyRuntimeStageImage(item, state);
+        }
+        foreach (var stale in StageRuntimeClones.Where(clone => !ids.Contains(clone.ObjectId)).ToArray())
+        {
+            StageRuntimeClones.Remove(stale);
+            StageRenderSprites.Remove(stale);
+            stale.Dispose();
         }
         OnPropertyChanged(nameof(DisplayBackdrop));
         OnPropertyChanged(nameof(HasRuntimeStagePreview));
@@ -136,9 +193,10 @@ public partial class MainViewModel
 
     private void ResetStage(StageStorageSnapshot snapshot)
     {
-        foreach (var item in StageSprites.Concat(StageBackdrops)) { item.PropertyChanged -= OnStageItemChanged; item.Dispose(); }
+        foreach (var item in StageSprites.Concat(StageBackdrops).Concat(StageRuntimeClones)) { item.PropertyChanged -= OnStageItemChanged; item.Dispose(); }
         hasRuntimePreview = false; runtimeBackdropId = null; stageSequence = 0;
-        StageSprites.Clear(); StageBackdrops.Clear();
+        StageSprites.Clear(); StageBackdrops.Clear(); StageRuntimeClones.Clear();
+        StageRenderSprites.Clear();
         OnPropertyChanged(nameof(DisplayBackdrop));
         OnPropertyChanged(nameof(HasRuntimeStagePreview));
         RefreshStageInspectorState();
@@ -227,7 +285,7 @@ public partial class MainViewModel
     { ProjectResourceMessage = "图片未导入：" + message; OnPropertyChanged(nameof(ProjectResourceMessage)); }
     private void DisposeStageImages()
     {
-        foreach (var item in StageSprites.Concat(StageBackdrops)) { item.PropertyChanged -= OnStageItemChanged; item.Dispose(); }
+        foreach (var item in StageSprites.Concat(StageBackdrops).Concat(StageRuntimeClones)) { item.PropertyChanged -= OnStageItemChanged; item.Dispose(); }
     }
 
     public Task ImportStageImageAsync(StageObjectItem item, string sourcePath)

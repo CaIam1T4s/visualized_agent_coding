@@ -2,6 +2,7 @@ using System.Text.Json;
 using VisualizedAgentCoding.Application.Ports;
 using VisualizedAgentCoding.Application.Python;
 using VisualizedAgentCoding.Domain.Projects;
+using VisualizedAgentCoding.Application.Editor;
 using VisualizedAgentCoding.Application.Editor.ObjectScripts;
 
 namespace VisualizedAgentCoding.Application.Projects;
@@ -41,16 +42,86 @@ public sealed class ScriptRenameService(IPythonBridge bridge, IProjectStore stor
                     token: token).ConfigureAwait(false);
         }
         var uri = new Uri(project.ToAbsolutePath(script.Path)).AbsoluteUri;
-        var result = await bridge.PlanModuleRenameAsync(new(project.RootPath, uri, version, newName, documents), token).ConfigureAwait(false);
+        var oldClassName = script.Kind == ProjectScriptKind.User ? null
+            : ProjectService.ToClassName(Path.GetFileNameWithoutExtension(script.Path));
+        var newClassName = script.Kind == ProjectScriptKind.User ? null
+            : ProjectService.ToClassName(Path.GetFileNameWithoutExtension(newPath));
+        var result = await bridge.PlanModuleRenameAsync(new(project.RootPath, uri, version, newName, documents,
+            oldClassName, newClassName), token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
         if (result.Uri != uri || result.Version != version) throw new ProjectOperationException("重命名分析版本不匹配。");
         if (result.IsIncomplete || result.Issues.Length > 0) throw new ProjectOperationException("无法安全生成重命名计划：\n" +
             string.Join("\n", result.Issues.Select(issue => $"{Path.GetFileName(new Uri(issue.Uri).LocalPath)}: {issue.Message}")));
         var updates = result.Changes.ToDictionary(change => change.Uri, StringComparer.OrdinalIgnoreCase);
         if (updates.Keys.Any(key => !originals.ContainsKey(key))) throw new ProjectOperationException("分析返回了项目外的修改。");
-        return new(project, scriptId, newName, newPath, version, manifest, documents.Select(d => new ScriptRenameDocument(
-            Path.GetRelativePath(project.RootPath, new Uri(d.Uri).LocalPath), originals[d.Uri], d.Source,
-            updates.TryGetValue(d.Uri, out var change) ? change.Source : d.Source)).ToArray());
+        var planned = documents.Select(d =>
+        {
+            var path = Path.GetRelativePath(project.RootPath, new Uri(d.Uri).LocalPath);
+            var normalizedPath = path.Replace('\\', '/');
+            var after = updates.TryGetValue(d.Uri, out var change) ? change.Source : d.Source;
+            var entry = project.Manifest.Scripts.FirstOrDefault(s => string.Equals(
+                s.Path.Replace('\\', '/'), normalizedPath, StringComparison.OrdinalIgnoreCase));
+            var isTarget = string.Equals(normalizedPath, script.Path.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase);
+            var nextPath = isTarget ? newPath : path;
+            var oldClass = entry is { Kind: not ProjectScriptKind.User }
+                ? ProjectService.ToClassName(Path.GetFileNameWithoutExtension(path)) : null;
+            var newClass = oldClass is null ? null
+                : ProjectService.ToClassName(Path.GetFileNameWithoutExtension(nextPath));
+            return new ScriptRenameDocument(path, originals[d.Uri], d.Source, after,
+                Kind: entry?.Kind, OldClassName: oldClass, NewClassName: newClass, NewPath: nextPath, IsTarget: isTarget);
+        }).ToList();
+        await PopulateVisiblePreviewsAsync(project, planned, token).ConfigureAwait(false);
+        return new(project, scriptId, newName, newPath, version, manifest, planned.ToArray());
+    }
+
+    /// <summary>Build editor-facing previews without exposing template wrappers or region markers.</summary>
+    private async Task PopulateVisiblePreviewsAsync(ProjectWorkspace project, List<ScriptRenameDocument> documents,
+        CancellationToken token)
+    {
+        var imports = new ScriptImportService(bridge);
+        var objectScripts = new ObjectScriptDocumentService(bridge);
+        for (var index = 0; index < documents.Count; index++)
+        {
+            var document = documents[index];
+            if (document.Before == document.After && string.Equals(document.Path, document.NewPath, StringComparison.Ordinal)) continue;
+            var script = project.Manifest.Scripts.FirstOrDefault(s =>
+                string.Equals(s.Path.Replace('\\', '/'), document.Path.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase));
+            if (script is null)
+            {
+                documents[index] = document with { BeforeVisible = document.Before, AfterVisible = document.After };
+                continue;
+            }
+            try
+            {
+                if (script.Kind == ProjectScriptKind.User)
+                {
+                    var uri = new Uri(project.ToAbsolutePath(document.Path)).AbsoluteUri;
+                    var before = await imports.InspectAsync(project, script, 0, document.Before, token: token).ConfigureAwait(false);
+                    var after = await imports.InspectAsync(project, script, 0, document.After, token: token).ConfigureAwait(false);
+                    documents[index] = document with
+                    {
+                        BeforeVisible = new UserScriptImportProjection(new(script.Id, uri, document.Before, before.Block)).ViewSource,
+                        AfterVisible = new UserScriptImportProjection(new(script.Id, uri, document.After, after.Block)).ViewSource,
+                    };
+                }
+                else
+                {
+                    var before = await objectScripts.InspectAsync(project, script.Id, 0, document.Before, token: token).ConfigureAwait(false);
+                    var after = await objectScripts.InspectAsync(project, script.Id, 0, document.After, token: token,
+                        expectedClassName: document.NewClassName).ConfigureAwait(false);
+                    documents[index] = document with
+                    {
+                        BeforeVisible = EditorProjection.Create(before).ViewSource,
+                        AfterVisible = EditorProjection.Create(after).ViewSource,
+                    };
+                }
+            }
+            catch (Exception) when (!token.IsCancellationRequested)
+            {
+                // Keep the rename plan usable if a read-only preview projection cannot be built.
+                documents[index] = document with { BeforeVisible = document.Before, AfterVisible = document.After };
+            }
+        }
     }
 
     public ProjectWorkspace Apply(ScriptRenamePlan plan)
@@ -74,7 +145,8 @@ public sealed class ScriptRenameService(IPythonBridge bridge, IProjectStore stor
                 written.Add(document);
                 store.WriteScript(root, document.Path, document.After);
             }
-            return new ProjectService(store).CommitScriptFileRename(project, plan.ScriptId, plan.NewName);
+            return new ProjectService(store).CommitScriptFileRename(project, plan.ScriptId, plan.NewName,
+                synchronizeClass: project.FindScript(plan.ScriptId)!.Kind != ProjectScriptKind.User);
         }
         catch (Exception failure)
         {

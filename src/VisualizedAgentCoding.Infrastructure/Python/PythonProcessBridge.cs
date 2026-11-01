@@ -111,7 +111,8 @@ public sealed class PythonProcessBridge : IPythonBridge
             await EnsureStartedAsync(token).ConfigureAwait(false);
             if (!info!.Capabilities.Contains("planModuleRename")) throw new PythonBridgeException("Python Helper 不支持重命名预览。");
             var response = await SendAsync<PythonModuleRenameResult>("python.planModuleRename",
-                new { projectRoot = snapshot.Root, uri, request.Version, request.NewName }, token).ConfigureAwait(false);
+                new { projectRoot = snapshot.Root, uri, request.Version, request.NewName,
+                    request.OldClassName, request.NewClassName }, token).ConfigureAwait(false);
             if (response.Uri != uri || response.Version != request.Version) throw new PythonBridgeException("重命名结果版本不匹配。");
             return response;
         }, cancellationToken, TimeSpan.FromSeconds(30)).ConfigureAwait(false);

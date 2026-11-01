@@ -21,13 +21,15 @@ public partial class StageObjectItem : ObservableObject, IDisposable
         string objectId,
         ProjectScriptKind kind,
         string displayName,
-        string relativePath)
+        string relativePath,
+        bool isRuntimeClone = false)
     {
         ScriptId = scriptId;
         ObjectId = objectId;
         Kind = kind;
         RelativePath = relativePath;
         DisplayName = displayName;
+        IsRuntimeClone = isRuntimeClone;
     }
 
     private StageObjectState? runtimeState;
@@ -111,6 +113,7 @@ public partial class StageObjectItem : ObservableObject, IDisposable
     public string ObjectId { get; }
 
     public ProjectScriptKind Kind { get; }
+    public bool IsRuntimeClone { get; }
 
     public string RelativePath { get; private set; } = string.Empty;
 

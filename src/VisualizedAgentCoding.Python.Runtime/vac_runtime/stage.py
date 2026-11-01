@@ -63,6 +63,11 @@ class StageBase:
         return clock.timer()
 
     @property
+    def is_clone(self):
+        """True for a runtime clone, False for the project-owned role."""
+        return bool(self.__dict__.get('_vac_is_clone', False))
+
+    @property
     def costume(self):
         """Read-only display name of the active costume."""
         active = self.__dict__.get('_vac_active_costume')
@@ -93,7 +98,8 @@ class StageBase:
             if name in _DEFAULTS and value is not _MISSING:
                 setattr(self, name, value)
 
-    def _vac_bind(self, layout, activate, pointer=None, animate=None, animate_direction=None, animate_size=None):
+    def _vac_bind(self, layout, activate, pointer=None, animate=None, animate_direction=None, animate_size=None,
+                  clone=None, delete_clone=None):
         costumes = []
         names = set()
         for raw in layout.get('costumes') or []:
@@ -127,6 +133,8 @@ class StageBase:
         self.__dict__['_vac_animate'] = animate
         self.__dict__['_vac_animate_direction'] = animate_direction
         self.__dict__['_vac_animate_size'] = animate_size
+        self.__dict__['_vac_clone'] = clone
+        self.__dict__['_vac_delete_clone'] = delete_clone
         self.__dict__['_vac_costumes'] = by_name
         self.__dict__['_vac_active_costume'] = active
 
@@ -145,6 +153,20 @@ class StageBase:
 
 
 class ElementBase(StageBase):
+    def clone(self):
+        """Create an independent runtime copy of this role and return it."""
+        callback = self.__dict__.get('_vac_clone')
+        if callback is None:
+            raise RuntimeError('角色尚未接入运行舞台。')
+        return callback()
+
+    def delete_clone(self):
+        """Remove this runtime clone from the stage."""
+        callback = self.__dict__.get('_vac_delete_clone')
+        if callback is None:
+            raise RuntimeError('角色尚未接入运行舞台。')
+        return callback()
+
     def switch_costume(self, name):
         """Select one of this role's costumes by display name."""
         self._vac_switch_costume(name)
@@ -262,9 +284,13 @@ class BackdropBase(StageBase):
 
 
 class StageSession:
-    def __init__(self, request, instances, emit, broadcast=None):
+    MAX_CLONES = 300
+
+    def __init__(self, request, instances, emit, broadcast=None, click_handlers=None, clone_handlers=None):
         self.request, self.instances, self.emit = request, instances, emit
         self.broadcast = broadcast
+        self.click_handlers = click_handlers
+        self.clone_handlers = clone_handlers
         initial = request.get('initialStage') or {}
         self.backdrop = initial.get('currentBackdropId')
         self.sequence = 0
@@ -280,7 +306,10 @@ class StageSession:
         self.animations = {}
         self.instances_by_id = {script['objectId']: instance for script, instance in instances
                                 if script['kind'] == 'object'}
+        self.scripts_by_id = {script['objectId']: script for script, _ in instances}
+        self.clone_count = 0
         layouts = {o['objectId']: o for o in initial.get('objects', [])}
+        self.layouts = layouts
         backdrops = {s['objectId'] for s, _ in instances if s['kind'] == 'backdrop'}
         for script, _ in instances:
             if script['kind'] != 'backdrop':
@@ -300,7 +329,9 @@ class StageSession:
             instance._vac_bind(layouts.get(script['objectId'], {}), activate, self.pointer_position,
                 lambda x, y, seconds, on_finish, identity=script['objectId']: self.start_position_animation(identity, x, y, seconds, on_finish),
                 lambda angle, seconds, on_finish, identity=script['objectId']: self.start_direction_animation(identity, angle, seconds, on_finish),
-                lambda value, seconds, on_finish, identity=script['objectId']: self.start_size_animation(identity, value, seconds, on_finish))
+                lambda value, seconds, on_finish, identity=script['objectId']: self.start_size_animation(identity, value, seconds, on_finish),
+                clone=lambda identity=script['objectId']: self.clone_instance(identity),
+                delete_clone=lambda identity=script['objectId']: self.delete_instance(identity))
         self.thread = threading.Thread(target=self._sample, daemon=True)
 
     def start_position_animation(self, identity, target_x, target_y, seconds, on_finish=None):
@@ -351,6 +382,77 @@ class StageSession:
         if not isinstance(instance, ElementBase):
             raise RuntimeError('仅角色可播放动画。')
         return instance
+
+    def clone_instance(self, identity):
+        """Create one visible, independent role copy with the current runtime state."""
+        clone_start = None
+        with self.lock:
+            source = self.instances_by_id.get(identity)
+            if not isinstance(source, ElementBase):
+                raise RuntimeError('仅角色可以克隆。')
+            if source.__dict__.get('_vac_is_clone'):
+                raise RuntimeError('克隆体不能再次克隆。')
+            if self.clone_count >= self.MAX_CLONES:
+                raise RuntimeError(f'克隆数量已达到上限（{self.MAX_CLONES}）。')
+            script = self.scripts_by_id.get(identity)
+            if script is None:
+                raise RuntimeError('找不到角色脚本信息。')
+            self.clone_count += 1
+            clone_id = f'clone:{identity}:{self.clone_count}'
+            clone_script = dict(script, objectId=clone_id)
+            clone = type(source)()
+            clone.__dict__['_vac_is_clone'] = True
+            clone._vac_context = dict(getattr(source, '_vac_context', {}), object_id=clone_id, clone_of=identity)
+            clone._vac_bind(self.layouts.get(identity, {}), lambda: None, self.pointer_position,
+                lambda x, y, seconds, on_finish, identity=clone_id: self.start_position_animation(identity, x, y, seconds, on_finish),
+                lambda angle, seconds, on_finish, identity=clone_id: self.start_direction_animation(identity, angle, seconds, on_finish),
+                lambda value, seconds, on_finish, identity=clone_id: self.start_size_animation(identity, value, seconds, on_finish),
+                clone=lambda: self.clone_instance(clone_id),
+                delete_clone=lambda: self.delete_instance(clone_id))
+            values = source.__dict__.get('_vac_values')
+            if values is not None:
+                clone.__dict__['_vac_values'] = dict(values)
+            active = source.__dict__.get('_vac_active_costume')
+            clone.__dict__['_vac_active_costume'] = dict(active) if active is not None else None
+            self.scripts_by_id[clone_id] = clone_script
+            self.instances_by_id[clone_id] = clone
+            self.instances.append((clone_script, clone))
+            if self.click_handlers is not None and identity in self.click_handlers:
+                source_callback = self.click_handlers[identity][1]
+                callback = getattr(clone, getattr(source_callback, '__name__', ''), None)
+                if callable(callback):
+                    self.click_handlers[clone_id] = (clone, callback)
+            if self.clone_handlers is not None and identity in self.clone_handlers:
+                source_callback = self.clone_handlers[identity]
+                callback = getattr(clone, getattr(source_callback, '__name__', ''), None)
+                if callable(callback):
+                    clone_start = callback
+        self.publish()
+        if clone_start is not None:
+            clone_start()
+        return clone
+
+    def delete_instance(self, identity):
+        """Delete one runtime clone and remove all of its event and animation bindings."""
+        with self.lock:
+            instance = self.instances_by_id.get(identity)
+            if instance is None:
+                return False
+            if not instance.__dict__.get('_vac_is_clone'):
+                raise RuntimeError('只能删除克隆体。')
+            for index, (script, candidate) in enumerate(self.instances):
+                if candidate is instance or script['objectId'] == identity:
+                    del self.instances[index]
+                    break
+            self.instances_by_id.pop(identity, None)
+            self.scripts_by_id.pop(identity, None)
+            if self.click_handlers is not None:
+                self.click_handlers.pop(identity, None)
+            for key in [key for key in self.animations if key[0] == identity]:
+                self.animations.pop(key, None)
+            instance.__dict__['_vac_deleted'] = True
+        self.publish()
+        return True
 
     def advance_animations(self):
         changed = False
