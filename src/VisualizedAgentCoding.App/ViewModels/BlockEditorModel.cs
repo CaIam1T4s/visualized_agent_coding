@@ -6,10 +6,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace happy_agent_coding.ViewModels;
 
 /// <summary>One flattened, read-only line in the current block projection.</summary>
-public sealed record BlockLine(string Text, int Depth, bool IsRaw = false, bool IsHat = false)
+public sealed record BlockLine(string Text, int Depth, bool IsRaw = false, bool IsHat = false,
+    string Type = "", string Prefix = "", string Parameter = "", string Suffix = "")
 {
     public Thickness IndentMargin => new(Depth * 18, 0, 0, 0);
     public string KindLabel => IsHat ? "事件" : IsRaw ? "原始代码" : "积木";
+    public bool IsScratchBlock => Type is "motion.move" or "motion.turn";
+    public bool IsStandardBlock => !IsScratchBlock;
 }
 
 public partial class BlockEditorModel : ObservableObject

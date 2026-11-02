@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:happy_agent_coding.ViewModels"
+             xmlns:controls="using:happy_agent_coding.Controls"
              x:Class="happy_agent_coding.Views.BlockEditorView"
              x:DataType="vm:MainViewModel">
     <Grid ColumnDefinitions="220,*"
@@ -94,13 +95,20 @@
                 BorderThickness="1"
                 CornerRadius="8"
                 ClipToBounds="True">
-            <Grid RowDefinitions="Auto,*,Auto" Margin="18,14,18,10">
+            <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="18,14,18,10">
                 <TextBlock Grid.Row="0"
                            Text="{Binding BlockEditor.Title}"
                            FontSize="16"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                <ScrollViewer Grid.Row="1"
+                <StackPanel Grid.Row="1" Spacing="6" Margin="0,12,0,0">
+                    <TextBlock Text="积木控件原型（只读）"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    <controls:ScratchBlockControl Prefix="移动" Parameter="10" Suffix="步"
+                                                   HorizontalAlignment="Left" />
+                </StackPanel>
+                <ScrollViewer Grid.Row="2"
                               Margin="0,12,0,8"
                               HorizontalScrollBarVisibility="Auto"
                               VerticalScrollBarVisibility="Auto">
@@ -112,21 +120,28 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:BlockLine">
-                                <Border Margin="{Binding IndentMargin}"
-                                        Padding="12,8"
-                                        CornerRadius="6"
-                                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                        BorderThickness="1">
-                                    <TextBlock Text="{Binding Text}"
-                                               TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                </Border>
+                                <Grid Margin="{Binding IndentMargin}">
+                                    <controls:ScratchBlockControl IsVisible="{Binding IsScratchBlock}"
+                                                                  Prefix="{Binding Prefix}"
+                                                                  Parameter="{Binding Parameter}"
+                                                                  Suffix="{Binding Suffix}"
+                                                                  HorizontalAlignment="Left" />
+                                    <Border IsVisible="{Binding IsStandardBlock}"
+                                            Padding="12,8"
+                                            CornerRadius="6"
+                                            Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                            BorderThickness="1">
+                                        <TextBlock Text="{Binding Text}"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    </Border>
+                                </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
-                <StackPanel Grid.Row="2" Spacing="4">
+                <StackPanel Grid.Row="3" Spacing="4">
                     <TextBlock Text="积木模型和 Python 同步接入后，这里将显示当前脚本的事件积木和语句积木。"
                                IsVisible="{Binding BlockEditor.IsEmpty}"
                                TextWrapping="Wrap"

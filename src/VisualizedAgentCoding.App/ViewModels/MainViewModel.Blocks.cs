@@ -113,7 +113,14 @@ public partial class MainViewModel
                 lines.Add(new BlockLine(node.Text ?? "原始代码", depth, IsRaw: true));
                 continue;
             }
-            lines.Add(new BlockLine(DescribeBlock(node), depth));
+            if (node.Type == "motion.move")
+                lines.Add(new BlockLine(DescribeBlock(node), depth, Type: node.Type,
+                    Prefix: "移动", Parameter: Argument(node, "steps"), Suffix: "步"));
+            else if (node.Type == "motion.turn")
+                lines.Add(new BlockLine(DescribeBlock(node), depth, Type: node.Type,
+                    Prefix: "旋转", Parameter: Argument(node, "degrees"), Suffix: "度"));
+            else
+                lines.Add(new BlockLine(DescribeBlock(node), depth));
             AppendBlockLines(lines, node.Children, depth + 1);
             if (node.ElseChildren is { Length: > 0 })
             {
