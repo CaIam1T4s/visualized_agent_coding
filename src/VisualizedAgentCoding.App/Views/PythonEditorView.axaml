@@ -88,7 +88,7 @@
                                                  Background="{DynamicResource LayerFillColorBrush}"
                                                  Foreground="{DynamicResource TextFillColorPrimaryBrush}">
                         </avaloniaEdit:TextEditor>
-                        <views:BlockEditorView IsVisible="{Binding IsBlockEditorMode}" />
+                        <views:BlueprintEditorView IsVisible="{Binding IsBlockEditorMode}" />
                     </Panel>
                     <StackPanel Grid.Row="2" Spacing="4" IsVisible="{Binding IsPythonEditorMode}">
                     <Expander x:Name="DiagnosticsExpander" Classes="diagnostics-list" IsVisible="{Binding HasPythonDiagnostics}"

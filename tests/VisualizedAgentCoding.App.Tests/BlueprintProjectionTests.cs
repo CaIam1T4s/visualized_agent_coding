@@ -8,13 +8,13 @@ using VisualizedAgentCoding.Infrastructure.Python;
 
 namespace VisualizedAgentCoding.App.Tests;
 
-public sealed class BlockProjectionTests
+public sealed class BlueprintProjectionTests
 {
     [Fact]
-    public async Task HelperProjectsSupportedBlocksAndPreservesRawCode()
+    public async Task HelperProjectsSupportedNodesAndPreservesRawCode()
     {
         await using var bridge = new PythonProcessBridge();
-        var tree = await bridge.BuildBlockTreeAsync(new("""
+        var tree = await bridge.BuildNodeTreeAsync(new PythonNodeRequest("""
 self.move(10)
 for _ in range(3):
     self.turn(15)
@@ -44,10 +44,10 @@ custom_call()
             await vm.OpenScriptFromExplorerCommand.ExecuteAsync(Assert.Single(vm.ObjectScripts));
             vm.EditorModeIndex = 1;
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            while (!vm.BlockEditor.HasBlocks) await Task.Delay(20, timeout.Token);
-            Assert.Contains(vm.BlockEditor.Lines, line => line.Text.Contains("当启动时"));
-            Assert.Contains(vm.BlockEditor.Lines, line => line.Text.Contains("移动 10 步"));
-            Assert.Contains(vm.BlockEditor.Lines, line => line.Text.Contains("等待 1 秒"));
+            while (!vm.BlueprintEditor.HasBlocks) await Task.Delay(20, timeout.Token);
+            Assert.Contains(vm.BlueprintEditor.Lines, line => line.Text.Contains("程序启动时运行"));
+            Assert.Contains(vm.BlueprintEditor.Lines, line => line.Text.Contains("移动 10 步"));
+            Assert.Contains(vm.BlueprintEditor.Lines, line => line.Text.Contains("等待 1 秒"));
         }
         finally
         {

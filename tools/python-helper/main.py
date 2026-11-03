@@ -20,7 +20,7 @@ from protocol import (
     ok,
 )
 
-CAPABILITIES = ['parse', 'findReferences', 'findModuleDependencies', 'planModuleRename', 'inspectObjectScript', 'imports', 'blocks']
+CAPABILITIES = ['parse', 'findReferences', 'findModuleDependencies', 'planModuleRename', 'inspectObjectScript', 'imports', 'blocks', 'nodes']
 
 
 def handle_hello(params, state):
@@ -97,11 +97,11 @@ def dispatch(message, state):
                 raise ProtocolError(ERR_NOT_HELLO, 'helper.hello must be called first')
             from object_script_service import inspect_object_script
             return ok(message_id, inspect_object_script(params)), False
-        if method == 'python.blocks':
+        if method in ('python.blocks', 'python.nodes'):
             if state['negotiated'] is None:
                 raise ProtocolError(ERR_NOT_HELLO, 'helper.hello must be called first')
-            from blocks_service import build_blocks
-            return ok(message_id, build_blocks(params)), False
+            from nodes_service import build_blocks, build_document
+            return ok(message_id, build_document(params) if params.get('mode') == 'document' else build_blocks(params)), False
         if method == 'helper.shutdown':
             return ok(message_id, {}), True
         raise ProtocolError(ERR_METHOD_NOT_FOUND, f'unknown method: {method}')

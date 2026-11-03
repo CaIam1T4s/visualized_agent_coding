@@ -120,6 +120,7 @@ public partial class MainViewModel : ViewModelBase
         InitializePythonDiagnostics(pythonBridge);
         InitializeReferences(pythonBridge, runtimeStore);
         InitializeExitAutoSave(autoSavePolicies);
+        InitializeBlueprintNavigation();
     }
 
     [ObservableProperty]

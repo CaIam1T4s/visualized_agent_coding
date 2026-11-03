@@ -6,8 +6,8 @@ using Avalonia.Media;
 
 namespace happy_agent_coding.Controls;
 
-/// <summary>Prototype for one Scratch-shaped command block with a read-only parameter slot.</summary>
-public sealed class ScratchBlockControl : Control
+/// <summary>Blueprint node control used while the old block-named control remains as a compatibility entry.</summary>
+public sealed class BlueprintNodeControl : Control
 {
     private static readonly Typeface BlockTypeface =
         new("Inter", FontStyle.Normal, FontWeight.SemiBold);
@@ -19,20 +19,20 @@ public sealed class ScratchBlockControl : Control
     private static readonly IBrush ParameterText = new SolidColorBrush(Color.Parse("#20242A"));
 
     public static readonly StyledProperty<string> PrefixProperty =
-        AvaloniaProperty.Register<ScratchBlockControl, string>(nameof(Prefix), "移动");
+        AvaloniaProperty.Register<BlueprintNodeControl, string>(nameof(Prefix), "移动");
     public static readonly StyledProperty<string> ParameterProperty =
-        AvaloniaProperty.Register<ScratchBlockControl, string>(nameof(Parameter), "10");
+        AvaloniaProperty.Register<BlueprintNodeControl, string>(nameof(Parameter), "10");
     public static readonly StyledProperty<string> SuffixProperty =
-        AvaloniaProperty.Register<ScratchBlockControl, string>(nameof(Suffix), "步");
+        AvaloniaProperty.Register<BlueprintNodeControl, string>(nameof(Suffix), "步");
     public static readonly StyledProperty<IBrush> FillProperty =
-        AvaloniaProperty.Register<ScratchBlockControl, IBrush>(nameof(Fill), DefaultFill);
+        AvaloniaProperty.Register<BlueprintNodeControl, IBrush>(nameof(Fill), DefaultFill);
     public static readonly StyledProperty<IBrush> TextBrushProperty =
-        AvaloniaProperty.Register<ScratchBlockControl, IBrush>(nameof(TextBrush), DefaultText);
+        AvaloniaProperty.Register<BlueprintNodeControl, IBrush>(nameof(TextBrush), DefaultText);
 
-    static ScratchBlockControl()
+    static BlueprintNodeControl()
     {
-        AffectsMeasure<ScratchBlockControl>(PrefixProperty, ParameterProperty, SuffixProperty);
-        AffectsRender<ScratchBlockControl>(FillProperty, TextBrushProperty);
+        AffectsMeasure<BlueprintNodeControl>(PrefixProperty, ParameterProperty, SuffixProperty);
+        AffectsRender<BlueprintNodeControl>(FillProperty, TextBrushProperty);
     }
 
     public string Prefix { get => GetValue(PrefixProperty); set => SetValue(PrefixProperty, value); }

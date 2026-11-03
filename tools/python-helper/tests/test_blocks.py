@@ -39,14 +39,14 @@ for item in list_values("items"):
         self.assertEqual('control.for_each', result['nodes'][1]['type'])
         self.assertEqual(dict(item='item', name='items'), result['nodes'][1]['arguments'])
 
-    def test_unknown_code_is_raw_and_comments_are_kept(self):
+    def test_assignments_and_comments_are_projected(self):
         result = blocks_service.build_blocks(dict(source='''\
 # keep this
 x = 1
 self.move(2)
 '''))
         self.assertIsNone(result['error'])
-        self.assertEqual(['comment', 'raw', 'motion.move'], [node['type'] for node in result['nodes']])
+        self.assertEqual(['comment', 'data.set_local', 'motion.move'], [node['type'] for node in result['nodes']])
         self.assertEqual('# keep this', result['nodes'][0]['text'])
 
     def test_syntax_errors_do_not_throw(self):

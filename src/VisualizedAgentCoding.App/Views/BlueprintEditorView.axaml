@@ -1,0 +1,232 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:happy_agent_coding.ViewModels"
+             xmlns:controls="using:happy_agent_coding.Controls"
+             x:Class="happy_agent_coding.Views.BlueprintEditorView"
+             x:DataType="vm:MainViewModel">
+    <Grid ColumnDefinitions="220,*,280"
+          Background="{DynamicResource LayerFillColorBrush}">
+        <Border Grid.Column="0"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                BorderThickness="0,0,1,0"
+                Padding="10,8">
+            <Grid RowDefinitions="Auto,*">
+                <TextBlock Text="积木"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Margin="4,2,0,10"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                <ScrollViewer Grid.Row="1"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding BlueprintEditor.ClassPage.ObjectName}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Margin="4,0,0,0" />
+                        <TextBlock Text="{Binding BlueprintEditor.ClassPage.ClassName}"
+                                   FontSize="10"
+                                   Opacity="0.6"
+                                   Margin="4,-4,0,4" />
+                        <ListBox ItemsSource="{Binding BlueprintEditor.ClassPage.Canvases}"
+                                 SelectedItem="{Binding BlueprintEditor.ClassPage.SelectedCanvas, Mode=TwoWay}"
+                                 Background="Transparent"
+                                 Padding="0">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:BlueprintCanvasEntry">
+                                    <TextBlock Text="{Binding Title}" FontSize="12" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <Expander Header="节点" IsExpanded="True">
+                            <StackPanel Spacing="4" Margin="0,4,0,0">
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="当启动时" />
+                                </Border>
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="当角色被点击" />
+                                </Border>
+                            </StackPanel>
+                        </Expander>
+                        <Expander Header="运动">
+                            <StackPanel Spacing="4" Margin="0,4,0,0">
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="移动 10 步" />
+                                </Border>
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="旋转 15 度" />
+                                </Border>
+                            </StackPanel>
+                        </Expander>
+                        <Expander Header="控制">
+                            <StackPanel Spacing="4" Margin="0,4,0,0">
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="重复执行 10 次" />
+                                </Border>
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="计数循环" />
+                                </Border>
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="重复直到条件" />
+                                </Border>
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="列表遍历" />
+                                </Border>
+                            </StackPanel>
+                        </Expander>
+                        <Expander Header="数据">
+                            <StackPanel Spacing="4" Margin="0,4,0,0">
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="设置变量" />
+                                </Border>
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="增加变量" />
+                                </Border>
+                            </StackPanel>
+                        </Expander>
+                        <Expander Header="外观">
+                            <StackPanel Spacing="4" Margin="0,4,0,0">
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
+                                    <TextBlock Text="切换造型" />
+                                </Border>
+                            </StackPanel>
+                        </Expander>
+                        <TextBlock Text="变量"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Margin="4,12,0,2"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBox Text="{Binding BlueprintEditor.VariablePalette.SearchText, Mode=TwoWay}"
+                                 PlaceholderText="搜索变量"
+                                 Margin="0,0,0,4" />
+                        <ItemsControl ItemsSource="{Binding BlueprintEditor.VariablePalette.Groups}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:VariableTemplateGroup">
+                                    <Expander Header="{Binding Title}"
+                                              IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                                              IsVisible="{Binding HasVisibleItems}"
+                                              Margin="0,0,0,2">
+                                        <ItemsControl ItemsSource="{Binding FilteredItems}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:VariableTemplateItem">
+                                                    <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                                            CornerRadius="5"
+                                                            Padding="8,5"
+                                                            Margin="0,2">
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding DisplayName}"
+                                                                       FontSize="12"
+                                                                       ToolTip.Tip="{Binding HoverText}" />
+                                                            <TextBlock Text="{Binding GeneratedCode}"
+                                                                       FontSize="10"
+                                                                       Opacity="0.62" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Expander>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+        <Border Grid.Column="1"
+                Margin="16"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                ClipToBounds="True">
+            <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="18,14,18,10">
+                <TextBlock Grid.Row="0"
+                           Text="{Binding BlueprintEditor.Title}"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Border Grid.Row="1"
+                        Grid.RowSpan="2"
+                        Margin="0,12,0,8"
+                        CornerRadius="8"
+                        ClipToBounds="True">
+                    <controls:BlueprintWorkspace Document="{Binding BlueprintEditor.Document}"
+                                                   NodeSelected="OnNodeSelected"
+                                                   NodeMoved="OnBlueprintNodeMoved"
+                                                   ReconnectRequested="OnBlueprintReconnect" />
+                </Border>
+                <StackPanel Grid.Row="3" Spacing="4">
+                    <Button Content="管理项目变量…"
+                            Click="OnManageProjectVariables"
+                            HorizontalAlignment="Left"
+                            Margin="0,0,0,6" />
+                    <TextBlock Text="节点画布读取当前脚本的启动区域；拖拽只改变视图坐标，Python 顺序不变。"
+                               IsVisible="{Binding BlueprintEditor.IsEmpty}"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="{Binding BlueprintEditor.Status}"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+        <Border Grid.Column="2"
+                Margin="0,16,16,16"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                ClipToBounds="True">
+            <Grid RowDefinitions="Auto,*,Auto" Margin="14">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding BlueprintEditor.Inspector.Title}"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding BlueprintEditor.Inspector.Subtitle}"
+                               FontSize="10"
+                               Opacity="0.62"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+                <ScrollViewer Grid.Row="1" Margin="0,10,0,0">
+                    <ItemsControl ItemsSource="{Binding BlueprintEditor.Inspector.Arguments}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BlueprintArgumentItem">
+                                <StackPanel Spacing="2" Margin="0,0,0,8">
+                                    <TextBlock Text="{Binding Key}"
+                                               FontSize="10"
+                                               Opacity="0.65" />
+                                    <TextBox Text="{Binding Value, Mode=TwoWay}"
+                                             IsEnabled="{Binding IsTextEnabled}"
+                                             FontSize="12" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                <StackPanel Grid.Row="2" Spacing="4" Margin="0,8,0,0">
+                    <TextBox Text="{Binding BlueprintEditor.Inspector.NewStatement, Mode=TwoWay}"
+                             PlaceholderText="新语句，例如 self.health = 100"
+                             FontSize="12" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Content="插入语句" Click="OnInsertBlueprintStatement" />
+                        <Button Content="删除节点" Click="OnDeleteBlueprintNode" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

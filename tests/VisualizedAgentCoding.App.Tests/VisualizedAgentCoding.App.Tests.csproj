@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\VisualizedAgentCoding.Domain\VisualizedAgentCoding.Domain.csproj" />
     <ProjectReference Include="..\..\src\VisualizedAgentCoding.Application\VisualizedAgentCoding.Application.csproj" />
     <ProjectReference Include="..\..\src\VisualizedAgentCoding.Infrastructure\VisualizedAgentCoding.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\VisualizedAgentCoding.Blueprint.Core\VisualizedAgentCoding.Blueprint.Core.csproj" />
   </ItemGroup>
 
 </Project>

@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
+using VisualizedAgentCoding.Application.Python;
+using VisualizedAgentCoding.Domain.Blueprint;
 
 namespace happy_agent_coding.ViewModels;
 
@@ -10,16 +12,21 @@ public sealed record BlockLine(string Text, int Depth, bool IsRaw = false, bool 
     string Type = "", string Prefix = "", string Parameter = "", string Suffix = "")
 {
     public Thickness IndentMargin => new(Depth * 18, 0, 0, 0);
-    public string KindLabel => IsHat ? "事件" : IsRaw ? "原始代码" : "积木";
-    public bool IsScratchBlock => Type is "motion.move" or "motion.turn";
-    public bool IsStandardBlock => !IsScratchBlock;
+    public string KindLabel => IsHat ? "事件" : IsRaw ? "原始代码" : "节点";
+    public bool IsBlueprintNode => Type is "motion.move" or "motion.turn";
+    public bool IsStandardNode => !IsBlueprintNode;
 }
 
-public partial class BlockEditorModel : ObservableObject
+public partial class BlueprintEditorModel : ObservableObject
 {
     public ObservableCollection<BlockLine> Lines { get; } = [];
+    public BlueprintVariablePalette VariablePalette { get; } = new();
+    public BlueprintClassPageModel ClassPage { get; } = new();
+    public BlueprintNodeInspector Inspector { get; } = new();
+    public ObservableCollection<BlueprintImportCallTemplate> ImportTemplates { get; } = [];
 
-    [ObservableProperty] private string title = "积木编辑区";
+    [ObservableProperty] private BlueprintDocument? document;
+    [ObservableProperty] private string title = "节点编辑区";
     [ObservableProperty] private string status = "切换到图形化编辑器以读取当前脚本。";
     [ObservableProperty] private bool isLoading;
     [ObservableProperty]
@@ -31,6 +38,7 @@ public partial class BlockEditorModel : ObservableObject
     public void Clear(string message)
     {
         Lines.Clear();
+        Document = null;
         HasBlocks = false;
         Title = "积木编辑区";
         Status = message;
@@ -40,18 +48,39 @@ public partial class BlockEditorModel : ObservableObject
     public void SetLoading()
     {
         Lines.Clear();
+        Document = null;
         HasBlocks = false;
         IsLoading = true;
         Status = "正在读取积木…";
     }
 
+    public void SetStaleError(string message)
+    {
+        Status = message;
+        IsLoading = false;
+        if (Document is null) HasBlocks = false;
+    }
+
     public void SetError(string message)
     {
         Lines.Clear();
+        Document = null;
         HasBlocks = false;
         Status = message;
         IsLoading = false;
     }
+
+    public void SetDocument(BlueprintDocument? document)
+    {
+        Document = document;
+        IsLoading = false;
+    }
+
+    public void SetVariables(IEnumerable<VisualizedAgentCoding.Domain.Blueprint.VariableRef> references)
+        => VariablePalette.SetVariables(references);
+
+    public void SelectNode(VisualizedAgentCoding.Domain.Blueprint.BlueprintNode? node)
+        => Inspector.SetNode(node);
 
     public void SetTree(string title, IEnumerable<BlockLine> lines, string status = "只读预览")
     {
