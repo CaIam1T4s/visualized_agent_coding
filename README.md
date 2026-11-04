@@ -69,10 +69,6 @@ python -B -m unittest discover -s tools/python-helper/tests -p "test_*.py"
 - `plans/`：开发与手动验收记录。
 - `artifacts/`：自动生成的依赖和临时输出，不纳入版本控制。
 
-## 界面预览
-
-![项目界面](docs/images/主页面.png)
-
 ## 开发记录
 
 - [项目总体计划](docs/project-plans.md)

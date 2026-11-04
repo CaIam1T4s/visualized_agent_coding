@@ -40,3 +40,7 @@ Thumbs.db
 
 # Generated helper dependencies and build artifacts
 /artifacts/
+
+# Keep project documentation and images in version control
+!/docs/
+!/docs/**
