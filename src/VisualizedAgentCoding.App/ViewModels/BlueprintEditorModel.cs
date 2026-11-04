@@ -48,10 +48,9 @@ public partial class BlueprintEditorModel : ObservableObject
     public void SetLoading()
     {
         Lines.Clear();
-        Document = null;
-        HasBlocks = false;
+        if (Document is null) HasBlocks = false;
         IsLoading = true;
-        Status = "正在读取积木…";
+        Status = "正在读取节点…";
     }
 
     public void SetStaleError(string message)
@@ -75,6 +74,8 @@ public partial class BlueprintEditorModel : ObservableObject
         Document = document;
         IsLoading = false;
     }
+
+    public void RefreshDocument() => OnPropertyChanged(nameof(Document));
 
     public void SetVariables(IEnumerable<VisualizedAgentCoding.Domain.Blueprint.VariableRef> references)
         => VariablePalette.SetVariables(references);

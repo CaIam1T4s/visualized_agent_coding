@@ -131,14 +131,19 @@ public sealed class BlueprintNode
     public Dictionary<string, string> Arguments { get; } = [];
     public List<BlueprintNode> Children { get; } = [];
     public List<BlueprintNode> ElseChildren { get; } = [];
+    public List<BlueprintNode> ValueInputs { get; } = [];
+    public string? ValueInputPortId { get; set; }
     public BlueprintNode? Parent { get; set; }
     public double X { get; set; }
     public double Y { get; set; }
     public bool HasPosition { get; set; }
     public bool IsCollapsed { get; set; }
+    public bool IsCollapsedExplicit { get; set; }
+    public int CommentScroll { get; set; }
     public string? Text { get; set; }
+    public string? InlineComment { get; set; }
     public BlueprintNode? AnnotationTarget { get; set; }
-    public IReadOnlyList<BlueprintNode> AllChildren => [.. Children, .. ElseChildren];
+    public IReadOnlyList<BlueprintNode> AllChildren => [.. Children, .. ElseChildren, .. ValueInputs];
 }
 
 /// <summary>One projected node document for a script region.</summary>

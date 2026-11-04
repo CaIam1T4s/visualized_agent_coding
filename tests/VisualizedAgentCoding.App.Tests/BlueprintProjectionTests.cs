@@ -2,6 +2,7 @@ using happy_agent_coding.Services;
 using happy_agent_coding.ViewModels;
 using VisualizedAgentCoding.Application.Projects;
 using VisualizedAgentCoding.Application.Python;
+using VisualizedAgentCoding.Domain.Blueprint;
 using VisualizedAgentCoding.Domain.Projects;
 using VisualizedAgentCoding.Infrastructure.Projects;
 using VisualizedAgentCoding.Infrastructure.Python;
@@ -46,6 +47,7 @@ custom_call()
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             while (!vm.BlueprintEditor.HasBlocks) await Task.Delay(20, timeout.Token);
             Assert.Contains(vm.BlueprintEditor.Lines, line => line.Text.Contains("程序启动时运行"));
+            Assert.Equal(NodeKind.Start, vm.BlueprintEditor.Document!.Roots[0].Kind);
             Assert.Contains(vm.BlueprintEditor.Lines, line => line.Text.Contains("移动 10 步"));
             Assert.Contains(vm.BlueprintEditor.Lines, line => line.Text.Contains("等待 1 秒"));
         }

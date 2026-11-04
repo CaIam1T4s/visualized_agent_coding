@@ -21,4 +21,5 @@ public sealed record BlueprintNodeLayout(
     double X,
     double Y,
     bool Collapsed = false,
-    string Fingerprint = "");
+    string Fingerprint = "",
+    bool CollapsedExplicit = false);

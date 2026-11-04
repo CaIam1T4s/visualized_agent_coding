@@ -20,7 +20,8 @@ public static class BlueprintLayoutMapper
         var region = new BlueprintRegionLayout();
         foreach (var node in Walk(document.Roots))
         {
-            region.Nodes[node.Id] = new BlueprintNodeLayout(node.X, node.Y, node.IsCollapsed, Fingerprint(node));
+            region.Nodes[node.Id] = new BlueprintNodeLayout(
+                node.X, node.Y, node.IsCollapsed, Fingerprint(node), node.IsCollapsedExplicit);
         }
         script.Regions[document.RegionId] = region;
         return layout;
@@ -39,19 +40,39 @@ public static class BlueprintLayoutMapper
             .ToDictionary(group => group.Key, group => group.Single());
         foreach (var node in Walk(document.Roots))
         {
-            if (region.Nodes.TryGetValue(node.Id, out var item)
-                || byFingerprint.TryGetValue(Fingerprint(node), out item))
+            var fingerprint = Fingerprint(node);
+            BlueprintNodeLayout? item = null;
+            if (byFingerprint.TryGetValue(fingerprint, out var byFingerprintItem))
             {
-                node.X = item.X;
-                node.Y = item.Y;
-                node.HasPosition = true;
+                item = byFingerprintItem;
+            }
+            else if (region.Nodes.TryGetValue(node.Id, out var byId)
+                     && (byId.Fingerprint.Length == 0 || byId.Fingerprint == fingerprint))
+            {
+                item = byId;
+            }
+            if (item is null) continue;
+
+            node.X = item.X;
+            node.Y = item.Y;
+            node.HasPosition = true;
+            if (item.CollapsedExplicit || (item.Collapsed && node.Kind != NodeKind.Comment))
+            {
                 node.IsCollapsed = item.Collapsed;
+                node.IsCollapsedExplicit = true;
             }
         }
     }
 
-    public static string Fingerprint(BlueprintNode node) =>
-        node.Type + "|" + node.DisplayName + "|" + (node.Text ?? "");
+    public static string Fingerprint(BlueprintNode node)
+    {
+        var arguments = string.Join(";", node.Arguments
+            .Where(pair => pair.Key != "comment")
+            .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => pair.Key + "=" + pair.Value));
+        return node.Type + "|" + node.DisplayName + "|" + (node.Text ?? "")
+            + "|" + (node.InlineComment ?? "") + "|" + arguments;
+    }
 
     private static IEnumerable<BlueprintNode> Walk(IEnumerable<BlueprintNode> roots)
     {

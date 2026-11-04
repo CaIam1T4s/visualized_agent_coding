@@ -68,16 +68,23 @@ public static class BlueprintSourceReorder
 
         if (includeLeadingComments)
         {
-            while (start > 0)
+            var candidate = start;
+            while (candidate > 0)
             {
-                var previousEnd = start;
+                var previousEnd = candidate;
                 if (previousEnd > 0 && body[previousEnd - 1] == '\n') previousEnd--;
                 if (previousEnd > 0 && body[previousEnd - 1] == '\r') previousEnd--;
                 var previousStart = previousEnd;
                 while (previousStart > 0 && body[previousStart - 1] is not ('\n' or '\r')) previousStart--;
                 var line = body.Substring(previousStart, previousEnd - previousStart).Trim();
-                if (!line.StartsWith('#') || line.Length == 0) break;
-                start = previousStart;
+                if (line.Length == 0)
+                {
+                    candidate = previousStart;
+                    continue;
+                }
+                if (!line.StartsWith('#')) break;
+                candidate = previousStart;
+                start = candidate;
             }
         }
         return (start, end - start);

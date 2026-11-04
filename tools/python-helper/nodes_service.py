@@ -61,17 +61,42 @@ def _comments(source, lines, start, end):
     for line in lines:
         line_offsets.append(offset)
         offset += len(line)
+
+    block = []
+    block_start = None
+    block_line = None
+
+    def flush():
+        nonlocal block, block_start, block_line
+        if not block:
+            return
+        char_end = line_offsets[block_line - 1 + len(block) - 1] + len(block[-1]) + 1
+        text = '\n'.join(block)
+        result.append(dict(type='comment', text=text, arguments={},
+                           children=[], elseChildren=[], line=block_line,
+                           start=_utf16_len(source[:block_start]),
+                           length=_utf16_len(source[block_start:char_end]),
+                           endLine=block_line + len(block) - 1))
+        block = []
+        block_start = None
+        block_line = None
+
     for number in range(max(1, start), min(len(lines), end) + 1):
         text = lines[number - 1].rstrip('\r\n')
         stripped = text.strip()
         if stripped.startswith('#'):
             leading = len(text) - len(text.lstrip())
-            char_start = line_offsets[number - 1] + leading
-            result.append(dict(type='comment', text=stripped, arguments={},
-                               children=[], elseChildren=[], line=number,
-                               start=_utf16_len(source[:char_start]),
-                               length=_utf16_len(stripped),
-                               endLine=number))
+            if block_start is None:
+                block_start = line_offsets[number - 1] + leading
+                block_line = number
+            value = stripped.lstrip('#').strip()
+            if value:
+                block.append(value)
+        elif not stripped:
+            continue
+        else:
+            flush()
+    flush()
     return result
 
 
@@ -101,14 +126,7 @@ def _node(statement, source, lines, comments):
                                              comments),
                     text='', line=statement.lineno)
     if isinstance(statement, ast.If):
-        return dict(type='control.if',
-                    arguments=dict(condition=_segment(source, statement.test) or '?'),
-                    children=_body_nodes(statement.body, source, lines,
-                                         statement.lineno + 1, comments),
-                    elseChildren=_body_nodes(statement.orelse, source, lines,
-                                             statement.orelse[0].lineno if statement.orelse else None,
-                                             comments),
-                    text='', line=statement.lineno)
+        return _if_chain(statement, source, lines, comments)
     if isinstance(statement, ast.Match):
         return dict(type='control.match',
                     arguments=dict(subject=_segment(source, statement.subject) or '?'),
@@ -161,6 +179,27 @@ def _node(statement, source, lines, comments):
         return dict(type='docstring', arguments={}, children=[], elseChildren=[],
                     text=statement.value.value, line=statement.lineno)
     return _raw(statement, source)
+
+
+def _if_chain(statement, source, lines, comments):
+    branches = []
+    current = statement
+    else_body = []
+    while isinstance(current, ast.If):
+        branches.append(dict(type='control.branch',
+                             arguments=dict(condition=_segment(source, current.test) or '?'),
+                             children=_body_nodes(current.body, source, lines,
+                                                  current.lineno + 1, comments),
+                             elseChildren=[], text='', line=current.lineno))
+        if len(current.orelse) == 1 and isinstance(current.orelse[0], ast.If):
+            current = current.orelse[0]
+            continue
+        else_body = _body_nodes(current.orelse, source, lines,
+                                current.orelse[0].lineno if current.orelse else None,
+                                comments)
+        break
+    return dict(type='control.if', arguments={}, children=branches,
+                elseChildren=else_body, text='', line=statement.lineno)
 
 
 def _simple(kind, statement):

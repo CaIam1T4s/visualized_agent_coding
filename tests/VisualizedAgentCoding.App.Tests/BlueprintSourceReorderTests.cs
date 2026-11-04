@@ -18,6 +18,18 @@ public sealed class BlueprintSourceReorderTests
     }
 
     [Fact]
+    public void MovesCommentAcrossBlankLineWithStatement()
+    {
+        var body = "# keep\n\nself.move(1)\nself.turn(2)\n";
+        var move = new SourceSpan(body.IndexOf("self.move", StringComparison.Ordinal), "self.move(1)".Length, 3, 3);
+        var target = new SourceSpan(body.IndexOf("self.turn", StringComparison.Ordinal), "self.turn(2)".Length, 4, 4);
+
+        var updated = BlueprintSourceReorder.MoveAfter(body, move, target);
+
+        Assert.Equal("self.turn(2)\n# keep\n\nself.move(1)\n", updated);
+    }
+
+    [Fact]
     public void ReindentsWhenMovingIntoNestedBlock()
     {
         var body = "while ready:\n    self.move(1)\nself.turn(2)\n";
@@ -27,6 +39,18 @@ public sealed class BlueprintSourceReorderTests
         var updated = BlueprintSourceReorder.MoveAfter(body, move, target);
 
         Assert.Contains("    self.turn(2)", updated);
+    }
+
+    [Fact]
+    public void MovesTargetBeforeFirstStatement()
+    {
+        var body = "self.move(1)\nself.turn(2)\n";
+        var moving = new SourceSpan(body.IndexOf("self.turn", StringComparison.Ordinal), "self.turn(2)".Length, 2, 2);
+        var first = new SourceSpan(body.IndexOf("self.move", StringComparison.Ordinal), "self.move(1)".Length, 1, 1);
+
+        var updated = BlueprintSourceReorder.MoveBefore(body, moving, first);
+
+        Assert.Equal("self.turn(2)\nself.move(1)\n", updated);
     }
 
     [Fact]

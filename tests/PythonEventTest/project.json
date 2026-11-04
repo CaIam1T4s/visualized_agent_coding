@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 2,
+  "projectId": "project-ffc6cac32d61481ab3885e21bdce636d",
+  "name": "PythonEventTest",
+  "mainScript": "scripts/main.py",
+  "mainScriptId": "script-82cf2bc7f70e4823ac89faf3a1c3cc80",
+  "scripts": [
+    {
+      "id": "script-2ff825ba41fc4e70adbf5f427f67a73b",
+      "path": "scripts/objects/E.py",
+      "kind": 1,
+      "objectId": "object-0ac87f6565a3460fbd0050cbf9e4d152"
+    },
+    {
+      "id": "script-d56d83216d1845248cf74f772754fa1f",
+      "path": "scripts/objects/B.py",
+      "kind": 1,
+      "objectId": "object-f278e4ac0355429a97880da925fe169e"
+    },
+    {
+      "id": "script-9f5cbf3abd0e441c8b356ded7d8f0595",
+      "path": "scripts/backdrops/background.py",
+      "kind": 2,
+      "objectId": "object-618033b20b1f41e18fc9ee94ad0d5ddb"
+    },
+    {
+      "id": "script-6b7e2c244c5942feba906d8a91c5b8b1",
+      "path": "scripts/backdrops/backdrop.py",
+      "kind": 2,
+      "objectId": "object-5729349050ea4c368db4e8571d4d6842"
+    },
+    {
+      "id": "script-cc508063d043499087cdd7680118fbc3",
+      "path": "scripts/user/T.py",
+      "kind": 0,
+      "objectId": null
+    },
+    {
+      "id": "script-c8ce9da83fa744d0b8cfe01f6e0c1b27",
+      "path": "scripts/objects/test.py",
+      "kind": 1,
+      "objectId": "object-27cb97f2b2be4cffa9fbe79a930e3733"
+    },
+    {
+      "id": "script-70c750a991f34963ba767cfd3c048d5a",
+      "path": "scripts/objects/dsdf.py",
+      "kind": 1,
+      "objectId": "object-d1d116bd94234f35b35c5b603034dc6a"
+    },
+    {
+      "id": "script-99be585f2e0e4a5f993d2bd09cd2fd91",
+      "path": "scripts/objects/blueprintTest.py",
+      "kind": 1,
+      "objectId": "object-a99a7969597d4ef1bad0e562d3a7b179"
+    }
+  ],
+  "pendingScriptDeletions": [],
+  "eventHandlers": [],
+  "variables": [
+    {
+      "id": "var-b4f1fd7917604d04b2c89958279b406a",
+      "name": "string",
+      "type": "number",
+      "value": "0"
+    }
+  ],
+  "lists": [
+    {
+      "id": "list-129704c4a2804d6c8e8bbedb2164c9fd",
+      "name": "strings",
+      "values": [
+        "coin",
+        "gay"
+      ]
+    }
+  ]
+}

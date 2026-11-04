@@ -21,6 +21,59 @@ public sealed class BlueprintDocumentReconcilerTests
     }
 
     [Fact]
+    public void ReorderedNodesKeepTheirPositions()
+    {
+        var oldDoc = Doc(Statement("a", 100, 20), Statement("b", 300, 40));
+        var newDoc = Doc(Statement("b", 0, 0), Statement("a", 0, 0));
+
+        BlueprintDocumentReconciler.Merge(oldDoc, newDoc);
+
+        Assert.Equal(300, newDoc.Roots[0].X);
+        Assert.Equal(40, newDoc.Roots[0].Y);
+        Assert.Equal(100, newDoc.Roots[1].X);
+        Assert.Equal(20, newDoc.Roots[1].Y);
+    }
+
+    [Fact]
+    public void CommentKeepsBindingToReorderedTarget()
+    {
+        var oldComment = Statement("comment", 0, 0);
+        oldComment.Kind = NodeKind.Comment;
+        oldComment.Text = "note";
+        var oldTarget = Statement("target", 100, 20);
+        oldComment.AnnotationTarget = oldTarget;
+        var oldDoc = Doc(oldComment, oldTarget);
+
+        var newTarget = Statement("target", 0, 0);
+        var newComment = Statement("comment", 0, 0);
+        newComment.Kind = NodeKind.Comment;
+        newComment.Text = "note";
+        newComment.AnnotationTarget = newTarget;
+        var newDoc = Doc(newTarget, newComment);
+
+        BlueprintDocumentReconciler.Merge(oldDoc, newDoc);
+
+        Assert.Same(newTarget, newComment.AnnotationTarget);
+    }
+
+
+    [Fact]
+    public void EditedValueKeepsPositionOnSameSourceLine()
+    {
+        var oldNode = Statement("移动", 100, 20);
+        oldNode.Source = new SourceSpan(0, 12, 3, 3);
+        oldNode.Arguments["steps"] = "10";
+        var newNode = Statement("移动", 0, 0);
+        newNode.Source = new SourceSpan(0, 12, 3, 3);
+        newNode.Arguments["steps"] = "20";
+
+        BlueprintDocumentReconciler.Merge(Doc(oldNode), Doc(newNode));
+
+        Assert.Equal(100, newNode.X);
+        Assert.Equal(20, newNode.Y);
+    }
+
+    [Fact]
     public void NewNodeDoesNotBorrowOldPosition()
     {
         var oldDoc = Doc(Statement("a", 100, 200));

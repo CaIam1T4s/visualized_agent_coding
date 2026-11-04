@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "projectId": "project-4ad0ab79ac7349c3b7e0a34c55b8b415",
+  "name": "PythonRuntimeTest",
+  "mainScript": "scripts/main.py",
+  "mainScriptId": "script-7f32b4e35c2a4516b3b9811bb1ea6e95",
+  "scripts": [
+    {
+      "id": "script-74db4ae9c83848779ee313ff701f1c87",
+      "path": "scripts/user/input_test.py",
+      "kind": 0,
+      "objectId": null
+    },
+    {
+      "id": "script-81e0c2df24fe431e98add003b7e7dd9a",
+      "path": "scripts/objects/test.py",
+      "kind": 1,
+      "objectId": "object-820c08eaa7b849279253e3c426d24c4e"
+    }
+  ],
+  "pendingScriptDeletions": [],
+  "eventHandlers": []
+}

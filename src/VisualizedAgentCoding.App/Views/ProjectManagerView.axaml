@@ -89,19 +89,19 @@
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 <ScrollViewer IsVisible="{Binding HasRecentProjects}">
                                     <StackPanel Spacing="8">
-                                        <Expander Header="一天内" IsExpanded="True">
+                                        <Expander Header="一天内" IsExpanded="{Binding HasRecentProjectsToday}">
                                             <ItemsControl ItemsSource="{Binding RecentProjectsToday}"
                                                           ItemTemplate="{StaticResource RecentProjectTemplate}" />
                                         </Expander>
-                                        <Expander Header="一周内">
+                                        <Expander Header="一周内" IsExpanded="{Binding HasRecentProjectsThisWeek}">
                                             <ItemsControl ItemsSource="{Binding RecentProjectsThisWeek}"
                                                           ItemTemplate="{StaticResource RecentProjectTemplate}" />
                                         </Expander>
-                                        <Expander Header="一个月内">
+                                        <Expander Header="一个月内" IsExpanded="{Binding HasRecentProjectsThisMonth}">
                                             <ItemsControl ItemsSource="{Binding RecentProjectsThisMonth}"
                                                           ItemTemplate="{StaticResource RecentProjectTemplate}" />
                                         </Expander>
-                                        <Expander Header="很久以前">
+                                        <Expander Header="很久以前" IsExpanded="{Binding HasRecentProjectsOlder}">
                                             <ItemsControl ItemsSource="{Binding RecentProjectsOlder}"
                                                           ItemTemplate="{StaticResource RecentProjectTemplate}" />
                                         </Expander>

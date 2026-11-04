@@ -116,6 +116,7 @@ public partial class MainViewModel
             var lines = new List<BlockLine> { new(title, 0, IsHat: true) };
             AppendBlockLines(lines, tree.Nodes, 1);
             var nextDocument = NodeProjection.ToDocument(tree, script.Id, region.Id, title);
+            AddStartNode(nextDocument, title);
             BlueprintDocumentReconciler.Merge(BlueprintEditor.Document, nextDocument);
             if (activeProject is not null)
             {
@@ -155,6 +156,27 @@ public partial class MainViewModel
         }
     }
 
+    private static void AddStartNode(VisualizedAgentCoding.Domain.Blueprint.BlueprintDocument document, string title)
+    {
+        if (document.Roots.Count == 1 && document.Roots[0].Type == "start") return;
+        var start = new VisualizedAgentCoding.Domain.Blueprint.BlueprintNode
+        {
+            Id = document.RegionId + ":start",
+            Type = "start",
+            Kind = VisualizedAgentCoding.Domain.Blueprint.NodeKind.Start,
+            DisplayName = title,
+        };
+        start.Ports.Add(new("branch-0", VisualizedAgentCoding.Domain.Blueprint.PortKind.Exec,
+            VisualizedAgentCoding.Domain.Blueprint.NodeRelation.Exec, IsInput: false, Label: "启动"));
+        foreach (var root in document.Roots.ToList())
+        {
+            root.Parent = start;
+            start.Children.Add(root);
+        }
+        document.Roots.Clear();
+        document.Roots.Add(start);
+    }
+
     public void ReconnectBlueprintNodes(VisualizedAgentCoding.Domain.Blueprint.BlueprintNode source,
         VisualizedAgentCoding.Domain.Blueprint.BlueprintNode target)
     {
@@ -165,9 +187,49 @@ public partial class MainViewModel
             BlueprintEditor.SetStaleError(string.Join("；", validation.Problems));
             return;
         }
-        var updated = BlueprintSourceReorder.MoveAfter(currentBlueprintBody, target.Source, source.Source);
+        if (BlueprintEditor.Document is not { } current) return;
+        foreach (var node in WalkBlueprintNodes(current.Roots))
+            node.HasPosition = true;
+
+        if (source.Kind == VisualizedAgentCoding.Domain.Blueprint.NodeKind.Start)
+        {
+            var first = source.Children.FirstOrDefault(child =>
+                child.Kind != VisualizedAgentCoding.Domain.Blueprint.NodeKind.Comment);
+            if (first is null || first.Id == target.Id) return;
+            var moving = WithBoundComments(current, target);
+            var movedToStart = BlueprintSourceReorder.MoveBefore(currentBlueprintBody, moving, first.Source);
+            if (movedToStart != currentBlueprintBody) ApplyBlueprintBody(movedToStart);
+            return;
+        }
+
+        var updated = BlueprintSourceReorder.MoveAfter(currentBlueprintBody, WithBoundComments(current, target), source.Source);
         if (updated == currentBlueprintBody) return;
         ApplyBlueprintBody(updated);
+    }
+
+    public void BindBlueprintComment(VisualizedAgentCoding.Domain.Blueprint.BlueprintNode comment,
+        VisualizedAgentCoding.Domain.Blueprint.BlueprintNode target)
+    {
+        if (comment.Kind != VisualizedAgentCoding.Domain.Blueprint.NodeKind.Comment
+            || currentBlueprintBody is null) return;
+        comment.AnnotationTarget = target;
+        var updated = comment.Source.Length > 0 && target.Source.Length > 0
+            ? BlueprintSourceReorder.MoveBefore(currentBlueprintBody, comment.Source, target.Source)
+            : currentBlueprintBody;
+        if (updated != currentBlueprintBody)
+        {
+            ApplyBlueprintBody(updated);
+            return;
+        }
+        BlueprintEditor.RefreshDocument();
+    }
+
+    public void ArrangeBlueprintNodes()
+    {
+        if (BlueprintEditor.Document is not { } document) return;
+        new BlueprintLayoutEngine().AutoArrange(document);
+        BlueprintEditor.RefreshDocument();
+        _ = SaveBlueprintLayoutAsync();
     }
 
     public async Task SaveBlueprintLayoutAsync()
@@ -185,6 +247,21 @@ public partial class MainViewModel
         }
     }
 
+    public void UpdateBlueprintValue(VisualizedAgentCoding.Domain.Blueprint.BlueprintNode node,
+        VisualizedAgentCoding.Domain.Blueprint.NodePort port, string value)
+    {
+        if (currentBlueprintBody is null || port.DefaultText == value) return;
+        var old = port.DefaultText ?? string.Empty;
+        if (old.Length == 0) return;
+        var start = Math.Clamp(node.Source.Start, 0, currentBlueprintBody.Length);
+        var length = Math.Clamp(node.Source.Length, 0, currentBlueprintBody.Length - start);
+        var statement = currentBlueprintBody.Substring(start, length);
+        var index = statement.IndexOf(old, StringComparison.Ordinal);
+        if (index < 0) return;
+        var updated = currentBlueprintBody.Remove(start + index, old.Length).Insert(start + index, value);
+        ApplyBlueprintBody(updated);
+    }
+
     public void DeleteSelectedBlueprintNode()
     {
         if (BlueprintEditor.Inspector.Node is not { } node || currentBlueprintBody is null) return;
@@ -192,9 +269,10 @@ public partial class MainViewModel
         ApplyBlueprintBody(updated);
     }
 
-    public void InsertBlueprintStatement()
+    public void InsertBlueprintStatement() => InsertBlueprintStatement(BlueprintEditor.Inspector.NewStatement);
+
+    public void InsertBlueprintStatement(string text)
     {
-        var text = BlueprintEditor.Inspector.NewStatement;
         if (string.IsNullOrWhiteSpace(text) || currentBlueprintBody is null) return;
         var node = BlueprintEditor.Inspector.Node;
         var updated = node is null
@@ -209,7 +287,32 @@ public partial class MainViewModel
             return;
         projection.UpdateRegions(new Dictionary<string, string> { [selectedBlueprintRegionId] = body });
         PythonCode = projection.FullSource;
-        ScheduleBlockEditorRefresh();
+    }
+
+    private static VisualizedAgentCoding.Domain.Blueprint.SourceSpan WithBoundComments(
+        VisualizedAgentCoding.Domain.Blueprint.BlueprintDocument document,
+        VisualizedAgentCoding.Domain.Blueprint.BlueprintNode target)
+    {
+        var comments = WalkBlueprintNodes(document.Roots)
+            .Where(node => node.Kind == VisualizedAgentCoding.Domain.Blueprint.NodeKind.Comment
+                && node.AnnotationTarget?.Id == target.Id
+                && node.Source.Length > 0)
+            .ToList();
+        if (comments.Count == 0 || target.Source.Length <= 0) return target.Source;
+        var start = comments.Min(node => node.Source.Start);
+        var end = target.Source.End;
+        return new VisualizedAgentCoding.Domain.Blueprint.SourceSpan(
+            start, end - start, target.Source.StartLine, target.Source.EndLine);
+    }
+
+    private static IEnumerable<VisualizedAgentCoding.Domain.Blueprint.BlueprintNode> WalkBlueprintNodes(
+        IEnumerable<VisualizedAgentCoding.Domain.Blueprint.BlueprintNode> roots)
+    {
+        foreach (var root in roots)
+        {
+            yield return root;
+            foreach (var child in WalkBlueprintNodes(root.AllChildren)) yield return child;
+        }
     }
 
     private static string RemoveNode(string body, VisualizedAgentCoding.Domain.Blueprint.SourceSpan span)

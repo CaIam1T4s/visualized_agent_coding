@@ -4,7 +4,7 @@
              xmlns:controls="using:happy_agent_coding.Controls"
              x:Class="happy_agent_coding.Views.BlueprintEditorView"
              x:DataType="vm:MainViewModel">
-    <Grid ColumnDefinitions="220,*,280"
+    <Grid ColumnDefinitions="220,*"
           Background="{DynamicResource LayerFillColorBrush}">
         <Border Grid.Column="0"
                 BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
@@ -18,7 +18,7 @@
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                 <ScrollViewer Grid.Row="1"
                               HorizontalScrollBarVisibility="Disabled"
-                              VerticalScrollBarVisibility="Auto">
+                              VerticalScrollBarVisibility="Hidden">
                     <StackPanel Spacing="6">
                         <TextBlock Text="{Binding BlueprintEditor.ClassPage.ObjectName}"
                                    FontSize="13"
@@ -52,54 +52,36 @@
                         </Expander>
                         <Expander Header="运动">
                             <StackPanel Spacing="4" Margin="0,4,0,0">
-                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
-                                    <TextBlock Text="移动 10 步" />
-                                </Border>
-                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
-                                    <TextBlock Text="旋转 15 度" />
-                                </Border>
+                                <Button Content="移动 10 步" Tag="self.move(10)" Click="OnPaletteInsert"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                                <Button Content="旋转 15 度" Tag="self.turn(15)" Click="OnPaletteInsert"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                             </StackPanel>
                         </Expander>
                         <Expander Header="控制">
                             <StackPanel Spacing="4" Margin="0,4,0,0">
-                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
-                                    <TextBlock Text="重复执行 10 次" />
-                                </Border>
-                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
-                                    <TextBlock Text="计数循环" />
-                                </Border>
-                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
-                                    <TextBlock Text="重复直到条件" />
-                                </Border>
-                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
-                                    <TextBlock Text="列表遍历" />
-                                </Border>
+                                <Button Content="重复执行 10 次" Tag="for _ in range(10):&#10;    pass" Click="OnPaletteInsert"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                                <Button Content="计数循环" Tag="for i in range(10):&#10;    pass" Click="OnPaletteInsert"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                                <Button Content="重复直到条件" Tag="while True:&#10;    pass" Click="OnPaletteInsert"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                                <Button Content="列表遍历" Tag="for item in list_values(&quot;list1&quot;):&#10;    pass" Click="OnPaletteInsert"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                             </StackPanel>
                         </Expander>
                         <Expander Header="数据">
                             <StackPanel Spacing="4" Margin="0,4,0,0">
-                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
-                                    <TextBlock Text="设置变量" />
-                                </Border>
-                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
-                                    <TextBlock Text="增加变量" />
-                                </Border>
+                                <Button Content="设置变量" Tag="self.health = 100" Click="OnPaletteInsert"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+                                <Button Content="增加变量" Tag="self.health += 1" Click="OnPaletteInsert"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                             </StackPanel>
                         </Expander>
                         <Expander Header="外观">
                             <StackPanel Spacing="4" Margin="0,4,0,0">
-                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                        CornerRadius="6" Padding="10,6" Opacity="0.75">
-                                    <TextBlock Text="切换造型" />
-                                </Border>
+                                <Button Content="切换造型" Tag="self.switch_costume(&quot;costume1&quot;)" Click="OnPaletteInsert"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
                             </StackPanel>
                         </Expander>
                         <TextBlock Text="变量"
@@ -165,13 +147,20 @@
                     <controls:BlueprintWorkspace Document="{Binding BlueprintEditor.Document}"
                                                    NodeSelected="OnNodeSelected"
                                                    NodeMoved="OnBlueprintNodeMoved"
-                                                   ReconnectRequested="OnBlueprintReconnect" />
+                                                   ReconnectRequested="OnBlueprintReconnect"
+                                                   AnnotationRequested="OnBlueprintAnnotation"
+                                                   ValueEdited="OnBlueprintValueEdited"
+                                                   InsertRequested="OnWorkspaceInsert"
+                                                   DeleteRequested="OnWorkspaceDelete"
+                                                   ArrangeRequested="OnWorkspaceArrange">
+
+                    </controls:BlueprintWorkspace>
                 </Border>
                 <StackPanel Grid.Row="3" Spacing="4">
-                    <Button Content="管理项目变量…"
-                            Click="OnManageProjectVariables"
-                            HorizontalAlignment="Left"
-                            Margin="0,0,0,6" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
+                        <Button Content="管理项目变量…" Click="OnManageProjectVariables" />
+                        <Button Content="重新排列节点" Click="OnArrangeBlueprintNodes" />
+                    </StackPanel>
                     <TextBlock Text="节点画布读取当前脚本的启动区域；拖拽只改变视图坐标，Python 顺序不变。"
                                IsVisible="{Binding BlueprintEditor.IsEmpty}"
                                TextWrapping="Wrap"
@@ -180,51 +169,6 @@
                                FontSize="12"
                                TextWrapping="Wrap"
                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                </StackPanel>
-            </Grid>
-        </Border>
-        <Border Grid.Column="2"
-                Margin="0,16,16,16"
-                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
-                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                ClipToBounds="True">
-            <Grid RowDefinitions="Auto,*,Auto" Margin="14">
-                <StackPanel Spacing="2">
-                    <TextBlock Text="{Binding BlueprintEditor.Inspector.Title}"
-                               FontSize="14"
-                               FontWeight="SemiBold"
-                               TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding BlueprintEditor.Inspector.Subtitle}"
-                               FontSize="10"
-                               Opacity="0.62"
-                               TextWrapping="Wrap" />
-                </StackPanel>
-                <ScrollViewer Grid.Row="1" Margin="0,10,0,0">
-                    <ItemsControl ItemsSource="{Binding BlueprintEditor.Inspector.Arguments}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:BlueprintArgumentItem">
-                                <StackPanel Spacing="2" Margin="0,0,0,8">
-                                    <TextBlock Text="{Binding Key}"
-                                               FontSize="10"
-                                               Opacity="0.65" />
-                                    <TextBox Text="{Binding Value, Mode=TwoWay}"
-                                             IsEnabled="{Binding IsTextEnabled}"
-                                             FontSize="12" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-                <StackPanel Grid.Row="2" Spacing="4" Margin="0,8,0,0">
-                    <TextBox Text="{Binding BlueprintEditor.Inspector.NewStatement, Mode=TwoWay}"
-                             PlaceholderText="新语句，例如 self.health = 100"
-                             FontSize="12" />
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Button Content="插入语句" Click="OnInsertBlueprintStatement" />
-                        <Button Content="删除节点" Click="OnDeleteBlueprintNode" />
-                    </StackPanel>
                 </StackPanel>
             </Grid>
         </Border>

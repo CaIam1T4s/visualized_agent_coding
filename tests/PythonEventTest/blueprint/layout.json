@@ -1,0 +1,414 @@
+{
+  "version": 1,
+  "scripts": {
+    "script-d56d83216d1845248cf74f772754fa1f": {
+      "regions": {
+        "start": {
+          "nodes": {
+            "start:0": {
+              "x": 158,
+              "y": 196,
+              "collapsed": false,
+              "fingerprint": "control.pass|\u7A7A\u8BED\u53E5|",
+              "collapsedExplicit": false
+            }
+          }
+        },
+        "initialize": {
+          "nodes": {
+            "initialize:0": {
+              "x": 143,
+              "y": 109,
+              "collapsed": false,
+              "fingerprint": "control.pass|\u7A7A\u8BED\u53E5|",
+              "collapsedExplicit": false
+            },
+            "initialize:1": {
+              "x": 461,
+              "y": 335,
+              "collapsed": false,
+              "fingerprint": "data.set_attribute|\u8BBE\u7F6E self.health|",
+              "collapsedExplicit": false
+            }
+          }
+        }
+      }
+    },
+    "script-c8ce9da83fa744d0b8cfe01f6e0c1b27": {
+      "regions": {
+        "start": {
+          "nodes": {
+            "start:start": {
+              "x": 0,
+              "y": 0,
+              "collapsed": false,
+              "fingerprint": "start|\u7A0B\u5E8F\u542F\u52A8\u65F6\u8FD0\u884C|||",
+              "collapsedExplicit": true
+            },
+            "start:0": {
+              "x": 248,
+              "y": 26,
+              "collapsed": false,
+              "fingerprint": "motion.goto|\u79FB\u52A8\u5230|||x=0;y=0",
+              "collapsedExplicit": false
+            },
+            "start:1": {
+              "x": 248,
+              "y": 140,
+              "collapsed": false,
+              "fingerprint": "raw|\u539F\u59CB\u4EE3\u7801|print(\u0022self touch: \u0022, self.touching(\u0022dsdf\u0022))||",
+              "collapsedExplicit": false
+            },
+            "start:2": {
+              "x": 248,
+              "y": 190,
+              "collapsed": false,
+              "fingerprint": "control.wait|\u7B49\u5F85|||seconds=1",
+              "collapsedExplicit": false
+            },
+            "start:3": {
+              "x": 248,
+              "y": 272,
+              "collapsed": false,
+              "fingerprint": "data.set_local|\u8BBE\u7F6E\u53D8\u91CF|||kind=local;name=copy;target=copy;value=self.clone()",
+              "collapsedExplicit": false
+            },
+            "start:3:value:arg-value": {
+              "x": 110,
+              "y": 322,
+              "collapsed": false,
+              "fingerprint": "value.expression|\u503C|self.clone()||",
+              "collapsedExplicit": false
+            },
+            "start:4": {
+              "x": 248,
+              "y": 386,
+              "collapsed": false,
+              "fingerprint": "raw|\u539F\u59CB\u4EE3\u7801|copy.goto(90, 0)||",
+              "collapsedExplicit": false
+            },
+            "start:5": {
+              "x": 248,
+              "y": 436,
+              "collapsed": false,
+              "fingerprint": "raw|\u539F\u59CB\u4EE3\u7801|print(\u0022clone touch: \u0022, copy.touching(\u0022dsdf\u0022))||",
+              "collapsedExplicit": false
+            }
+          }
+        }
+      }
+    },
+    "script-99be585f2e0e4a5f993d2bd09cd2fd91": {
+      "regions": {
+        "start": {
+          "nodes": {
+            "start:start": {
+              "x": 0,
+              "y": 0,
+              "collapsed": false,
+              "fingerprint": "start|\u7A0B\u5E8F\u542F\u52A8\u65F6\u8FD0\u884C|||",
+              "collapsedExplicit": true
+            },
+            "start:0": {
+              "x": 248,
+              "y": 26,
+              "collapsed": false,
+              "fingerprint": "comment|\u6CE8\u91CA|gay\npussy\nline||",
+              "collapsedExplicit": true
+            },
+            "start:2": {
+              "x": 248,
+              "y": 136,
+              "collapsed": true,
+              "fingerprint": "control.while|\u5FAA\u73AF|||condition=True",
+              "collapsedExplicit": true
+            },
+            "start:2.0": {
+              "x": 740,
+              "y": 130,
+              "collapsed": false,
+              "fingerprint": "output.print|\u8F93\u51FA|||value=\u00221\u0022",
+              "collapsedExplicit": false
+            },
+            "start:3": {
+              "x": 248,
+              "y": 179,
+              "collapsed": false,
+              "fingerprint": "control.repeat_range|\u8BA1\u6570\u5FAA\u73AF|||name=_;start=1;step=1;stop=10",
+              "collapsedExplicit": true
+            },
+            "start:3.0": {
+              "x": 984,
+              "y": 148,
+              "collapsed": true,
+              "fingerprint": "control.pass|\u7A7A\u8BED\u53E5|||",
+              "collapsedExplicit": true
+            },
+            "start:4": {
+              "x": 248,
+              "y": 396,
+              "collapsed": false,
+              "fingerprint": "control.if|\u5982\u679C|||",
+              "collapsedExplicit": true
+            },
+            "start:4.0": {
+              "x": 1228,
+              "y": 326,
+              "collapsed": false,
+              "fingerprint": "control.branch|\u6761\u4EF6|||condition=self.x \u003E 0",
+              "collapsedExplicit": false
+            },
+            "start:4.0.0": {
+              "x": 1228,
+              "y": 326,
+              "collapsed": false,
+              "fingerprint": "data.add_attribute|\u4FEE\u6539\u5C5E\u6027|||kind=instance;name=x;operator=Sub;owner=self;target=self.x;value=10",
+              "collapsedExplicit": true
+            },
+            "start:4.0.0:value:arg-operator": {
+              "x": 1090,
+              "y": 376,
+              "collapsed": true,
+              "fingerprint": "value.expression|\u503C|Sub||",
+              "collapsedExplicit": true
+            },
+            "start:4.1": {
+              "x": 1228,
+              "y": 358,
+              "collapsed": false,
+              "fingerprint": "control.branch|\u6761\u4EF6|||condition=self.x \u003C 0",
+              "collapsedExplicit": false
+            },
+            "start:4.1.0": {
+              "x": 1228,
+              "y": 472,
+              "collapsed": false,
+              "fingerprint": "raw|\u539F\u59CB\u4EE3\u7801|self.x \u002B 50||",
+              "collapsedExplicit": false
+            },
+            "start:4.else.0": {
+              "x": 1228,
+              "y": 522,
+              "collapsed": false,
+              "fingerprint": "docstring|\u6CE8\u91CA|\n    multi\n    line\n    1\n    2\n    3\n    4\n    5\n    6\n    ||",
+              "collapsedExplicit": true
+            },
+            "start:4.else.1": {
+              "x": 1228,
+              "y": 668,
+              "collapsed": false,
+              "fingerprint": "motion.turn|\u65CB\u8F6C|||degrees=90",
+              "collapsedExplicit": true
+            },
+            "start:4:value:condition-0": {
+              "x": 110,
+              "y": 414,
+              "collapsed": false,
+              "fingerprint": "condition.expression|\u6761\u4EF6|self.x \u003E 0||",
+              "collapsedExplicit": false
+            },
+            "start:4:value:condition-1": {
+              "x": 110,
+              "y": 446,
+              "collapsed": true,
+              "fingerprint": "condition.expression|\u6761\u4EF6|self.x \u003C 0||",
+              "collapsedExplicit": true
+            },
+            "start:5": {
+              "x": 248,
+              "y": 542,
+              "collapsed": false,
+              "fingerprint": "control.match|\u5339\u914D||gaygaygaygyayga|subject=command",
+              "collapsedExplicit": true
+            },
+            "start:5.0": {
+              "x": 1472,
+              "y": 440,
+              "collapsed": false,
+              "fingerprint": "control.case|case|||guard=speed \u003E 0;pattern=\u0022go\u0022",
+              "collapsedExplicit": true
+            },
+            "start:5.0.0": {
+              "x": 1720,
+              "y": 466,
+              "collapsed": false,
+              "fingerprint": "data.add_local|\u4FEE\u6539\u53D8\u91CF|||kind=local;name=speed;operator=Add;target=speed;value=10",
+              "collapsedExplicit": false
+            },
+            "start:5.0.0:value:arg-operator": {
+              "x": 1582,
+              "y": 516,
+              "collapsed": false,
+              "fingerprint": "value.expression|\u503C|Add||",
+              "collapsedExplicit": false
+            },
+            "start:5.0:value:guard": {
+              "x": 1334,
+              "y": 490,
+              "collapsed": true,
+              "fingerprint": "condition.expression|\u6761\u4EF6|speed \u003E 0||",
+              "collapsedExplicit": true
+            },
+            "start:5.1": {
+              "x": 1472,
+              "y": 588,
+              "collapsed": false,
+              "fingerprint": "control.case|case|||guard=;pattern=_",
+              "collapsedExplicit": true
+            },
+            "start:5.1.0": {
+              "x": 1964,
+              "y": 582,
+              "collapsed": false,
+              "fingerprint": "control.pass|\u7A7A\u8BED\u53E5||gaygaygaygyayga|",
+              "collapsedExplicit": false
+            },
+            "start:5.1:value:pattern": {
+              "x": 1334,
+              "y": 606,
+              "collapsed": false,
+              "fingerprint": "value.expression|\u503C|_||",
+              "collapsedExplicit": true
+            },
+            "start:5:value:subject": {
+              "x": 110,
+              "y": 560,
+              "collapsed": false,
+              "fingerprint": "value.expression|\u503C|command||",
+              "collapsedExplicit": false
+            },
+            "start:5:value:case-1": {
+              "x": 110,
+              "y": 624,
+              "collapsed": true,
+              "fingerprint": "value.expression|\u503C|_||",
+              "collapsedExplicit": true
+            }
+          }
+        },
+        "initialize": {
+          "nodes": {
+            "initialize:start": {
+              "x": 0,
+              "y": 0,
+              "collapsed": false,
+              "fingerprint": "start|\u521D\u59CB\u5316|",
+              "collapsedExplicit": false
+            },
+            "initialize:0": {
+              "x": 321,
+              "y": -76,
+              "collapsed": false,
+              "fingerprint": "comment|\u6CE8\u91CA|init",
+              "collapsedExplicit": false
+            },
+            "initialize:1": {
+              "x": 449,
+              "y": 153,
+              "collapsed": false,
+              "fingerprint": "data.set_attribute|\u8BBE\u7F6E self.health|",
+              "collapsedExplicit": false
+            }
+          }
+        }
+      }
+    },
+    "script-2ff825ba41fc4e70adbf5f427f67a73b": {
+      "regions": {
+        "click_4a6e62df40404c91a3bf379ce99a0c16": {
+          "nodes": {
+            "click_4a6e62df40404c91a3bf379ce99a0c16:0": {
+              "x": 0,
+              "y": 0,
+              "collapsed": false,
+              "fingerprint": "raw|print(\u0022before \u0022, timer())|print(\u0022before \u0022, timer())",
+              "collapsedExplicit": false
+            },
+            "click_4a6e62df40404c91a3bf379ce99a0c16:1": {
+              "x": 187,
+              "y": 519,
+              "collapsed": false,
+              "fingerprint": "motion.glide_to|\u6ED1\u884C\u5230 x: 100\uFF0Cy: 0|",
+              "collapsedExplicit": false
+            },
+            "click_4a6e62df40404c91a3bf379ce99a0c16:2": {
+              "x": 547,
+              "y": 426,
+              "collapsed": false,
+              "fingerprint": "raw|print(\u0027after wait\u0027, timer())|print(\u0027after wait\u0027, timer())",
+              "collapsedExplicit": false
+            },
+            "click_4a6e62df40404c91a3bf379ce99a0c16:3": {
+              "x": 1018,
+              "y": 209,
+              "collapsed": false,
+              "fingerprint": "raw|broadcast(\u0022move-done\u0022)|broadcast(\u0022move-done\u0022)",
+              "collapsedExplicit": false
+            }
+          }
+        },
+        "start": {
+          "nodes": {
+            "start:start": {
+              "x": 0,
+              "y": 0,
+              "collapsed": false,
+              "fingerprint": "start|\u7A0B\u5E8F\u542F\u52A8\u65F6\u8FD0\u884C|",
+              "collapsedExplicit": false
+            },
+            "start:0": {
+              "x": 333,
+              "y": -23,
+              "collapsed": false,
+              "fingerprint": "raw|print(\u0022before\u0022, timer())|print(\u0022before\u0022, timer())",
+              "collapsedExplicit": false
+            },
+            "start:1": {
+              "x": 431,
+              "y": 204,
+              "collapsed": false,
+              "fingerprint": "raw|switch_backdrop(\u0022backdrop\u0022)|switch_backdrop(\u0022backdrop\u0022)",
+              "collapsedExplicit": false
+            },
+            "start:2": {
+              "x": 325,
+              "y": 439,
+              "collapsed": false,
+              "fingerprint": "raw|print(\u0022after\u0022, timer())|print(\u0022after\u0022, timer())",
+              "collapsedExplicit": false
+            }
+          }
+        }
+      }
+    },
+    "script-70c750a991f34963ba767cfd3c048d5a": {
+      "regions": {
+        "start": {
+          "nodes": {
+            "start:start": {
+              "x": 11,
+              "y": -41,
+              "collapsed": false,
+              "fingerprint": "start|\u7A0B\u5E8F\u542F\u52A8\u65F6\u8FD0\u884C|",
+              "collapsedExplicit": false
+            },
+            "start:0": {
+              "x": 189,
+              "y": 149,
+              "collapsed": false,
+              "fingerprint": "motion.goto|\u79FB\u52A8\u5230 x: 100\uFF0Cy: 0|",
+              "collapsedExplicit": false
+            },
+            "start:1": {
+              "x": 48,
+              "y": 508,
+              "collapsed": false,
+              "fingerprint": "data.add_attribute|\u4FEE\u6539 self.x|",
+              "collapsedExplicit": false
+            }
+          }
+        }
+      }
+    }
+  }
+}

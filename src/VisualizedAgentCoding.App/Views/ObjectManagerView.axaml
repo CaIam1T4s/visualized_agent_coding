@@ -37,7 +37,7 @@
         </DataTemplate>
         <DataTemplate x:Key="StageObjectProperties" x:DataType="vm:StageObjectItem">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto">
+                          VerticalScrollBarVisibility="Hidden">
                 <StackPanel Spacing="10">
                     <StackPanel Spacing="4">
                         <TextBlock Text="{Binding KindLabel}"

@@ -23,7 +23,8 @@ else:
         self.assertEqual(['motion.move', 'control.wait', 'control.repeat', 'control.if'],
                          [node['type'] for node in result['nodes']])
         self.assertEqual('motion.turn', result['nodes'][2]['children'][0]['type'])
-        self.assertEqual('motion.goto', result['nodes'][3]['children'][0]['type'])
+        self.assertEqual('control.branch', result['nodes'][3]['children'][0]['type'])
+        self.assertEqual('motion.goto', result['nodes'][3]['children'][0]['children'][0]['type'])
         self.assertEqual('looks.switch_costume', result['nodes'][3]['elseChildren'][0]['type'])
 
     def test_range_and_list_iteration_are_distinct(self):
@@ -47,7 +48,7 @@ self.move(2)
 '''))
         self.assertIsNone(result['error'])
         self.assertEqual(['comment', 'data.set_local', 'motion.move'], [node['type'] for node in result['nodes']])
-        self.assertEqual('# keep this', result['nodes'][0]['text'])
+        self.assertEqual('keep this', result['nodes'][0]['text'])
 
     def test_syntax_errors_do_not_throw(self):
         result = blocks_service.build_blocks(dict(source='if True:\n'))

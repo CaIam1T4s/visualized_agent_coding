@@ -1,0 +1,145 @@
+{
+  "version": 2,
+  "currentBackdropId": "object-5729349050ea4c368db4e8571d4d6842",
+  "objects": [
+    {
+      "objectId": "object-f278e4ac0355429a97880da925fe169e",
+      "x": -155.5,
+      "y": -71.4,
+      "size": 46,
+      "direction": 90,
+      "visible": true,
+      "layer": 0,
+      "imagePath": "assets/images/25286ad12d9a4461ae6930764c5468cb.jpg",
+      "normalizeImage": true,
+      "clickEnabled": true,
+      "costumes": [
+        {
+          "id": "costume-0caa8afd2d224533962cbfc0fa181316",
+          "name": "\u9020\u578B 1",
+          "imagePath": "assets/images/25286ad12d9a4461ae6930764c5468cb.jpg",
+          "normalizeImage": true
+        }
+      ],
+      "initialCostumeId": "costume-0caa8afd2d224533962cbfc0fa181316"
+    },
+    {
+      "objectId": "object-a99a7969597d4ef1bad0e562d3a7b179",
+      "x": 0,
+      "y": 0,
+      "size": 100,
+      "direction": 90,
+      "visible": true,
+      "layer": 0,
+      "imagePath": null,
+      "normalizeImage": false,
+      "clickEnabled": true,
+      "costumes": [],
+      "initialCostumeId": null
+    },
+    {
+      "objectId": "object-d1d116bd94234f35b35c5b603034dc6a",
+      "x": 100,
+      "y": 0,
+      "size": 100,
+      "direction": 119,
+      "visible": true,
+      "layer": 0,
+      "imagePath": null,
+      "normalizeImage": false,
+      "clickEnabled": true,
+      "costumes": [],
+      "initialCostumeId": null
+    },
+    {
+      "objectId": "object-0ac87f6565a3460fbd0050cbf9e4d152",
+      "x": -159,
+      "y": 136.8,
+      "size": 100,
+      "direction": 93,
+      "visible": true,
+      "layer": 0,
+      "imagePath": "assets/images/45333fd083c04fe5be4e8f5081205045.png",
+      "normalizeImage": false,
+      "clickEnabled": true,
+      "costumes": [
+        {
+          "id": "costume-5ba7e61260b8451da26a42e130c71a83",
+          "name": "\u9020\u578B 1",
+          "imagePath": "assets/images/45333fd083c04fe5be4e8f5081205045.png",
+          "normalizeImage": false
+        }
+      ],
+      "initialCostumeId": "costume-5ba7e61260b8451da26a42e130c71a83"
+    },
+    {
+      "objectId": "object-27cb97f2b2be4cffa9fbe79a930e3733",
+      "x": 86.8,
+      "y": -16.5,
+      "size": 66,
+      "direction": 123,
+      "visible": true,
+      "layer": 0,
+      "imagePath": "assets/images/d7f488733c8540a2a6c4fb7517453a43.jpg",
+      "normalizeImage": true,
+      "clickEnabled": true,
+      "costumes": [
+        {
+          "id": "costume-347d9898c6f74b438e8a68e015908aca",
+          "name": "1",
+          "imagePath": "assets/images/d32fb9655a3b43fdbb00e11bd72ee678.jpg",
+          "normalizeImage": true
+        },
+        {
+          "id": "costume-9d7f007d1f7e4cbf8b7931d9bfb8bca1",
+          "name": "2",
+          "imagePath": "assets/images/d7f488733c8540a2a6c4fb7517453a43.jpg",
+          "normalizeImage": true
+        }
+      ],
+      "initialCostumeId": "costume-9d7f007d1f7e4cbf8b7931d9bfb8bca1"
+    },
+    {
+      "objectId": "object-5729349050ea4c368db4e8571d4d6842",
+      "x": 0,
+      "y": 0,
+      "size": 100,
+      "direction": 90,
+      "visible": true,
+      "layer": 0,
+      "imagePath": "assets/images/a1dbfb2b760f4f8f85cc96691db4e61f.jpg",
+      "normalizeImage": false,
+      "clickEnabled": true,
+      "costumes": [
+        {
+          "id": "costume-bf457f412f1347a5ab79127ca5f811f2",
+          "name": "\u9020\u578B 1",
+          "imagePath": "assets/images/a1dbfb2b760f4f8f85cc96691db4e61f.jpg",
+          "normalizeImage": false
+        }
+      ],
+      "initialCostumeId": "costume-bf457f412f1347a5ab79127ca5f811f2"
+    },
+    {
+      "objectId": "object-618033b20b1f41e18fc9ee94ad0d5ddb",
+      "x": 0,
+      "y": 0,
+      "size": 100,
+      "direction": 90,
+      "visible": true,
+      "layer": 0,
+      "imagePath": "assets/images/2cfaae8db57146b7bd7500082c7c1f65.jpg",
+      "normalizeImage": false,
+      "clickEnabled": true,
+      "costumes": [
+        {
+          "id": "costume-e1e65b2a9be84bd19d18954212a2f3b8",
+          "name": "\u9020\u578B 1",
+          "imagePath": "assets/images/2cfaae8db57146b7bd7500082c7c1f65.jpg",
+          "normalizeImage": false
+        }
+      ],
+      "initialCostumeId": "costume-e1e65b2a9be84bd19d18954212a2f3b8"
+    }
+  ]
+}

@@ -23,6 +23,11 @@ public static class BlueprintReconnectValidator
         ArgumentNullException.ThrowIfNull(target);
         var problems = new List<string>();
         if (source.Id == target.Id) problems.Add("不能把节点连接到自身。");
+        if (source.Kind == NodeKind.Start)
+        {
+            if (target.Parent?.Id == source.Id) return ReconnectValidation.Ok;
+            return ReconnectValidation.Fail("起始节点只能连接到它的第一条语句。");
+        }
         if (source.Parent != target.Parent) problems.Add("首版只允许同一语句链内重连。");
         if (IsDescendant(target, source)) problems.Add("不能把节点连接到自己或自己的子节点。");
         if (!source.Ports.Any(port => port.IsExec && !port.IsInput)) problems.Add("源节点没有执行输出。");

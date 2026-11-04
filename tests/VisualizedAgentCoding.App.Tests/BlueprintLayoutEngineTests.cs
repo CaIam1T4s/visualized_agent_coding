@@ -28,6 +28,64 @@ public sealed class BlueprintLayoutEngineTests
     }
 
     [Fact]
+    public void CommentHeightMatchesVisibleLinesAndInlineCommentWidensNode()
+    {
+        var comment = new BlueprintNode
+        {
+            Id = "c",
+            Type = "comment",
+            Kind = NodeKind.Comment,
+            DisplayName = "注释",
+            Text = "one\ntwo",
+        };
+        var measure = new BlueprintLayoutEngine().Measure(comment);
+        Assert.Equal(BlueprintLayoutEngine.HeaderHeight + 2 * 18 + 6, measure.Height);
+        comment.Text = "\none\ntwo\n";
+        Assert.Equal(measure.Height, new BlueprintLayoutEngine().Measure(comment).Height);
+
+        var node = Statement("移动");
+        var plain = new BlueprintLayoutEngine().Measure(node);
+        node.InlineComment = string.Concat(Enumerable.Repeat("long inline comment ", 8));
+        var widened = new BlueprintLayoutEngine().Measure(node);
+        Assert.True(widened.Width > plain.Width);
+    }
+
+
+    [Fact]
+    public void BranchChildPositionStaysStableAcrossRepeatedLayout()
+    {
+        var ifNode = new BlueprintNode
+        {
+            Id = "if",
+            Type = "control.if",
+            Kind = NodeKind.ControlFlow,
+            DisplayName = "如果",
+            HasPosition = true,
+        };
+        var branch = new BlueprintNode
+        {
+            Id = "branch",
+            Type = "control.branch",
+            Kind = NodeKind.ControlFlow,
+            DisplayName = "条件",
+            Parent = ifNode,
+        };
+        var body = Statement("body");
+        body.Parent = branch;
+        branch.Children.Add(body);
+        ifNode.Children.Add(branch);
+        var document = new BlueprintDocument { ScriptId = "s", RegionId = "r" };
+        document.Roots.Add(ifNode);
+
+        var engine = new BlueprintLayoutEngine();
+        engine.Layout(document);
+        var firstY = body.Y;
+        engine.Layout(document);
+
+        Assert.Equal(firstY, body.Y);
+    }
+
+    [Fact]
     public void PlaceAfterShiftsFollowingSiblings()
     {
         var a = Statement("a");
@@ -74,7 +132,7 @@ public sealed class BlueprintLayoutEngineTests
 
         new BlueprintLayoutEngine().AutoArrange(document);
 
-        Assert.False(node.HasPosition);
+        Assert.True(node.HasPosition);
         Assert.Equal(0, node.X);
         Assert.Equal(0, node.Y);
     }
@@ -91,4 +149,46 @@ public sealed class BlueprintLayoutEngineTests
             new("exec-out", PortKind.Exec, NodeRelation.Next, IsInput: false),
         },
     };
+}
+
+public sealed class BlueprintLayoutMatchTests
+{
+    [Fact]
+    public void MatchCasesDoNotRecurseForever()
+    {
+        var match = new BlueprintNode
+        {
+            Id = "match",
+            Type = "control.match",
+            Kind = NodeKind.ControlFlow,
+            DisplayName = "匹配",
+            Ports =
+            {
+                new("exec-in", PortKind.Exec, NodeRelation.Next, IsInput: true),
+                new("exec-out", PortKind.Exec, NodeRelation.Next, IsInput: false),
+                new("branch-0", PortKind.Exec, NodeRelation.Exec, IsInput: false),
+            },
+        };
+        var caseNode = new BlueprintNode
+        {
+            Id = "case",
+            Type = "control.case",
+            Kind = NodeKind.ControlFlow,
+            DisplayName = "case",
+            Parent = match,
+            Ports =
+            {
+                new("exec-in", PortKind.Exec, NodeRelation.Next, IsInput: true),
+                new("exec-out", PortKind.Exec, NodeRelation.Next, IsInput: false),
+            },
+        };
+        match.Children.Add(caseNode);
+        var document = new BlueprintDocument { ScriptId = "s", RegionId = "r" };
+        document.Roots.Add(match);
+
+        var bounds = new BlueprintLayoutEngine().Layout(document);
+
+        Assert.Contains(bounds, item => item.Id == "match");
+        Assert.Contains(bounds, item => item.Id == "case");
+    }
 }

@@ -24,6 +24,18 @@ public partial class BlueprintEditorView : UserControl
             model.ReconnectBlueprintNodes(e.Source, e.Target);
     }
 
+    private void OnBlueprintAnnotation(object? sender, happy_agent_coding.Controls.BlueprintWorkspace.BlueprintReconnectEventArgs e)
+    {
+        if (DataContext is ViewModels.MainViewModel model)
+            model.BindBlueprintComment(e.Source, e.Target);
+    }
+
+    private void OnBlueprintValueEdited(object? sender, happy_agent_coding.Controls.BlueprintWorkspace.BlueprintValueEditedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainViewModel model)
+            model.UpdateBlueprintValue(e.Node, e.Port, e.Value);
+    }
+
     private void OnBlueprintNodeMoved(VisualizedAgentCoding.Domain.Blueprint.BlueprintNode node)
     {
         if (DataContext is ViewModels.MainViewModel model)
@@ -34,6 +46,42 @@ public partial class BlueprintEditorView : UserControl
     {
         if (DataContext is ViewModels.MainViewModel model)
             model.InsertBlueprintStatement();
+    }
+
+    private void OnPaletteInsert(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string text } && DataContext is ViewModels.MainViewModel model)
+            model.InsertBlueprintStatement(text);
+    }
+
+    private void OnContextInsert(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: string text } && DataContext is ViewModels.MainViewModel model)
+            model.InsertBlueprintStatement(text);
+    }
+
+    private void OnWorkspaceInsert(object? sender, string text)
+    {
+        if (DataContext is ViewModels.MainViewModel model)
+            model.InsertBlueprintStatement(text);
+    }
+
+    private void OnWorkspaceDelete(object? sender, EventArgs e)
+    {
+        if (DataContext is ViewModels.MainViewModel model)
+            model.DeleteSelectedBlueprintNode();
+    }
+
+    private void OnWorkspaceArrange(object? sender, EventArgs e)
+    {
+        if (DataContext is ViewModels.MainViewModel model)
+            model.ArrangeBlueprintNodes();
+    }
+
+    private void OnArrangeBlueprintNodes(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainViewModel model)
+            model.ArrangeBlueprintNodes();
     }
 
     private void OnDeleteBlueprintNode(object? sender, RoutedEventArgs e)

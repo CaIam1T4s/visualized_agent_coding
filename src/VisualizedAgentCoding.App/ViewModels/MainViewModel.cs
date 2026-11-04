@@ -58,6 +58,10 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<RecentProjectEntry> RecentProjectsOlder { get; } = [];
     public bool HasRecentProjects => RecentProjectsToday.Count + RecentProjectsThisWeek.Count +
         RecentProjectsThisMonth.Count + RecentProjectsOlder.Count > 0;
+    public bool HasRecentProjectsToday => RecentProjectsToday.Count > 0;
+    public bool HasRecentProjectsThisWeek => RecentProjectsThisWeek.Count > 0;
+    public bool HasRecentProjectsThisMonth => RecentProjectsThisMonth.Count > 0;
+    public bool HasRecentProjectsOlder => RecentProjectsOlder.Count > 0;
 
     private void ReportResourceMessage(string message)
     {
@@ -866,6 +870,10 @@ public partial class MainViewModel : ViewModelBase
             bucket.Add(item);
         }
         OnPropertyChanged(nameof(HasRecentProjects));
+        OnPropertyChanged(nameof(HasRecentProjectsToday));
+        OnPropertyChanged(nameof(HasRecentProjectsThisWeek));
+        OnPropertyChanged(nameof(HasRecentProjectsThisMonth));
+        OnPropertyChanged(nameof(HasRecentProjectsOlder));
     }
 
     [RelayCommand]

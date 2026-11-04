@@ -72,6 +72,12 @@ match command:
         self.assertEqual(0, comment['start'])
         self.assertEqual('文档', result['nodes'][1]['text'])
 
+
+    def test_blank_comment_lines_are_removed(self):
+        result = nodes_service.build_blocks(dict(source='# a\n#\n# b\nself.move(1)\n'))
+        comment = result['nodes'][0]
+        self.assertEqual('a\nb', comment['text'])
+
     def test_legacy_blocks_entry_still_works(self):
         result = nodes_service.build_blocks(dict(source='self.turn(15)'))
         self.assertEqual('motion.turn', result['nodes'][0]['type'])

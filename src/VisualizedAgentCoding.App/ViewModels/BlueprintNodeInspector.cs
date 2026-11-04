@@ -31,8 +31,11 @@ public sealed partial class BlueprintArgumentItem : ObservableObject
 public sealed partial class BlueprintNodeInspector : ObservableObject
 {
     public ObservableCollection<BlueprintArgumentItem> Arguments { get; } = [];
+    public bool HasNode => Node is not null;
 
-    [ObservableProperty] private BlueprintNode? node;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNode))]
+    private BlueprintNode? node;
     [ObservableProperty] private string title = "未选择节点";
     [ObservableProperty] private string subtitle = string.Empty;
     [ObservableProperty] private string newStatement = "self.health = 100";

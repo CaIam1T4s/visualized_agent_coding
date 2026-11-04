@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 2,
+  "projectId": "project-ff8f043a84514a6c84af5340d00d7114",
+  "name": "ProjectFunctionTest",
+  "mainScript": "scripts/main.py",
+  "mainScriptId": "script-d236d0372fda4a6b873e39096becb59f",
+  "scripts": [
+    {
+      "id": "script-c9f44a6e4c924114b6df590ab02e8af6",
+      "path": "scripts/user/test.py",
+      "kind": 0,
+      "objectId": null
+    },
+    {
+      "id": "script-cdd558c0f6b54bb793771a6dd95cc803",
+      "path": "scripts/user/\u4F60\u597D.py",
+      "kind": 0,
+      "objectId": null
+    },
+    {
+      "id": "script-7856360e2bc54be7a5933336ddfaf4ef",
+      "path": "scripts/user/ciao.py",
+      "kind": 0,
+      "objectId": null
+    },
+    {
+      "id": "script-fa8f872740b4419ea3a8c4feb30b86ab",
+      "path": "scripts/user/welcome.py",
+      "kind": 0,
+      "objectId": null
+    },
+    {
+      "id": "script-a41483c658984b3880e3aac78409d1d9",
+      "path": "scripts/objects/hero.py",
+      "kind": 1,
+      "objectId": "object-f40eacb191b04e9a89e0963ba7c3ec37"
+    },
+    {
+      "id": "script-994a261c52b54211b578299499c4c019",
+      "path": "scripts/objects/test.py",
+      "kind": 1,
+      "objectId": "object-0294ebd53d9948c59a912952e75922bc"
+    },
+    {
+      "id": "script-99b0c18df474440f82ec279270766fd8",
+      "path": "scripts/objects/v2.py",
+      "kind": 1,
+      "objectId": "object-a618d8279cdb4ac7a2169ae9f7c04feb"
+    },
+    {
+      "id": "script-45da93cf170b4baa8511da99d87f9da2",
+      "path": "scripts/objects/v2test.py",
+      "kind": 1,
+      "objectId": "object-472632e42bfb49a2a057202629c7617c"
+    },
+    {
+      "id": "script-e8dbcdac0ca947eda3686b008397163c",
+      "path": "scripts/user/tab_test.py",
+      "kind": 0,
+      "objectId": null
+    },
+    {
+      "id": "script-c89a278e8d594030a9e5a30759a69472",
+      "path": "scripts/user/call_tool_test.py",
+      "kind": 0,
+      "objectId": null
+    }
+  ],
+  "pendingScriptDeletions": [
+    "scripts/backdrops/forest.py"
+  ],
+  "eventHandlers": []
+}
